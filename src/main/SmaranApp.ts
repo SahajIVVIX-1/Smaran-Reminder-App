@@ -189,7 +189,12 @@ export class SmaranApp {
     return config.app.respectFocusAssist && (await windowsIsBusy());
   }
 
+  /**
+   * Applies start-at-login once per launch and on every change (so a moved portable exe is
+   * re-registered at its new path). Nothing is written until the user has seen the welcome.
+   */
   private syncSystem(config: Config): void {
+    if (!config.app.onboarded) return;
     if (this.lastLoginItem !== config.app.startAtLogin) {
       this.lastLoginItem = config.app.startAtLogin;
       applyLoginItem(config.app.startAtLogin);
