@@ -1,4 +1,6 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, dialog, screen } from 'electron';
+import { registerIpcHandlers } from './ipc/handlers';
+import { ConfigStore } from './store/ConfigStore';
 import { showSettingsWindow } from './windows/SettingsWindow';
 
 const APP_ID = 'com.sahaj.smaran';
@@ -13,7 +15,18 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(() => {
     app.setAppUserModelId(APP_ID);
-    showSettingsWindow();
+
+    // %APPDATA%\Smaran (userData follows productName).
+    const store = new ConfigStore(app.getPath('userData'), {
+      primaryDisplayId: () => screen.getPrimaryDisplay().id,
+    });
+    const { notice } = store.load();
+    registerIpcHandlers(store);
+
+    const settings = showSettingsWindow();
+    if (notice) {
+      void dialog.showMessageBox(settings, { type: 'warning', title: 'Smaran', message: notice });
+    }
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) showSettingsWindow();

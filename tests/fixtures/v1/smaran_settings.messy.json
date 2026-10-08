@@ -1,0 +1,19 @@
+{
+  "messages": ["Breathe", "Breathe", "GLOBAL", "  ", "Pay rent", 42],
+  "burst_count": 500,
+  "burst_gap_seconds": -3,
+  "schedule_mode": "Yearly",
+  "schedule_time": "7:5",
+  "schedule_month": 2,
+  "schedule_day": 29,
+  "auto_start": "yes",
+  "text_color": "not a colour",
+  "bg_color": "#80ff0000",
+  "font_size": 999,
+  "font_weight": 600,
+  "opacity": 0,
+  "message_settings": {
+    "Breathe": { "italic": true, "position": { "x": "left", "y": 10 } },
+    "Removed message": { "font_size": 40 }
+  }
+}

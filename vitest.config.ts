@@ -10,7 +10,7 @@ export default defineConfig({
     env: { TZ: 'America/New_York' },
     coverage: {
       provider: 'v8',
-      include: ['src/shared/**/*.ts'],
+      include: ['src/shared/**/*.ts', 'src/main/store/**/*.ts'],
       reporter: ['text', 'html'],
       thresholds: { branches: 100, functions: 100, lines: 100, statements: 100 },
     },

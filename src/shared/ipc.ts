@@ -18,3 +18,6 @@ export const IPC = {
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
+
+/** config:save result. `error` is plain English, ready to show. */
+export type SaveResult = { ok: true } | { ok: false; error: string };
