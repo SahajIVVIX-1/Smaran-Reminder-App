@@ -10,9 +10,26 @@ export default defineConfig({
     env: { TZ: 'America/New_York' },
     coverage: {
       provider: 'v8',
-      include: ['src/shared/**/*.ts', 'src/main/store/**/*.ts'],
+      // Pure logic only. Electron-bound code (windows, tray, IPC) is covered by the e2e tests.
+      include: [
+        'src/shared/**/*.ts',
+        'src/main/store/**/*.ts',
+        'src/main/scheduler/**/*.ts',
+        'src/main/windows/placement.ts',
+        'src/main/system/dataFolder.ts',
+        'src/main/tray/tooltip.ts',
+      ],
+      exclude: ['src/shared/channels.ts'],
       reporter: ['text', 'html'],
-      thresholds: { branches: 100, functions: 100, lines: 100, statements: 100 },
+      thresholds: {
+        // Shared logic and the store: everything (the plan's Phase 1–2 gate).
+        'src/shared/**': { branches: 100, functions: 100, lines: 100, statements: 100 },
+        'src/main/store/**': { branches: 100, functions: 100, lines: 100, statements: 100 },
+        // Scheduler, placement, tray text: all lines; a few defensive fallbacks stay unbranched.
+        lines: 100,
+        functions: 100,
+        branches: 90,
+      },
     },
   },
 });

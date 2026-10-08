@@ -91,11 +91,10 @@ export const StyleFieldsSchema = z.object({
 });
 export type StyleFields = z.infer<typeof StyleFieldsSchema>;
 
-export const StyleSchema = StyleFieldsSchema.extend({
-  id: IdSchema,
-  name: z.string().min(1),
-  isDefault: z.boolean(),
-});
+// Identity first, so saved files read naturally and round-trip in the same key order.
+export const StyleSchema = z
+  .object({ id: IdSchema, name: z.string().min(1), isDefault: z.boolean() })
+  .extend(StyleFieldsSchema.shape);
 export type Style = z.infer<typeof StyleSchema>;
 
 /** Deep-partial StyleFields. `position` is replaced as a whole, never merged field by field. */
@@ -214,6 +213,8 @@ export const AppSettingsSchema = z.object({
   respectFocusAssist: z.boolean(),
   /** ISO time; "until resumed" is stored as a far-future date. */
   pausedUntil: z.iso.datetime({ offset: true }).nullable(),
+  /** First-run welcome has been shown. */
+  onboarded: z.boolean(),
 });
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
 

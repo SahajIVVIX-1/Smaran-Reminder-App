@@ -1,12 +1,16 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import type { PopupInit } from '@shared/ipc';
+import { Popup } from './Popup';
 
-// Popup entry. Phase 3 renders the shared PopupCard here from popup:init.
 const root = document.getElementById('root');
 if (!root) throw new Error('Popup root element is missing.');
 
-createRoot(root).render(
-  <StrictMode>
-    <div />
-  </StrictMode>,
-);
+// Main sends the content once the page has loaded.
+window.smaranPopup.onInit((init: PopupInit) => {
+  createRoot(root).render(
+    <StrictMode>
+      <Popup text={init.text} style={init.style} />
+    </StrictMode>,
+  );
+});

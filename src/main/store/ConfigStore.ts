@@ -26,6 +26,11 @@ export interface LoadResult {
 
 export type ConfigListener = (config: Config) => void;
 
+export interface SaveOptions {
+  /** Copy the current file into backups/ first. Default true. */
+  backup?: boolean;
+}
+
 /**
  * The only reader and writer of config.json. Everything else asks it for the config
  * and sends whole validated configs back; it broadcasts every change to listeners.
@@ -105,13 +110,17 @@ export class ConfigStore {
     return this.config;
   }
 
-  /** Validates and saves a whole config, then tells every listener. */
-  save(next: unknown): SaveResult {
+  /**
+   * Validates and saves a whole config, then tells every listener.
+   * Pass `backup: false` for frequent internal writes (scheduler runtime, popup drags)
+   * so they don't push real backups out of the rolling set.
+   */
+  save(next: unknown, options: SaveOptions = {}): SaveResult {
     const parsed = ConfigSchema.safeParse(next);
     if (!parsed.success) return { ok: false, error: z.prettifyError(parsed.error) };
     const config = reconcileRuntime(parsed.data);
     try {
-      this.write(config);
+      this.write(config, options.backup ?? true);
     } catch (error) {
       return {
         ok: false,
@@ -124,8 +133,8 @@ export class ConfigStore {
   }
 
   /** Applies a change to the current config, e.g. a popup drag or a scheduler runtime update. */
-  update(change: (current: Config) => Config): SaveResult {
-    return this.save(change(structuredClone(this.get())));
+  update(change: (current: Config) => Config, options: SaveOptions = {}): SaveResult {
+    return this.save(change(structuredClone(this.get())), options);
   }
 
   onChange(listener: ConfigListener): () => void {
@@ -157,9 +166,9 @@ export class ConfigStore {
   }
 
   /** Backs up the current file, then writes atomically: temp file + rename. */
-  private write(config: Config): void {
+  private write(config: Config, backup = true): void {
     fs.mkdirSync(this.dir, { recursive: true });
-    if (fs.existsSync(this.filePath)) this.backupCurrent();
+    if (backup && fs.existsSync(this.filePath)) this.backupCurrent();
     const tmp = `${this.filePath}.tmp`;
     fs.writeFileSync(tmp, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
     fs.renameSync(tmp, this.filePath);

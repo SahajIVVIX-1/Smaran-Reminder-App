@@ -1,25 +1,44 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-raised: var(--raised);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-danger: var(--danger);
+  --font-sans: 'Segoe UI', system-ui, sans-serif;
+}
+
 :root {
-  color-scheme: light dark;
-  --bg: #f7f7f8;
+  --bg: #f4f4f6;
   --panel: #ffffff;
-  --text: #1c1c1e;
-  --muted: #6b6b70;
-  --border: #e3e3e6;
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  --raised: #ececf0;
+  --ink: #1c1c1e;
+  --muted: #6b6b73;
+  --line: #dedee3;
+  --accent: #5b5fe0;
+  --accent-ink: #ffffff;
+  --danger: #c62828;
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #1b1b1d;
-    --panel: #232326;
-    --text: #ececef;
-    --muted: #9a9aa1;
-    --border: #333338;
-  }
-}
-
-* {
-  box-sizing: border-box;
+.dark {
+  --bg: #18181b;
+  --panel: #222226;
+  --raised: #2c2c31;
+  --ink: #ececef;
+  --muted: #9a9aa3;
+  --line: #36363c;
+  --accent: #7c83fd;
+  --accent-ink: #0f0f12;
+  --danger: #ef6b6b;
+  color-scheme: dark;
 }
 
 html,
@@ -31,49 +50,22 @@ body,
 
 body {
   background: var(--bg);
-  color: var(--text);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
 }
 
-.layout {
-  display: flex;
-  height: 100%;
-}
-
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 200px;
-  padding: 16px 8px;
-  background: var(--panel);
-  border-right: 1px solid var(--border);
-}
-
-.brand {
-  padding: 4px 12px 16px;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.nav-item {
-  padding: 8px 12px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-}
-
-.nav-item:disabled {
-  color: var(--muted);
-}
-
-.content {
-  flex: 1;
-  padding: 24px 32px;
-}
-
-.muted {
-  color: var(--muted);
+.checker {
+  background-color: #8a8f99;
+  background-image:
+    linear-gradient(45deg, #7a7f89 25%, transparent 25%),
+    linear-gradient(-45deg, #7a7f89 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #7a7f89 75%),
+    linear-gradient(-45deg, transparent 75%, #7a7f89 75%);
+  background-size: 20px 20px;
+  background-position:
+    0 0,
+    0 10px,
+    10px -10px,
+    -10px 0;
 }

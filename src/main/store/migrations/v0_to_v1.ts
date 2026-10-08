@@ -118,7 +118,12 @@ export function importV1(raw: Raw, opts: V1ImportOptions): Config {
 
   return {
     version: SCHEMA_VERSION,
-    app: { ...DEFAULT_APP_SETTINGS, startAtLogin: bool(raw['auto_start'], true) },
+    app: {
+      ...DEFAULT_APP_SETTINGS,
+      startAtLogin: bool(raw['auto_start'], true),
+      // A v1 user already set Smaran up; skip the first-run welcome.
+      onboarded: true,
+    },
     styles,
     messages,
     schedules: [schedule],

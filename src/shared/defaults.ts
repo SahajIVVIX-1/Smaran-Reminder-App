@@ -29,7 +29,11 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   theme: 'system',
   respectFocusAssist: true,
   pausedUntil: null,
+  onboarded: false,
 };
+
+/** Stored for "pause until resumed". */
+export const PAUSED_FOREVER = '9999-12-31T00:00:00.000Z';
 
 export function createDefaultStyle(newId: NewId = randomId): Style {
   return {

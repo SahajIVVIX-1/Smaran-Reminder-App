@@ -23,11 +23,20 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/ban-ts-comment': 'error',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { ignoreRestSiblings: true, argsIgnorePattern: '^_' },
+      ],
     },
   },
   {
     files: ['src/main/**', 'src/preload/**', 'scripts/**', 'tests/**', '*.config.*'],
     languageOptions: { globals: globals.node },
+  },
+  {
+    // Tests may assert that fixtures exist.
+    files: ['tests/**'],
+    rules: { '@typescript-eslint/no-non-null-assertion': 'off' },
   },
   {
     files: ['src/renderer/**/*.{ts,tsx}'],
