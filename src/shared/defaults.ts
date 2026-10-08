@@ -17,13 +17,13 @@ export const PAUSED_FOREVER = '9999-12-31T00:00:00.000Z';
 
 export const DEFAULT_SETTINGS: Settings = {
   startAtLogin: true,
-  theme: 'system',
+  theme: 'dark',
   notification: {
-    corner: 'bottom-right',
+    corner: 'top-center',
     screen: 'primary',
     size: 'comfortable',
     sound: true,
-    hideAfterSec: 12,
+    hideAfterSec: 8,
   },
   quietHours: { enabled: false, from: '22:00', to: '07:00' },
   holdWhenBusy: true,
@@ -60,6 +60,7 @@ export function createReminder(
     hideAfterSec: null,
     followUp: { enabled: false, everyMin: 10, times: 2 },
     color: 'clay',
+    sound: 'default',
     createdAt: stamp,
     updatedAt: stamp,
   };

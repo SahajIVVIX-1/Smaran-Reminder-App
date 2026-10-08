@@ -13,13 +13,14 @@ import type { Notifier } from '../engine/Engine';
 import { loadRenderer, preloadPath } from './loadRenderer';
 import { pickDisplay, stackLayout, type Size } from './placement';
 
-/** Card width per size; the window adds room for the card's soft shadow. */
-const CARD_WIDTH: Record<Settings['notification']['size'], number> = {
-  compact: 320,
+/** First guess at the window width; the card reports its real size (card + shadow room). */
+const WINDOW_WIDTH: Record<Settings['notification']['size'], number> = {
+  compact: 336,
   comfortable: 368,
-  large: 420,
+  large: 412,
 };
-const SHADOW = 16;
+/** Cards already on screen glide to their new place when the stack changes. */
+const GLIDE_MS = 220;
 const MAX_VISIBLE = 4;
 const MEASURE_TIMEOUT_MS = 4000;
 
@@ -31,6 +32,7 @@ interface Card {
   shown: boolean;
   closing: boolean;
   createdAt: number;
+  glide: ReturnType<typeof setInterval> | null;
 }
 
 /**
@@ -57,10 +59,7 @@ export class NotificationCenter implements Notifier {
       const card = this.fromSender(event.sender);
       const size = MeasuredSchema.safeParse(payload);
       if (!card || !size.success) return;
-      card.size = {
-        width: Math.ceil(size.data.w) + SHADOW * 2,
-        height: Math.ceil(size.data.h) + SHADOW * 2,
-      };
+      card.size = { width: Math.ceil(size.data.w), height: Math.ceil(size.data.h) };
       card.ready = true;
       this.layout();
     });
@@ -89,7 +88,7 @@ export class NotificationCenter implements Notifier {
           : settings.theme,
       size: settings.notification.size,
     };
-    const width = CARD_WIDTH[look.size] + SHADOW * 2;
+    const width = WINDOW_WIDTH[look.size];
     const win = new BrowserWindow({
       width,
       height: 160,
@@ -120,6 +119,7 @@ export class NotificationCenter implements Notifier {
       shown: false,
       closing: false,
       createdAt: Date.now(),
+      glide: null,
     };
     this.cards.set(request.key, card);
     win.on('closed', () => {
@@ -171,6 +171,7 @@ export class NotificationCenter implements Notifier {
   private destroy(card: Card): void {
     if (this.cards.get(card.key) !== card) return;
     this.cards.delete(card.key);
+    if (card.glide) clearInterval(card.glide);
     if (!card.win.isDestroyed()) card.win.destroy();
     this.layout();
   }
@@ -198,7 +199,8 @@ export class NotificationCenter implements Notifier {
     visible.forEach((card, i) => {
       const pos = positions[i];
       if (!pos) return;
-      card.win.setBounds({ ...pos, ...card.size });
+      if (card.shown) this.glideTo(card, pos);
+      else card.win.setBounds({ ...pos, ...card.size });
       if (!card.shown) {
         card.shown = true;
         card.win.setAlwaysOnTop(true, 'screen-saver');
@@ -209,5 +211,30 @@ export class NotificationCenter implements Notifier {
         });
       }
     });
+  }
+
+  /** Eases a visible card to a new spot instead of jumping. */
+  private glideTo(card: Card, to: { x: number; y: number }): void {
+    if (card.glide) clearInterval(card.glide);
+    const from = card.win.getBounds();
+    if (from.x === to.x && from.y === to.y) return;
+    const start = Date.now();
+    card.glide = setInterval(() => {
+      if (card.win.isDestroyed()) {
+        if (card.glide) clearInterval(card.glide);
+        return;
+      }
+      const t = Math.min(1, (Date.now() - start) / GLIDE_MS);
+      const e = 1 - Math.pow(1 - t, 3);
+      card.win.setBounds({
+        x: Math.round(from.x + (to.x - from.x) * e),
+        y: Math.round(from.y + (to.y - from.y) * e),
+        ...card.size,
+      });
+      if (t === 1 && card.glide) {
+        clearInterval(card.glide);
+        card.glide = null;
+      }
+    }, 16);
   }
 }

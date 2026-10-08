@@ -87,6 +87,8 @@ export interface AppInfo {
   dataFolder: string;
   portable: boolean;
   electron: string;
+  /** The window has Windows 11's acrylic backdrop, so the page can be translucent. */
+  glass: boolean;
 }
 
 export type Route = 'today' | 'reminders' | 'history' | 'settings';

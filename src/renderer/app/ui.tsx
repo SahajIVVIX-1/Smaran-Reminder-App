@@ -22,7 +22,7 @@ export function Button({ variant = 'secondary', size = 'md', className, ...rest 
         'transition-[background-color,color,box-shadow,transform] duration-150 active:scale-[0.98]',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
         'disabled:pointer-events-none disabled:opacity-45',
-        size === 'sm' ? 'h-7 px-2.5 text-[12.5px]' : 'h-9 px-3.5 text-[13.5px]',
+        size === 'sm' ? 'h-7 px-2.5 text-[12px]' : 'h-8 px-3 text-[13px]',
         variant === 'primary' && 'bg-accent text-on-accent shadow-sm hover:bg-accent-hover',
         variant === 'secondary' && 'border border-line bg-surface text-ink hover:bg-raised',
         variant === 'ghost' && 'text-muted hover:bg-hover hover:text-ink',
@@ -39,7 +39,7 @@ export function IconButton({ className, ...rest }: ButtonHTMLAttributes<HTMLButt
     <button
       type="button"
       className={cx(
-        'grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted transition-colors duration-150',
+        'grid h-7 w-7 shrink-0 place-items-center rounded-lg text-muted transition-colors duration-150',
         'hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-accent',
         className,
       )}
@@ -49,12 +49,12 @@ export function IconButton({ className, ...rest }: ButtonHTMLAttributes<HTMLButt
 }
 
 const field =
-  'rounded-lg border border-line bg-surface px-3 text-[13.5px] text-ink placeholder:text-faint ' +
+  'rounded-lg border border-line bg-surface px-2.5 text-[13px] text-ink placeholder:text-faint ' +
   'transition-[border-color,box-shadow] duration-150 focus:border-accent/60 focus:ring-3 focus:ring-accent-soft focus:outline-none';
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   function Input({ className, ...rest }, ref) {
-    return <input ref={ref} type="text" className={cx(field, 'h-9 w-full', className)} {...rest} />;
+    return <input ref={ref} type="text" className={cx(field, 'h-8 w-full', className)} {...rest} />;
   },
 );
 
@@ -72,7 +72,7 @@ export function Select({ className, ...rest }: SelectHTMLAttributes<HTMLSelectEl
     <select
       className={cx(
         field,
-        'h-9 cursor-pointer pr-8',
+        'h-8 cursor-pointer pr-7',
         className?.includes('w-') ? className : cx('w-full', className),
       )}
       {...rest}
@@ -107,9 +107,9 @@ export function NumberField({
           const n = e.currentTarget.valueAsNumber;
           if (!Number.isNaN(n)) onChange(Math.min(max, Math.max(min, Math.round(n))));
         }}
-        className={cx(field, 'h-9 w-20 text-center')}
+        className={cx(field, 'h-8 w-16 text-center')}
       />
-      {suffix && <span className="text-[13px] text-muted">{suffix}</span>}
+      {suffix && <span className="text-[12.5px] text-muted">{suffix}</span>}
     </span>
   );
 }
@@ -137,15 +137,15 @@ export function Switch({
         onChange(!checked);
       }}
       className={cx(
-        'relative h-[22px] w-[38px] shrink-0 rounded-full transition-colors duration-200',
+        'relative h-[20px] w-[34px] shrink-0 rounded-full transition-colors duration-200',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
         checked ? 'bg-accent' : 'bg-line',
       )}
     >
       <span
         className={cx(
-          'absolute top-[3px] left-[3px] h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)]',
-          checked && 'translate-x-4',
+          'absolute top-[3px] left-[3px] h-[14px] w-[14px] rounded-full bg-white shadow-sm transition-transform duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)]',
+          checked && 'translate-x-[14px]',
         )}
       />
     </button>
@@ -177,7 +177,7 @@ export function Segmented<T extends string>({
           aria-checked={o.value === value}
           onClick={() => onChange(o.value)}
           className={cx(
-            'h-8 rounded-md px-3 text-[13px] transition-[background-color,color,box-shadow] duration-150',
+            'h-7 rounded-md px-2.5 text-[12.5px] transition-[background-color,color,box-shadow] duration-150',
             o.value === value
               ? 'bg-surface font-medium text-ink shadow-sm ring-1 ring-line'
               : 'text-muted hover:text-ink',
@@ -203,14 +203,14 @@ export function Card({
   className?: string;
 }) {
   return (
-    <section className={cx('rounded-2xl border border-line bg-surface', className)}>
+    <section className={cx('rounded-xl border border-line bg-surface', className)}>
       {title && (
-        <header className="px-5 pt-4 pb-1">
-          <h2 className="text-[14px] font-semibold">{title}</h2>
-          {description && <p className="mt-0.5 text-[12.5px] text-muted">{description}</p>}
+        <header className="px-4 pt-3.5 pb-0.5">
+          <h2 className="text-[13px] font-semibold">{title}</h2>
+          {description && <p className="mt-0.5 text-[12px] text-muted">{description}</p>}
         </header>
       )}
-      <div className="px-5 py-2">{children}</div>
+      <div className="px-4 py-1">{children}</div>
     </section>
   );
 }
@@ -228,12 +228,12 @@ export function Row({
   htmlFor?: string;
 }) {
   return (
-    <div className="flex items-center gap-6 border-b border-line py-3.5 last:border-b-0">
+    <div className="flex min-h-12 items-center gap-6 border-b border-line py-2.5 last:border-b-0">
       <div className="min-w-0 flex-1">
-        <label htmlFor={htmlFor} className="block text-[13.5px]">
+        <label htmlFor={htmlFor} className="block text-[13px]">
           {label}
         </label>
-        {hint && <div className="mt-0.5 text-[12.5px] leading-snug text-muted">{hint}</div>}
+        {hint && <div className="mt-0.5 text-[12px] leading-snug text-muted">{hint}</div>}
       </div>
       <div className="flex shrink-0 items-center gap-2">{children}</div>
     </div>
@@ -282,10 +282,10 @@ export function Dialog({
         if (e.target === e.currentTarget) onClose?.();
       }}
     >
-      <div className="w-[460px] max-w-[92vw] animate-pop rounded-2xl border border-line bg-surface p-6 shadow-2xl">
-        <h2 className="font-serif text-[22px] leading-tight">{title}</h2>
-        <div className="mt-3 text-[13.5px] leading-relaxed text-muted">{children}</div>
-        <div className="mt-6 flex justify-end gap-2">{actions}</div>
+      <div className="w-[420px] max-w-[92vw] animate-pop rounded-2xl border border-line bg-sheet p-5 shadow-2xl backdrop-blur-xl">
+        <h2 className="font-serif text-[20px] leading-tight">{title}</h2>
+        <div className="mt-2.5 text-[13px] leading-relaxed text-muted">{children}</div>
+        <div className="mt-5 flex justify-end gap-2">{actions}</div>
       </div>
     </div>
   );

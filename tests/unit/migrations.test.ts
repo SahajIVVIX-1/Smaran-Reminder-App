@@ -178,3 +178,33 @@ describe('backup', () => {
     expect(merged.reminders).toHaveLength(4);
   });
 });
+
+describe('Smaran 2.1 → 2.2', () => {
+  it('moves settings still at the old defaults to the new ones, quietly', () => {
+    const old = { ...createDefaultConfig(), version: 2 } as Record<string, unknown>;
+    (old['settings'] as Record<string, unknown>)['theme'] = 'system';
+    (old['settings'] as { notification: Record<string, unknown> }).notification['corner'] =
+      'bottom-right';
+    (old['settings'] as { notification: Record<string, unknown> }).notification['hideAfterSec'] =
+      12;
+    const result = migrate(old, opts());
+    expect(result).toMatchObject({ kind: 'migrated', from: 'Smaran 2.1', quiet: true });
+    const raw =
+      result.kind === 'migrated'
+        ? (result.raw as { settings: Record<string, unknown>; version: number })
+        : null;
+    expect(raw?.version).toBe(3);
+    expect(raw?.settings['theme']).toBe('dark');
+    expect(raw?.settings['notification']).toMatchObject({ corner: 'top-center', hideAfterSec: 8 });
+  });
+
+  it('keeps settings the user chose', () => {
+    const old = { ...createDefaultConfig(), version: 2 } as Record<string, unknown>;
+    (old['settings'] as Record<string, unknown>)['theme'] = 'light';
+    const result = migrate(old, opts());
+    expect(
+      result.kind === 'migrated' && (result.raw as { settings: { theme: string } }).settings.theme,
+    ).toBe('light');
+    expect(migrate({ version: 2 }, opts())).toMatchObject({ raw: { version: 3 } });
+  });
+});

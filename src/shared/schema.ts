@@ -1,7 +1,10 @@
 import { z } from 'zod';
 
-/** Config format version. 1 = Smaran 2.0 (messages/styles/schedules), 2 = reminders. */
-export const SCHEMA_VERSION = 2;
+/**
+ * Config format version. 1 = Smaran 2.0 (messages/styles/schedules), 2 = 2.1 (reminders),
+ * 3 = 2.2 (per-reminder sound, new defaults).
+ */
+export const SCHEMA_VERSION = 3;
 
 /** Ids are crypto.randomUUID() strings. Nothing is keyed by display text or array index. */
 export const IdSchema = z.string().min(1);
@@ -78,6 +81,8 @@ export const ReminderSchema = z.object({
     times: z.number().int().min(1).max(20),
   }),
   color: ColorSchema,
+  /** Chime when it appears: follow the app setting, or always / never for this reminder. */
+  sound: z.enum(['default', 'on', 'off']),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });

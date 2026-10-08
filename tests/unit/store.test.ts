@@ -115,7 +115,7 @@ describe('ConfigStore.load', () => {
     fs.copyFileSync(fixture('v2.0/config.json'), configPath());
     const { config, notice } = makeStore().load();
     expect(notice).toContain('converted from Smaran 2.0');
-    expect(config.version).toBe(2);
+    expect(config.version).toBe(3);
     expect(config.reminders.length).toBeGreaterThan(0);
     expect(files().some((f) => f.startsWith('config.before-upgrade-'))).toBe(true);
   });

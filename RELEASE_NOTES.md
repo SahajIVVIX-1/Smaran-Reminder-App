@@ -1,3 +1,15 @@
+# Smaran 2.2.0
+
+- **Phone-style notifications.** Reminders slide down from the top of the screen, then reveal Done
+  and Snooze once they land. Swipe a card back up to dismiss it. Cards are smaller and stack neatly.
+- **Sound per reminder.** Each reminder can follow the app setting, always chime, or stay silent.
+- **Compact, glassy look.** Tighter spacing throughout; on Windows 11 the window uses the system's
+  acrylic backdrop. Dark is now the default.
+- Existing settings that were still at the old defaults (system theme, bottom-right corner) move to
+  the new ones; anything you changed is kept.
+
+---
+
 # Smaran 2.1.0
 
 A redesign of how reminders work and how the app looks. See `docs/DESIGN.md` for the reasoning.

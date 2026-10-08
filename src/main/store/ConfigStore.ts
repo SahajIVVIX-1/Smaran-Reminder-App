@@ -100,6 +100,7 @@ export class ConfigStore {
       const original = `config.before-upgrade-${this.stamp()}.json`;
       fs.copyFileSync(this.filePath, join(this.dir, original));
       this.write(config);
+      if (migrated.quiet) return { config, notice: null };
       return {
         config,
         notice: `Your settings were converted from ${migrated.from}. The original file was kept as "${original}" in ${this.dir}.`,

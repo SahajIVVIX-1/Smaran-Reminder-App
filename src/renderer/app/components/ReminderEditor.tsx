@@ -19,10 +19,10 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="border-t border-line px-6 py-5">
-      <h3 className="text-[13px] font-semibold">{title}</h3>
-      {hint && <p className="mt-0.5 text-[12.5px] leading-snug text-muted">{hint}</p>}
-      <div className="mt-3">{children}</div>
+    <section className="border-t border-line px-5 py-4">
+      <h3 className="text-[12.5px] font-semibold">{title}</h3>
+      {hint && <p className="mt-0.5 text-[12px] leading-snug text-muted">{hint}</p>}
+      <div className="mt-2.5">{children}</div>
     </section>
   );
 }
@@ -85,9 +85,9 @@ export function ReminderEditor() {
         className="absolute inset-0 animate-fade bg-black/15"
         onClick={() => edit(null)}
       />
-      <aside className="relative flex h-full w-[520px] max-w-[92vw] animate-drawer flex-col border-l border-line bg-bg shadow-2xl">
-        <header className="flex h-14 shrink-0 items-center gap-2 px-6">
-          <span className="font-serif text-[19px]">{isNew ? 'New reminder' : 'Edit reminder'}</span>
+      <aside className="relative flex h-full w-[460px] max-w-[92vw] animate-drawer flex-col border-l border-line bg-sheet shadow-2xl backdrop-blur-2xl">
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line px-5">
+          <span className="font-serif text-[17px]">{isNew ? 'New reminder' : 'Edit reminder'}</span>
           {!isNew && (
             <span className="text-[12.5px] text-muted">
               {form.enabled
@@ -103,12 +103,12 @@ export function ReminderEditor() {
         </header>
 
         <div className="flex-1 overflow-y-auto pb-6">
-          <div className="space-y-3 px-6 pb-5">
+          <div className="space-y-2.5 px-5 pt-4 pb-4">
             <Input
               ref={title}
               aria-label="Title"
               placeholder="What should Smaran remind you about?"
-              className="h-11 text-[15px] font-medium"
+              className="h-10 text-[14px] font-medium"
               value={form.title}
               onChange={(e) => change({ title: e.currentTarget.value })}
             />
@@ -225,6 +225,28 @@ export function ReminderEditor() {
             )}
           </Section>
 
+          <Section
+            title="Sound"
+            hint={
+              form.sound === 'default'
+                ? `Follows the app setting (currently ${config?.settings.notification.sound ? 'on' : 'off'}).`
+                : form.sound === 'on'
+                  ? 'Always plays a soft chime for this reminder.'
+                  : 'This reminder is always silent.'
+            }
+          >
+            <Segmented
+              label="Sound"
+              value={form.sound}
+              options={[
+                { value: 'default', label: 'App setting' },
+                { value: 'on', label: 'On' },
+                { value: 'off', label: 'Off' },
+              ]}
+              onChange={(sound) => change({ sound })}
+            />
+          </Section>
+
           <Section title="Colour">
             <div className="flex gap-2" role="radiogroup" aria-label="Colour">
               {COLORS.map((c) => (
@@ -237,7 +259,7 @@ export function ReminderEditor() {
                   title={COLOR_NAME[c]}
                   onClick={() => change({ color: c })}
                   className={cx(
-                    'h-7 w-7 rounded-full transition-transform duration-150 hover:scale-110',
+                    'h-6 w-6 rounded-full transition-transform duration-150 hover:scale-110',
                     COLOR_BG[c],
                     form.color === c && 'ring-2 ring-ink/70 ring-offset-2 ring-offset-bg',
                   )}
@@ -247,7 +269,7 @@ export function ReminderEditor() {
           </Section>
         </div>
 
-        <footer className="flex shrink-0 items-center gap-2 border-t border-line bg-bg px-6 py-3">
+        <footer className="flex shrink-0 items-center gap-1.5 border-t border-line px-5 py-2.5">
           {errors.length > 0 && (
             <span className="mr-auto truncate text-[12.5px] text-danger">{errors[0]}</span>
           )}
@@ -334,12 +356,12 @@ function LinesEditor({
       {lines.map((line, i) => (
         <div
           key={i}
-          className="group flex items-center gap-2 rounded-lg bg-raised px-3 py-1.5 ring-1 ring-line"
+          className="group flex items-center gap-2 rounded-lg bg-raised px-2.5 py-0.5 ring-1 ring-line"
         >
           <span className="w-5 text-[12px] text-faint">{i + 1}</span>
           <input
             aria-label={`Line ${i + 1}`}
-            className="h-7 flex-1 bg-transparent text-[13.5px] outline-none"
+            className="h-7 flex-1 bg-transparent text-[13px] outline-none"
             value={line}
             onChange={(e) => {
               const value = e.currentTarget.value;

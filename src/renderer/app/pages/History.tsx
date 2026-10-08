@@ -34,10 +34,10 @@ export function History() {
   }, [history, openedAt]);
 
   return (
-    <div className="mx-auto max-w-[760px] px-8 pt-10 pb-16">
+    <div className="mx-auto max-w-[760px] px-7 pt-8 pb-16">
       <header className="flex animate-enter items-end gap-4">
         <div className="flex-1">
-          <h1 className="font-serif text-[30px] leading-tight">History</h1>
+          <h1 className="font-serif text-[26px] leading-tight">History</h1>
           <p className="mt-1 text-[13.5px] text-muted">
             {counts.total > 0
               ? `This week: ${counts.done} done, ${counts.missed} missed, out of ${counts.total}.`

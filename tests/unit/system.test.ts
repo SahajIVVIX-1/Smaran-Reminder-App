@@ -7,6 +7,7 @@ import { isSuppressingState, NotificationState } from '../../src/main/system/foc
 import { tooltipFor } from '../../src/main/tray/tooltip';
 import {
   EDGE,
+  SIDE,
   GAP,
   pickDisplay,
   stackLayout,
@@ -30,20 +31,20 @@ describe('notification stack', () => {
   it('stacks from the bottom-right corner upwards, newest nearest the corner', () => {
     const pos = stackLayout('bottom-right', primary.workArea, [card, card]);
     expect(pos).toEqual([
-      { x: 1920 - 400 - EDGE, y: 1040 - EDGE - 120 },
-      { x: 1920 - 400 - EDGE, y: 1040 - EDGE - 120 - GAP - 120 },
+      { x: 1920 - 400 - SIDE, y: 1040 - EDGE - 120 },
+      { x: 1920 - 400 - SIDE, y: 1040 - EDGE - 120 - GAP - 120 },
     ]);
   });
 
   it('stacks from the top downwards, on the left or centred', () => {
     expect(stackLayout('top-left', primary.workArea, [card, card])).toEqual([
-      { x: EDGE, y: EDGE },
-      { x: EDGE, y: EDGE + 120 + GAP },
+      { x: SIDE, y: EDGE },
+      { x: SIDE, y: EDGE + 120 + GAP },
     ]);
     expect(stackLayout('top-center', second.workArea, [card])).toEqual([
       { x: 1920 + 440, y: EDGE },
     ]);
-    expect(stackLayout('bottom-left', primary.workArea, [card])[0]?.x).toBe(EDGE);
+    expect(stackLayout('bottom-left', primary.workArea, [card])[0]?.x).toBe(SIDE);
   });
 
   it('leaves out cards that do not fit on screen', () => {

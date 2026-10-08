@@ -57,6 +57,7 @@ export function v1ToV2(old: V1Config, newId: NewId, now: Date): Config {
         times: Math.max(1, extra),
       },
       color: 'clay',
+      sound: 'default',
       createdAt: stamp,
       updatedAt: stamp,
     });
@@ -87,6 +88,7 @@ export function v1ToV2(old: V1Config, newId: NewId, now: Date): Config {
       hideAfterSec: null,
       followUp: { enabled: false, everyMin: 10, times: 2 },
       color: 'slate',
+      sound: 'default',
       createdAt: stamp,
       updatedAt: stamp,
     });

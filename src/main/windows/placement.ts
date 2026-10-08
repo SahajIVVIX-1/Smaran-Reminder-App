@@ -20,9 +20,13 @@ export interface Size {
 
 export type Corner = Settings['notification']['corner'];
 
-/** Distance from the screen edge and between cards (DIP). */
-export const EDGE = 12;
-export const GAP = 4;
+/**
+ * Window spacing (DIP). Card windows touch the top/bottom edge so a card can slide in from
+ * beyond the screen edge; the card's own padding inside the window gives the visual margin.
+ */
+export const EDGE = 0;
+export const SIDE = 4;
+export const GAP = 0;
 
 /** The display to show notifications on: the primary one, or the one under the pointer. */
 export function pickDisplay(
@@ -64,9 +68,9 @@ export function stackLayout(
       continue;
     }
     const x = corner.endsWith('left')
-      ? workArea.x + EDGE
+      ? workArea.x + SIDE
       : corner.endsWith('right')
-        ? workArea.x + workArea.width - size.width - EDGE
+        ? workArea.x + workArea.width - size.width - SIDE
         : workArea.x + Math.round((workArea.width - size.width) / 2);
     const y = fromBottom
       ? workArea.y + workArea.height - offset - size.height

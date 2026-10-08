@@ -8,7 +8,7 @@ import { HistoryStore } from './store/HistoryStore';
 import { windowsIsBusy } from './system/focusAssist';
 import { applyLoginItem } from './system/loginItem';
 import { AppTray } from './tray/Tray';
-import { getAppWindow, showAppWindow } from './windows/AppWindow';
+import { GLASS, getAppWindow, showAppWindow } from './windows/AppWindow';
 import { NotificationCenter } from './windows/NotificationCenter';
 
 const TRAY_REFRESH_MS = 30_000;
@@ -61,7 +61,9 @@ export class SmaranApp {
       quit: () => app.quit(),
     });
 
+    nativeTheme.themeSource = config.settings.theme;
     this.store.onChange((next) => {
+      nativeTheme.themeSource = next.settings.theme;
       this.engine.onConfigChanged();
       this.syncSystem(next);
       this.refreshTray();
@@ -115,6 +117,7 @@ export class SmaranApp {
       dataFolder: this.store.dir,
       portable: this.portable,
       electron: process.versions.electron,
+      glass: GLASS,
     };
   }
 

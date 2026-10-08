@@ -25,6 +25,7 @@ const REMINDER_DEFAULTS = {
   hideAfterSec: null,
   followUp: { enabled: false, everyMin: 10, times: 2 },
   color: 'clay',
+  sound: 'default',
 };
 
 /**

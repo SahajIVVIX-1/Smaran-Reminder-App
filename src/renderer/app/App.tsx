@@ -15,9 +15,9 @@ import { useApp } from './store';
 import { Button, Dialog, Switch } from './ui';
 
 const NAV: { route: Route; label: string; icon: ReactNode }[] = [
-  { route: 'today', label: 'Today', icon: <SunIcon size={17} /> },
-  { route: 'reminders', label: 'Reminders', icon: <BellIcon size={17} /> },
-  { route: 'history', label: 'History', icon: <ClockIcon size={17} /> },
+  { route: 'today', label: 'Today', icon: <SunIcon size={16} /> },
+  { route: 'reminders', label: 'Reminders', icon: <BellIcon size={16} /> },
+  { route: 'history', label: 'History', icon: <ClockIcon size={16} /> },
 ];
 
 /** Applies light/dark to the page and tells main, so the window's caption buttons match. */
@@ -42,6 +42,13 @@ export function App() {
   const { init, external, setHistory, go, edit, refreshNext } = useApp.getState();
 
   useTheme(config?.settings.theme);
+
+  // Windows 11: the window has an acrylic backdrop, so the page goes translucent.
+  useEffect(() => {
+    void window.smaran.app
+      .info()
+      .then((info) => document.documentElement.classList.toggle('glass', info.glass));
+  }, []);
 
   useEffect(() => {
     void Promise.all([window.smaran.config.get(), window.smaran.history.get()]).then(([c, h]) =>
@@ -74,14 +81,14 @@ export function App() {
   return (
     <div className="flex h-full flex-col bg-side text-ink">
       {/* Title bar: draggable; Windows draws the caption buttons on the right. */}
-      <div className="drag flex h-10 shrink-0 items-center gap-2 pl-4 select-none">
+      <div className="drag flex h-9 shrink-0 items-center gap-2 pl-4 select-none">
         <Logo />
-        <span className="text-[13px] font-medium text-muted">Smaran</span>
+        <span className="text-[12.5px] font-medium text-muted">Smaran</span>
       </div>
 
       <div className="flex min-h-0 flex-1">
         <Sidebar />
-        <main className="relative min-w-0 flex-1 overflow-hidden rounded-tl-2xl border-t border-l border-line bg-bg">
+        <main className="relative min-w-0 flex-1 overflow-hidden rounded-tl-xl border-t border-l border-line bg-bg">
           <div key={route} className="h-full animate-fade overflow-y-auto">
             {!config ? null : route === 'today' ? (
               <Today />
@@ -105,7 +112,7 @@ export function App() {
 
 function Logo() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
+    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden>
       <rect x="1" y="1" width="22" height="22" rx="7" className="fill-accent" />
       <circle cx="12" cy="12" r="5.2" fill="none" stroke="white" strokeWidth="2" />
       <circle cx="12" cy="12" r="1.8" fill="white" />
@@ -121,17 +128,17 @@ function Sidebar() {
   const paused = pausedUntil ? new Date(pausedUntil) > new Date() : false;
 
   return (
-    <nav className="flex w-[232px] shrink-0 flex-col px-3 pt-2 pb-3" aria-label="Main">
+    <nav className="flex w-[208px] shrink-0 flex-col px-2.5 pt-1.5 pb-2.5" aria-label="Main">
       <button
         type="button"
         onClick={() =>
           edit({ mode: 'new', draft: createReminder({ title: '', rule: defaultRule('daily') }) })
         }
-        className="mb-4 flex h-10 items-center gap-2.5 rounded-xl px-3 text-[14px] font-medium text-accent transition-colors duration-150 hover:bg-accent-soft"
+        className="mb-3 flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium text-accent transition-colors duration-150 hover:bg-accent-soft"
         title="New reminder (Ctrl+N)"
       >
-        <span className="grid h-6 w-6 place-items-center rounded-full bg-accent text-on-accent">
-          <PlusIcon size={15} strokeWidth={2.2} />
+        <span className="grid h-[22px] w-[22px] place-items-center rounded-full bg-accent text-on-accent">
+          <PlusIcon size={14} strokeWidth={2.4} />
         </span>
         New reminder
       </button>
@@ -148,7 +155,7 @@ function Sidebar() {
       ))}
 
       <div className="mt-auto space-y-1">
-        <div className="mb-2 rounded-xl px-3 py-2.5 text-[12.5px]">
+        <div className="mb-1 rounded-lg px-2.5 py-2 text-[12px]">
           {paused && pausedUntil ? (
             <div className="flex items-center gap-2">
               <MoonIcon size={15} className="shrink-0 text-accent" />
@@ -179,7 +186,7 @@ function Sidebar() {
         <NavItem
           active={route === 'settings'}
           onClick={() => go('settings')}
-          icon={<GearIcon size={17} />}
+          icon={<GearIcon size={16} />}
         >
           Settings
         </NavItem>
@@ -205,7 +212,7 @@ function NavItem({
       aria-current={active ? 'page' : undefined}
       onClick={onClick}
       className={cx(
-        'flex h-9 w-full items-center gap-2.5 rounded-lg px-3 text-[13.5px] transition-colors duration-150',
+        'flex h-8 w-full items-center gap-2.5 rounded-lg px-2.5 text-[13px] transition-colors duration-150',
         active ? 'bg-hover font-medium text-ink' : 'text-muted hover:bg-hover hover:text-ink',
       )}
     >
@@ -229,8 +236,8 @@ function ToastView() {
       key={toast.id}
       role="status"
       className={cx(
-        'fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 animate-rise items-center gap-4 rounded-xl bg-ink px-4 py-2.5 text-[13px] text-bg shadow-xl',
-        toast.tone === 'error' && 'bg-danger text-white',
+        'fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 animate-rise items-center gap-4 rounded-xl border border-line bg-sheet px-4 py-2 text-[12.5px] text-ink shadow-xl backdrop-blur-xl',
+        toast.tone === 'error' && 'text-danger',
       )}
     >
       <span className="max-w-[520px] truncate">{toast.text}</span>

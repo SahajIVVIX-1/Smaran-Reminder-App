@@ -82,9 +82,9 @@ export function Settings() {
   };
 
   return (
-    <div className="mx-auto max-w-[760px] space-y-5 px-8 pt-10 pb-16">
+    <div className="mx-auto max-w-[760px] space-y-5 px-7 pt-8 pb-16">
       <header className="animate-enter">
-        <h1 className="font-serif text-[30px] leading-tight">Settings</h1>
+        <h1 className="font-serif text-[26px] leading-tight">Settings</h1>
         <p className="mt-1 text-[13.5px] text-muted">Changes are saved as you make them.</p>
       </header>
 

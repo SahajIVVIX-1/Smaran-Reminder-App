@@ -503,7 +503,7 @@ export class Engine {
       hideAfterSec: important
         ? null
         : (reminder.hideAfterSec ?? settings.notification.hideAfterSec),
-      sound: settings.notification.sound,
+      sound: reminder.sound === 'default' ? settings.notification.sound : reminder.sound === 'on',
     });
   }
 

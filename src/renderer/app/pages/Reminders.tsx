@@ -34,10 +34,10 @@ export function Reminders() {
   if (!config) return null;
 
   return (
-    <div className="mx-auto max-w-[820px] px-8 pt-10 pb-16">
+    <div className="mx-auto max-w-[820px] px-7 pt-8 pb-16">
       <header className="flex animate-enter items-end gap-4">
         <div className="flex-1">
-          <h1 className="font-serif text-[30px] leading-tight">Reminders</h1>
+          <h1 className="font-serif text-[26px] leading-tight">Reminders</h1>
           <p className="mt-1 text-[13.5px] text-muted">
             {config.reminders.length === 0
               ? 'Nothing yet.'
@@ -100,7 +100,7 @@ export function Reminders() {
                   onClick={() => edit({ mode: 'edit', id: r.id })}
                   onKeyDown={(e) => e.key === 'Enter' && edit({ mode: 'edit', id: r.id })}
                   className={cx(
-                    'group flex cursor-pointer items-center gap-4 rounded-2xl border border-line bg-surface px-4 py-3.5',
+                    'group flex cursor-pointer items-center gap-4 rounded-xl border border-line bg-surface px-3.5 py-2.5',
                     'transition-[box-shadow,transform,border-color] duration-200 hover:-translate-y-px hover:border-ink/15 hover:shadow-[0_6px_18px_-8px_rgba(0,0,0,0.15)]',
                     'focus-visible:outline-2 focus-visible:outline-accent',
                   )}
@@ -114,7 +114,7 @@ export function Reminders() {
                   />
                   <div className={cx('min-w-0 flex-1', !r.enabled && 'opacity-55')}>
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-[14.5px] font-medium">{r.title}</span>
+                      <span className="truncate text-[13.5px] font-medium">{r.title}</span>
                       {r.priority === 'important' && <Pill tone="accent">Important</Pill>}
                       {r.lines.length > 0 && <Pill>{r.lines.length} lines</Pill>}
                     </div>
