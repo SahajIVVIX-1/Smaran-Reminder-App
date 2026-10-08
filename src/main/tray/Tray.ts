@@ -4,9 +4,10 @@ import { tooltipFor, type TrayState } from './tooltip';
 
 export interface TrayActions {
   showNow(): void;
+  newReminder(): void;
   pause(minutes?: number): void;
   resume(): void;
-  openSettings(): void;
+  open(): void;
   about(): void;
   quit(): void;
 }
@@ -17,7 +18,7 @@ export function iconPath(): string {
     : join(app.getAppPath(), 'resources', 'icon.png');
 }
 
-/** Tray icon with show now, pause, settings and quit. */
+/** Tray icon: click opens Smaran; right-click for the next reminder, pause and quit. */
 export class AppTray {
   private readonly tray: Tray;
   private state: TrayState = { pausedUntil: null, next: null };
@@ -27,7 +28,7 @@ export class AppTray {
       .createFromPath(iconPath())
       .resize({ width: 16, height: 16, quality: 'best' });
     this.tray = new Tray(image);
-    this.tray.on('click', () => this.actions.openSettings());
+    this.tray.on('click', () => this.actions.open());
     this.render();
   }
 
@@ -46,22 +47,27 @@ export class AppTray {
     this.tray.setToolTip(tooltipFor(this.state));
     this.tray.setContextMenu(
       Menu.buildFromTemplate([
-        { label: 'Show now', click: () => a.showNow() },
+        { label: 'Open Smaran', click: () => a.open() },
+        { label: 'New reminder…', click: () => a.newReminder() },
         { type: 'separator' },
+        {
+          label: 'Show next reminder now',
+          enabled: this.state.next !== null,
+          click: () => a.showNow(),
+        },
         paused
-          ? { label: 'Resume', click: () => a.resume() }
+          ? { label: 'Resume reminders', click: () => a.resume() }
           : {
-              label: 'Pause',
+              label: 'Pause reminders',
               submenu: [
                 { label: 'For 30 minutes', click: () => a.pause(30) },
                 { label: 'For 1 hour', click: () => a.pause(60) },
+                { label: 'For 3 hours', click: () => a.pause(180) },
                 { label: 'Until I resume', click: () => a.pause() },
               ],
             },
         { type: 'separator' },
-        { label: 'Settings…', click: () => a.openSettings() },
         { label: 'About Smaran', click: () => a.about() },
-        { type: 'separator' },
         { label: 'Quit Smaran', click: () => a.quit() },
       ]),
     );

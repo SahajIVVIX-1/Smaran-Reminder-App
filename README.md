@@ -1,7 +1,9 @@
-# Smaran v2
+# Smaran
 
-Windows tray reminder app: styled, always-on-top popups shown in bursts on schedules.
-Electron + React + TypeScript. The build plan (`Smaran Reminder v2 — Electron Build Plan.md`) is the source of truth; `RELEASE_NOTES.md` lists what 2.0 does.
+Gentle reminders for Windows: type what to remember and when, and Smaran shows it as a calm
+notification card at the right time. Lives in the tray.
+Electron + React + TypeScript. `docs/DESIGN.md` explains how reminders behave and why; `RELEASE_NOTES.md` lists what changed.
+The original build plan (`Smaran Reminder v2 — Electron Build Plan.md`) describes 2.0 and is kept for history.
 
 ## Commands
 
@@ -13,7 +15,7 @@ Electron + React + TypeScript. The build plan (`Smaran Reminder v2 — Electron 
 | `npm run lint`          | ESLint                                                              |
 | `npm run format`        | Prettier                                                            |
 | `npm test`              | Unit tests (Vitest)                                                 |
-| `npm run test:coverage` | Unit tests with coverage (100% required on `src/shared` and store)  |
+| `npm run test:coverage` | Unit tests with coverage                                            |
 | `npm run test:e2e`      | Build, then Playwright tests against the real app                   |
 | `npm run build:win`     | Build the NSIS installer and the portable exe                       |
 | `npm run test:smoke`    | After `build:win`: smoke-test the packaged app                      |
@@ -36,18 +38,21 @@ The version comes from `package.json`. Bump it before a new release build.
 
 ## Where data lives
 
-- Installed: `%APPDATA%\Smaran\config.json`, with 5 rolling backups in `backups\`.
+- Installed: `%APPDATA%\Smaran\config.json` (reminders and settings; 5 rolling backups in `backups\`)
+  and `history.json` (the last 1,000 events).
 - Portable: `SmaranData\` next to the exe when that folder is writable, otherwise `%APPDATA%\Smaran`.
 - Uninstalling removes the start-at-login entry and asks whether to delete the data folder.
 
 ## Code layout
 
 ```text
-src/shared/    schema (zod), defaults, effectiveStyle, nextFireAt, picker, overrides, csv, ruleSummary, IPC
-src/main/      SmaranApp (wiring), store/ (ConfigStore, migrations, backup), scheduler/ (SchedulerService,
-               BurstRunner), windows/ (PopupManager, SettingsWindow, placement), tray/, system/, ipc/
-src/preload/   settings.ts and popup.ts: the only bridge (sandboxed, contextIsolation on)
-src/renderer/  settings/ (pages, components, zustand store), popup/, ui/PopupCard.tsx (shared by both)
+src/shared/    schema (zod), defaults, nextFireAt, time windows, quickParse, ruleSummary, IPC types
+src/shared/legacy/  the 2.0 schema, kept only to upgrade old files
+src/main/      SmaranApp (wiring), engine/Engine (what to show and when), store/ (ConfigStore,
+               HistoryStore, migrations, backup), windows/ (AppWindow, NotificationCenter, placement),
+               tray/, system/, ipc/
+src/preload/   app.ts and notification.ts: the only bridge (sandboxed, contextIsolation on)
+src/renderer/  app/ (Today, Reminders, History, Settings), notification/ (the card), theme.css
 tests/         unit/ (Vitest), e2e/ (Playwright + Electron), smoke/ (packaged build), fixtures/
 ```
 

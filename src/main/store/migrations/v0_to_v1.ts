@@ -18,7 +18,7 @@ import {
   DEFAULT_STYLE_FIELDS,
   emptyScheduleRuntime,
   type NewId,
-} from '@shared/defaults';
+} from '@shared/legacy/defaultsV1';
 import {
   SCHEMA_VERSION,
   type Config,
@@ -27,7 +27,7 @@ import {
   type Schedule,
   type Style,
   type StyleFields,
-} from '@shared/schema';
+} from '@shared/legacy/schemaV1';
 
 type Raw = Record<string, unknown>;
 

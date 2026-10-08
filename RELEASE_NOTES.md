@@ -1,3 +1,42 @@
+# Smaran 2.1.0
+
+A redesign of how reminders work and how the app looks. See `docs/DESIGN.md` for the reasoning.
+
+## One idea: the reminder
+
+- **Messages, Styles and Schedules are gone.** You now create a *reminder*: a title, an optional note,
+  when it repeats, and how insistent it is. Settings carry over automatically from 2.0 and v1.
+- **Quick add:** type it the way you'd say it: "stretch every 45 min", "call mom at 6pm",
+  "standup every weekday at 9:30", "pay rent on the 1st of every month".
+- **Priority:** *Normal* reminders hide themselves after a few seconds and wait during quiet hours and
+  full-screen apps. *Important* ones stay until you act and always come through.
+- **Follow-up** replaces bursts: if you ignore a reminder, Smaran asks again every few minutes, a set
+  number of times.
+- **Rotating lines:** one reminder can cycle through stretches, affirmations or tips, in order or shuffled.
+
+## Notifications
+
+- Cards slide in from the corner you choose, stack neatly (up to four), and never take focus.
+- **Done**, **Snooze** (5 min, 15 min, 1 hour, tomorrow morning) and dismiss, right on the card. A thin
+  bar shows how long the card stays; hovering pauses it.
+- Optional soft chime. Three sizes. Light or dark to match the app.
+
+## Calm by default
+
+- **Quiet hours**: repeating reminders are skipped; timed ones wait until quiet hours end.
+- **Full-screen apps, games and presentations**: reminders wait until you're back.
+- **Missed reminders** (PC asleep or off) show once, marked "Missed at 09:00", instead of piling up.
+
+## A new app
+
+- Rebuilt interface in the spirit of the Claude desktop app: warm neutral colours, serif headings,
+  a clean sidebar, smooth transitions, light and dark themes.
+- **Today** shows what's next and today's timeline. **History** records what happened to every
+  reminder: done, snoozed, missed or skipped.
+- Changes save as you make them; deleting can be undone.
+
+---
+
 # Smaran 2.0.0
 
 Smaran 2 is a rewrite of the Python reminder app. Same idea (styled popups on a schedule), rebuilt so it is predictable.

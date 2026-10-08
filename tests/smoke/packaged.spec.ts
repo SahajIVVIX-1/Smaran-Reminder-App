@@ -8,20 +8,23 @@ import pkg from '../../package.json';
 // Runs against the packaged app in release/<version>/win-unpacked (build:win first).
 const exe = join(__dirname, '..', '..', 'release', pkg.version, 'win-unpacked', 'Smaran.exe');
 
-test('packaged app opens settings, lists fonts and shows a popup', async () => {
+test('packaged app opens, adds a reminder and shows a notification', async () => {
   const userData = mkdtempSync(join(tmpdir(), 'smaran-smoke-'));
   writeFileSync(join(userData, 'config.json'), JSON.stringify(seedConfig()));
   const app = await electron.launch({ executablePath: exe, args: [`--user-data-dir=${userData}`] });
-  const settings = await app.firstWindow();
-  await expect(settings).toHaveTitle('Smaran Settings');
-  const fonts = await settings.evaluate(() => window.smaran.fonts.list());
-  expect(fonts.length).toBeGreaterThan(5);
-  expect(fonts).toContain('Segoe UI');
-  const info = await settings.evaluate(() => window.smaran.app.info());
+  const page = await app.firstWindow();
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  const info = await page.evaluate(() => window.smaran.app.info());
   expect(info.version).toBe(pkg.version);
-  await settings.getByRole('button', { name: 'Test' }).click();
-  const popup = await app.waitForEvent('window');
-  await expect(popup.getByTestId('popup-card')).toBeVisible();
+
+  await page.getByLabel('Quick add').fill('Smoke test in 30 min');
+  await page.keyboard.press('Enter');
+  await expect(page.getByText('Added “Smoke test”', { exact: false })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const card = app.waitForEvent('window');
+  await page.getByRole('button', { name: 'Send a test reminder' }).click();
+  await expect((await card).getByTestId('notification')).toBeVisible();
   await app.close();
   rmSync(userData, { recursive: true, force: true });
 });

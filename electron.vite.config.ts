@@ -19,8 +19,8 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: {
-          settings: resolve(__dirname, 'src/preload/settings.ts'),
-          popup: resolve(__dirname, 'src/preload/popup.ts'),
+          app: resolve(__dirname, 'src/preload/app.ts'),
+          notification: resolve(__dirname, 'src/preload/notification.ts'),
         },
       },
     },
@@ -32,8 +32,8 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: {
-          settings: resolve(__dirname, 'src/renderer/settings/index.html'),
-          popup: resolve(__dirname, 'src/renderer/popup/index.html'),
+          app: resolve(__dirname, 'src/renderer/app/index.html'),
+          notification: resolve(__dirname, 'src/renderer/notification/index.html'),
         },
       },
     },

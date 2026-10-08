@@ -5,7 +5,7 @@ import { createDefaultConfig, type NewId } from '@shared/defaults';
 import type { SaveResult } from '@shared/ipc';
 import { ConfigSchema, type Config } from '@shared/schema';
 import { migrate } from './migrations';
-import { fillDefaults, reconcileRuntime } from './normalize';
+import { fillDefaults, reconcileState } from './normalize';
 
 export const CONFIG_FILE = 'config.json';
 export const BACKUP_DIR = 'backups';
@@ -85,13 +85,16 @@ export class ConfigStore {
         `it was saved by a newer version of Smaran (format ${migrated.version})`,
       );
     }
+    if (migrated.kind === 'invalid') {
+      return this.startFresh(`it has invalid values:\n${migrated.error}`);
+    }
 
     const parsed = ConfigSchema.safeParse(fillDefaults(migrated.raw));
     if (!parsed.success) {
       return this.startFresh(`it has invalid values:\n${z.prettifyError(parsed.error)}`);
     }
 
-    const config = reconcileRuntime(parsed.data);
+    const config = reconcileState(parsed.data);
     this.config = config;
     if (migrated.kind === 'migrated') {
       const original = `config.before-upgrade-${this.stamp()}.json`;
@@ -118,7 +121,7 @@ export class ConfigStore {
   save(next: unknown, options: SaveOptions = {}): SaveResult {
     const parsed = ConfigSchema.safeParse(next);
     if (!parsed.success) return { ok: false, error: z.prettifyError(parsed.error) };
-    const config = reconcileRuntime(parsed.data);
+    const config = reconcileState(parsed.data);
     try {
       this.write(config, options.backup ?? true);
     } catch (error) {

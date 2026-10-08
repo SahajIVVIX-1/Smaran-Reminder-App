@@ -1,29 +1,24 @@
-import { app, dialog, powerMonitor, screen } from 'electron';
+import { app, dialog, nativeTheme, powerMonitor, screen } from 'electron';
 import { PAUSED_FOREVER } from '@shared/defaults';
-import type { AppInfo, PopupTestRequest } from '@shared/ipc';
-import { DEFAULT_STYLE_FIELDS } from '@shared/defaults';
+import type { AppInfo, Route } from '@shared/ipc';
 import type { Config } from '@shared/schema';
-import { BurstRunner } from './scheduler/BurstRunner';
-import { isPaused, SchedulerService } from './scheduler/SchedulerService';
+import { Engine, isPaused } from './engine/Engine';
 import { ConfigStore } from './store/ConfigStore';
+import { HistoryStore } from './store/HistoryStore';
 import { windowsIsBusy } from './system/focusAssist';
 import { applyLoginItem } from './system/loginItem';
 import { AppTray } from './tray/Tray';
-import { PopupManager, requestForMessage } from './windows/PopupManager';
-import {
-  getSettingsWindow,
-  showMessageInSettings,
-  showSettingsWindow,
-} from './windows/SettingsWindow';
+import { getAppWindow, showAppWindow } from './windows/AppWindow';
+import { NotificationCenter } from './windows/NotificationCenter';
 
 const TRAY_REFRESH_MS = 30_000;
 
-/** Wires the main-process services together: store → scheduler → burst runner → popups, plus tray. */
+/** Wires the main-process pieces together: store → engine → notification cards, plus the tray. */
 export class SmaranApp {
   readonly store: ConfigStore;
-  readonly popups: PopupManager;
-  readonly runner: BurstRunner;
-  readonly scheduler: SchedulerService;
+  readonly history: HistoryStore;
+  readonly notifications: NotificationCenter;
+  readonly engine: Engine;
   private tray: AppTray | null = null;
   private trayTimer: ReturnType<typeof setInterval> | null = null;
   private lastLoginItem: boolean | null = null;
@@ -35,124 +30,82 @@ export class SmaranApp {
     this.store = new ConfigStore(dataDir, {
       primaryDisplayId: () => screen.getPrimaryDisplay().id,
     });
-    this.popups = new PopupManager(this.store);
-    this.runner = new BurstRunner({
-      show: (messageId, signal) => {
-        const request = requestForMessage(this.store.get(), messageId, true);
-        return request ? this.popups.show(request, signal) : Promise.resolve();
-      },
-      shouldSuppress: () => this.shouldSuppress(),
-    });
-    this.scheduler = new SchedulerService({
+    this.history = new HistoryStore(dataDir);
+    this.notifications = new NotificationCenter(() => this.store.get().settings);
+    this.engine = new Engine({
       store: this.store,
-      enqueue: (job, overlap) => this.runner.enqueue(job, overlap),
+      history: this.history,
+      notifier: this.notifications,
+      isBusy: windowsIsBusy,
     });
   }
 
-  /** Loads config and starts everything. Returns a notice to show the user, if any. */
+  /** Loads data and starts everything. Returns a notice to show the user, if any. */
   start(): { notice: string | null; firstRun: boolean } {
     const { config, notice } = this.store.load();
-    const firstRun = !config.app.onboarded;
+    this.history.load();
 
-    this.popups.registerIpc();
-    this.popups.onAction((action) => {
-      switch (action.kind) {
-        case 'snooze':
-          this.runner.snoozeActive(action.minutes);
-          break;
-        case 'dismissBurst':
-          this.runner.cancelActive();
-          break;
-        case 'editMessage':
-          showMessageInSettings(action.messageId);
-          break;
-        case 'openSettings':
-          showSettingsWindow();
-          break;
-      }
-    });
+    this.notifications.registerIpc();
+    this.notifications.handleActions(
+      (key, action) => this.engine.handleAction(key, action),
+      () => this.openApp('history'),
+    );
 
     this.tray = new AppTray({
-      showNow: () => this.showNow(),
+      showNow: () => this.engine.showNow(),
+      newReminder: () => this.openApp('reminders'),
       pause: (minutes) => this.pause(minutes),
       resume: () => this.resume(),
-      openSettings: () => showSettingsWindow(),
+      open: () => this.openApp('today'),
       about: () => this.about(),
       quit: () => app.quit(),
     });
 
     this.store.onChange((next) => {
-      this.scheduler.onConfigChanged();
+      this.engine.onConfigChanged();
       this.syncSystem(next);
       this.refreshTray();
     });
 
-    // Sleep and lock: catch up once on the way back.
-    powerMonitor.on('resume', () => this.scheduler.onResume());
-    powerMonitor.on('unlock-screen', () => this.scheduler.onResume());
+    // Sleep and lock: handle what came due, once, on the way back.
+    powerMonitor.on('resume', () => this.engine.onResume());
+    powerMonitor.on('unlock-screen', () => this.engine.onResume());
 
-    this.scheduler.start();
+    this.engine.start();
     this.syncSystem(config);
     this.refreshTray();
     this.trayTimer = setInterval(() => this.refreshTray(), TRAY_REFRESH_MS);
-
-    if (config.app.showOnStartup) this.showNow();
-    return { notice, firstRun };
+    return { notice, firstRun: !config.settings.onboarded };
   }
 
   stop(): void {
-    this.scheduler.stop();
-    this.runner.cancelAll();
-    this.popups.closeAll();
+    this.engine.stop();
+    this.notifications.closeAll();
+    this.history.flush();
     if (this.trayTimer) clearInterval(this.trayTimer);
     this.tray?.destroy();
     this.tray = null;
   }
 
-  /** Tray "Show now": runs the next reminder immediately. */
-  showNow(): void {
-    const next = this.scheduler.nextSummary();
-    if (next) {
-      this.scheduler.runNow(next.schedule.id);
-      return;
-    }
-    const config = this.store.get();
-    const first = config.schedules.find((s) => s.enabled) ?? config.schedules[0];
-    if (first && this.scheduler.runNow(first.id)) return;
-    const message = config.messages.find((m) => m.enabled);
-    if (message) {
-      this.runner.enqueue(
-        { scheduleId: 'manual', messageId: message.id, count: 1, gapMs: 0, manual: true },
-        'replace',
-      );
-    }
+  get dark(): boolean {
+    const theme = this.store.get().settings.theme;
+    return theme === 'system' ? nativeTheme.shouldUseDarkColors : theme === 'dark';
+  }
+
+  openApp(route?: Route): void {
+    showAppWindow(this.dark, route);
   }
 
   pause(minutes?: number): void {
     const until = minutes ? new Date(Date.now() + minutes * 60_000).toISOString() : PAUSED_FOREVER;
-    this.store.update((c) => ({ ...c, app: { ...c.app, pausedUntil: until } }), { backup: false });
-    this.runner.cancelAll();
-    this.popups.closeAll();
+    this.store.update((c) => ({ ...c, settings: { ...c.settings, pausedUntil: until } }), {
+      backup: false,
+    });
   }
 
   resume(): void {
-    this.store.update((c) => ({ ...c, app: { ...c.app, pausedUntil: null } }), { backup: false });
-  }
-
-  /** Test popups bypass the runner, so they show even while paused. */
-  async testPopup(request: PopupTestRequest): Promise<void> {
-    const config = this.store.get();
-    if ('messageId' in request) {
-      const show = requestForMessage(config, request.messageId, false);
-      if (show) await this.popups.show(show);
-      return;
-    }
-    await this.popups.show({
-      messageId: null,
-      text: request.text,
-      style: request.style,
-      fallback: DEFAULT_STYLE_FIELDS.position,
-      inBurst: false,
+    this.store.update((c) => ({ ...c, settings: { ...c.settings, pausedUntil: null } }), {
+      backup: false,
     });
   }
 
@@ -172,46 +125,40 @@ export class SmaranApp {
       title: 'About Smaran',
       message: `Smaran ${info.version}`,
       detail:
-        `Styled reminder popups on your schedule.\n\n` +
-        `${info.portable ? 'Portable edition. ' : ''}Settings are stored in:\n${info.dataFolder}\n\n` +
+        `Gentle reminders, on your schedule.\n\n` +
+        `${info.portable ? 'Portable edition. ' : ''}Your reminders are stored in:\n${info.dataFolder}\n\n` +
         `Electron ${info.electron}\n© 2026 SahajS`,
       buttons: ['OK'],
     };
-    const win = getSettingsWindow();
+    const win = getAppWindow();
     void (win ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options));
   }
 
   // ---------- internals ----------
-
-  private async shouldSuppress(): Promise<boolean> {
-    const config = this.store.get();
-    if (isPaused(config, new Date())) return true;
-    return config.app.respectFocusAssist && (await windowsIsBusy());
-  }
 
   /**
    * Applies start-at-login once per launch and on every change (so a moved portable exe is
    * re-registered at its new path). Nothing is written until the user has seen the welcome.
    */
   private syncSystem(config: Config): void {
-    if (!config.app.onboarded) return;
-    if (this.lastLoginItem !== config.app.startAtLogin) {
-      this.lastLoginItem = config.app.startAtLogin;
-      applyLoginItem(config.app.startAtLogin);
+    if (!config.settings.onboarded) return;
+    if (this.lastLoginItem !== config.settings.startAtLogin) {
+      this.lastLoginItem = config.settings.startAtLogin;
+      applyLoginItem(config.settings.startAtLogin);
     }
   }
 
   private refreshTray(): void {
     const config = this.store.get();
     // A timed pause that has run out is cleared so the menu shows "Pause" again.
-    if (config.app.pausedUntil && !isPaused(config, new Date())) {
+    if (config.settings.pausedUntil && !isPaused(config, new Date())) {
       this.resume();
       return;
     }
-    const next = this.scheduler.nextSummary();
+    const next = this.engine.upcoming()[0];
     this.tray?.update({
-      pausedUntil: config.app.pausedUntil,
-      next: next ? { name: next.schedule.name, at: next.at } : null,
+      pausedUntil: config.settings.pausedUntil,
+      next: next ? { name: next.reminder.title, at: next.at } : null,
     });
   }
 }

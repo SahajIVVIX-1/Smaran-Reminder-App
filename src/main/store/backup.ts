@@ -2,14 +2,15 @@ import { z } from 'zod';
 import type { NewId } from '@shared/defaults';
 import { ConfigSchema, type Config } from '@shared/schema';
 import { migrate } from './migrations';
-import { fillDefaults, reconcileRuntime } from './normalize';
+import { fillDefaults, reconcileState } from './normalize';
 
 /** Full backup: the config exactly as config.json stores it. */
 export function exportJson(config: Config): string {
   return `${JSON.stringify(config, null, 2)}\n`;
 }
 
-export type ParseResult = { ok: true; config: Config } | { ok: false; error: string };
+export type ParseResult =
+  { ok: true; config: Config; from: string | null } | { ok: false; error: string };
 
 export interface ParseOptions {
   newId: NewId;
@@ -17,7 +18,7 @@ export interface ParseOptions {
   primaryDisplayId: number;
 }
 
-/** Reads a JSON backup (or a v1 settings file) into a validated config. Ids are kept. */
+/** Reads a backup, a Smaran 2.0 config or a v1 settings file into a validated config. Ids are kept. */
 export function parseBackupJson(text: string, opts: ParseOptions): ParseResult {
   let raw: unknown;
   try {
@@ -35,6 +36,9 @@ export function parseBackupJson(text: string, opts: ParseOptions): ParseResult {
       error: `This backup was made by a newer version of Smaran (format ${migrated.version}). Update Smaran, then import it again.`,
     };
   }
+  if (migrated.kind === 'invalid') {
+    return { ok: false, error: `This file is not a valid Smaran backup:\n${migrated.error}` };
+  }
   const parsed = ConfigSchema.safeParse(fillDefaults(migrated.raw));
   if (!parsed.success) {
     return {
@@ -42,62 +46,23 @@ export function parseBackupJson(text: string, opts: ParseOptions): ParseResult {
       error: `This file is not a valid Smaran backup:\n${z.prettifyError(parsed.error)}`,
     };
   }
-  return { ok: true, config: reconcileRuntime(parsed.data) };
+  return {
+    ok: true,
+    config: reconcileState(parsed.data),
+    from: migrated.kind === 'migrated' ? migrated.from : null,
+  };
 }
 
-/**
- * Adds an imported config (e.g. converted v1 settings) to the current one instead of replacing it.
- * Imported styles never become the default; ids that already exist are given new ones.
- */
-export function mergeConfigs(current: Config, imported: Config, newId: NewId): Config {
-  const taken = new Set([
-    ...current.styles.map((s) => s.id),
-    ...current.messages.map((m) => m.id),
-    ...current.schedules.map((s) => s.id),
-  ]);
-  const remap = new Map<string, string>();
-  const idFor = (id: string) => {
-    if (!taken.has(id)) {
-      taken.add(id);
-      return id;
-    }
-    const fresh = newId();
-    remap.set(id, fresh);
-    taken.add(fresh);
-    return fresh;
-  };
-
-  const styles = imported.styles.map((s) => ({ ...s, id: idFor(s.id), isDefault: false }));
-  const styleId = (id: string) => remap.get(id) ?? id;
-  const messages = imported.messages.map((m) => ({
-    ...m,
-    id: idFor(m.id),
-    styleId: styleId(m.styleId),
-  }));
-  const messageId = (id: string) => remap.get(id) ?? id;
-  const runtime = { ...current.runtime };
-  const schedules = imported.schedules.map((s) => {
-    const id = idFor(s.id);
-    const old = imported.runtime[s.id];
-    if (old) {
-      runtime[id] = {
-        ...old,
-        lastMessageId: old.lastMessageId ? messageId(old.lastMessageId) : null,
-        shuffleBag: old.shuffleBag.map(messageId),
-      };
-    }
-    const picker =
-      s.picker.messageId !== undefined
-        ? { ...s.picker, messageId: messageId(s.picker.messageId) }
-        : s.picker;
-    return { ...s, id, picker };
+/** Adds the reminders of an imported config to the current one. Colliding ids get new ones. */
+export function mergeReminders(current: Config, imported: Config, newId: NewId): Config {
+  const taken = new Set(current.reminders.map((r) => r.id));
+  const state = { ...current.state };
+  const added = imported.reminders.map((r) => {
+    const id = taken.has(r.id) ? newId() : r.id;
+    taken.add(id);
+    const old = imported.state[r.id];
+    if (old) state[id] = old;
+    return { ...r, id };
   });
-
-  return reconcileRuntime({
-    ...current,
-    styles: [...current.styles, ...styles],
-    messages: [...current.messages, ...messages],
-    schedules: [...current.schedules, ...schedules],
-    runtime,
-  });
+  return reconcileState({ ...current, reminders: [...current.reminders, ...added], state });
 }

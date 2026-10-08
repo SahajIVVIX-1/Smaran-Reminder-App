@@ -1,130 +1,19 @@
 import { z } from 'zod';
 
-export const SCHEMA_VERSION = 1;
+/** Config format version. 1 = Smaran 2.0 (messages/styles/schedules), 2 = reminders. */
+export const SCHEMA_VERSION = 2;
 
-/** Ids are crypto.randomUUID() strings. Nothing is ever keyed by display text or array index. */
+/** Ids are crypto.randomUUID() strings. Nothing is keyed by display text or array index. */
 export const IdSchema = z.string().min(1);
 export type Id = z.infer<typeof IdSchema>;
 
 /** Local wall-clock time, 'HH:mm', 24-hour. */
-export const TimeSchema = z
-  .string()
-  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use HH:mm, for example 09:30');
+export const TimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use a time like 09:30');
 
 /** JS Date.getDay() numbering: 0 = Sunday … 6 = Saturday. */
 export const WeekdaySchema = z.number().int().min(0).max(6);
 
-/** #RRGGBBAA */
-export const ColorSchema = z.string().regex(/^#[0-9a-fA-F]{8}$/, 'Use #RRGGBBAA');
-
-// ---------- Style ----------
-
-export const AnchorSchema = z.enum([
-  'top-center',
-  'top-left',
-  'top-right',
-  'center',
-  'bottom-left',
-  'bottom-right',
-  'bottom-center',
-]);
-
-export const PlacementSchema = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.literal('anchor'),
-    anchor: AnchorSchema,
-    offsetX: z.number().int(),
-    offsetY: z.number().int(),
-    display: z.enum(['primary', 'cursor']),
-  }),
-  z.object({
-    kind: z.literal('exact'),
-    displayId: z.number().int(),
-    // Relative to that display's workArea.
-    x: z.number().int(),
-    y: z.number().int(),
-  }),
-]);
-export type Placement = z.infer<typeof PlacementSchema>;
-
-const FontSchema = z.object({
-  family: z.string().min(1),
-  sizePx: z.number().int().min(6).max(200),
-  weight: z.union([z.literal(400), z.literal(600), z.literal(700)]),
-  italic: z.boolean(),
-});
-
-const ColorsSchema = z.object({
-  text: ColorSchema,
-  background: ColorSchema,
-  border: ColorSchema,
-});
-
-const BorderSchema = z.object({
-  widthPx: z.number().int().min(0).max(50),
-  radiusPx: z.number().int().min(0).max(200),
-});
-
-const SizeSchema = z.object({
-  mode: z.enum(['auto', 'fixed']),
-  widthPx: z.number().int().min(50).max(4000),
-  heightPx: z.number().int().min(20).max(4000),
-  maxWidthPx: z.number().int().min(50).max(4000),
-});
-
-const TimingSchema = z.object({
-  fadeInMs: z.number().int().min(0).max(10_000),
-  stayMs: z.number().int().min(0).max(600_000),
-  fadeOutMs: z.number().int().min(0).max(10_000),
-});
-
-/** The look of a popup: everything a message can override. */
-export const StyleFieldsSchema = z.object({
-  font: FontSchema,
-  colors: ColorsSchema,
-  border: BorderSchema,
-  paddingPx: z.number().int().min(0).max(200),
-  opacity: z.number().min(0.1).max(1),
-  size: SizeSchema,
-  timing: TimingSchema,
-  position: PlacementSchema,
-});
-export type StyleFields = z.infer<typeof StyleFieldsSchema>;
-
-// Identity first, so saved files read naturally and round-trip in the same key order.
-export const StyleSchema = z
-  .object({ id: IdSchema, name: z.string().min(1), isDefault: z.boolean() })
-  .extend(StyleFieldsSchema.shape);
-export type Style = z.infer<typeof StyleSchema>;
-
-/** Deep-partial StyleFields. `position` is replaced as a whole, never merged field by field. */
-export const StyleOverridesSchema = z.object({
-  font: FontSchema.partial().optional(),
-  colors: ColorsSchema.partial().optional(),
-  border: BorderSchema.partial().optional(),
-  paddingPx: StyleFieldsSchema.shape.paddingPx.optional(),
-  opacity: StyleFieldsSchema.shape.opacity.optional(),
-  size: SizeSchema.partial().optional(),
-  timing: TimingSchema.partial().optional(),
-  position: PlacementSchema.optional(),
-});
-export type StyleOverrides = z.infer<typeof StyleOverridesSchema>;
-
-// ---------- Message ----------
-
-export const MessageSchema = z.object({
-  id: IdSchema,
-  text: z.string().min(1),
-  enabled: z.boolean(),
-  tags: z.array(z.string().min(1)),
-  styleId: IdSchema,
-  overrides: StyleOverridesSchema,
-  createdAt: z.iso.datetime({ offset: true }),
-  updatedAt: z.iso.datetime({ offset: true }),
-});
-export type Message = z.infer<typeof MessageSchema>;
-
-// ---------- Schedule ----------
+// ---------- When ----------
 
 export const RuleSchema = z.discriminatedUnion('kind', [
   z.object({
@@ -133,16 +22,16 @@ export const RuleSchema = z.discriminatedUnion('kind', [
     // If from > to the window runs overnight (for example 22:00 → 06:00).
     activeHours: z
       .object({ from: TimeSchema, to: TimeSchema })
-      .refine((h) => h.from !== h.to, 'Active hours need a different start and end')
+      .refine((h) => h.from !== h.to, 'Start and end must differ')
       .optional(),
-    weekdays: z.array(WeekdaySchema).min(1).optional(),
+    weekdays: z.array(WeekdaySchema).min(1, 'Pick at least one day').optional(),
   }),
-  // Local date-time without offset, for example 2026-10-08T09:00
+  // Local date-time without offset, for example 2026-10-08T09:00:00
   z.object({ kind: z.literal('once'), at: z.iso.datetime({ local: true }) }),
-  z.object({ kind: z.literal('daily'), times: z.array(TimeSchema).min(1) }),
+  z.object({ kind: z.literal('daily'), times: z.array(TimeSchema).min(1, 'Add a time') }),
   z.object({
     kind: z.literal('weekly'),
-    weekdays: z.array(WeekdaySchema).min(1),
+    weekdays: z.array(WeekdaySchema).min(1, 'Pick at least one day'),
     time: TimeSchema,
   }),
   z.object({
@@ -159,112 +48,125 @@ export const RuleSchema = z.discriminatedUnion('kind', [
 ]);
 export type Rule = z.infer<typeof RuleSchema>;
 
-export const BurstSchema = z.object({
-  count: z.number().int().min(1).max(100),
-  gapMs: z.number().int().min(0).max(86_400_000),
-  overlap: z.enum(['queue', 'skip', 'replace']),
-});
-export type Burst = z.infer<typeof BurstSchema>;
+/** Interval reminders follow a rhythm; every other kind is a time of day. */
+export function isTimeOfDay(rule: Rule): boolean {
+  return rule.kind !== 'interval';
+}
 
-export const PickerSchema = z
-  .object({
-    mode: z.enum(['sequential', 'random', 'shuffle', 'fixed']),
-    messageId: IdSchema.optional(),
-    tags: z.array(z.string().min(1)).optional(),
-  })
-  .refine((p) => p.mode !== 'fixed' || p.messageId !== undefined, {
-    message: 'Pick the message this schedule shows',
-    path: ['messageId'],
-  });
-export type Picker = z.infer<typeof PickerSchema>;
+// ---------- Reminder ----------
 
-export const ScheduleSchema = z.object({
+export const COLORS = ['clay', 'amber', 'olive', 'sage', 'sky', 'iris', 'rose', 'slate'] as const;
+export const ColorSchema = z.enum(COLORS);
+export type ReminderColor = z.infer<typeof ColorSchema>;
+
+export const ReminderSchema = z.object({
   id: IdSchema,
-  name: z.string().min(1),
+  title: z.string().trim().min(1, 'Give the reminder a title').max(200),
+  note: z.string().max(2000),
+  /** Optional lines shown one per notification, for affirmations, stretches and the like. */
+  lines: z.array(z.string().trim().min(1).max(500)).max(200),
+  lineOrder: z.enum(['inOrder', 'shuffle']),
   enabled: z.boolean(),
   rule: RuleSchema,
-  burst: BurstSchema,
-  picker: PickerSchema,
+  priority: z.enum(['normal', 'important']),
+  /** Seconds a normal notification stays before hiding itself; null = the app default. */
+  hideAfterSec: z.number().int().min(3).max(600).nullable(),
+  /** If ignored, remind again every `everyMin` minutes, at most `times` more times. */
+  followUp: z.object({
+    enabled: z.boolean(),
+    everyMin: z.number().int().min(1).max(240),
+    times: z.number().int().min(1).max(20),
+  }),
+  color: ColorSchema,
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
 });
-export type Schedule = z.infer<typeof ScheduleSchema>;
+export type Reminder = z.infer<typeof ReminderSchema>;
 
-// ---------- Runtime (written by the scheduler, never by the UI) ----------
+// ---------- Settings ----------
 
-export const ScheduleRuntimeSchema = z.object({
-  lastFiredAt: z.iso.datetime({ offset: true }).nullable(),
-  /** Position of the last sequential pick in the full message list; a hint for when that message is deleted. */
-  seqIndex: z.number().int().min(0),
-  /** Id of the last message picked, so sequential order survives reordering and deletion. */
-  lastMessageId: IdSchema.nullable().default(null),
-  shuffleBag: z.array(IdSchema),
-  done: z.boolean().optional(),
-});
-export type ScheduleRuntime = z.infer<typeof ScheduleRuntimeSchema>;
+export const CORNERS = [
+  'top-right',
+  'bottom-right',
+  'top-left',
+  'bottom-left',
+  'top-center',
+] as const;
 
-export const RuntimeStateSchema = z.record(IdSchema, ScheduleRuntimeSchema);
-export type RuntimeState = z.infer<typeof RuntimeStateSchema>;
-
-// ---------- App + Config ----------
-
-export const AppSettingsSchema = z.object({
+export const SettingsSchema = z.object({
   startAtLogin: z.boolean(),
-  showOnStartup: z.boolean(),
-  theme: z.enum(['system', 'dark', 'light']),
-  respectFocusAssist: z.boolean(),
+  theme: z.enum(['system', 'light', 'dark']),
+  notification: z.object({
+    corner: z.enum(CORNERS),
+    screen: z.enum(['primary', 'cursor']),
+    size: z.enum(['compact', 'comfortable', 'large']),
+    sound: z.boolean(),
+    hideAfterSec: z.number().int().min(3).max(600),
+  }),
+  quietHours: z
+    .object({ enabled: z.boolean(), from: TimeSchema, to: TimeSchema })
+    .refine((q) => q.from !== q.to, { message: 'Start and end must differ', path: ['to'] }),
+  /** Hold normal notifications while a full-screen app, game or presentation is showing. */
+  holdWhenBusy: z.boolean(),
   /** ISO time; "until resumed" is stored as a far-future date. */
   pausedUntil: z.iso.datetime({ offset: true }).nullable(),
-  /** First-run welcome has been shown. */
   onboarded: z.boolean(),
 });
-export type AppSettings = z.infer<typeof AppSettingsSchema>;
+export type Settings = z.infer<typeof SettingsSchema>;
 
-function duplicates(ids: readonly string[]): string[] {
-  const seen = new Set<string>();
-  const dup = new Set<string>();
-  for (const id of ids) {
-    if (seen.has(id)) dup.add(id);
-    seen.add(id);
-  }
-  return [...dup];
-}
+// ---------- Runtime state (written by the engine, never by the UI) ----------
+
+export const ReminderStateSchema = z.object({
+  /** Last time it was due (and handled: shown, held, skipped or missed). */
+  lastDueAt: z.iso.datetime({ offset: true }).nullable(),
+  /** Index of the next rotating line (in order), or the shuffle bag of remaining indexes. */
+  nextLine: z.number().int().min(0),
+  shuffleBag: z.array(z.number().int().min(0)),
+  snoozedUntil: z.iso.datetime({ offset: true }).nullable(),
+  /** A one-time reminder that has been handled. */
+  completed: z.boolean(),
+});
+export type ReminderState = z.infer<typeof ReminderStateSchema>;
+
+// ---------- Config ----------
 
 export const ConfigSchema = z
   .object({
-    version: z.number().int().min(1),
-    app: AppSettingsSchema,
-    styles: z.array(StyleSchema).min(1, 'Keep at least one style'),
-    messages: z.array(MessageSchema),
-    schedules: z.array(ScheduleSchema),
-    runtime: RuntimeStateSchema,
+    version: z.literal(SCHEMA_VERSION),
+    settings: SettingsSchema,
+    reminders: z.array(ReminderSchema),
+    state: z.record(IdSchema, ReminderStateSchema),
   })
   .superRefine((config, ctx) => {
-    const defaults = config.styles.filter((s) => s.isDefault).length;
-    if (defaults !== 1) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['styles'],
-        message: `Exactly one style must be the default (found ${defaults})`,
-      });
-    }
-
-    const allIds = [
-      ...config.styles.map((s) => s.id),
-      ...config.messages.map((m) => m.id),
-      ...config.schedules.map((s) => s.id),
-    ];
-    for (const id of duplicates(allIds)) {
-      ctx.addIssue({ code: 'custom', path: [], message: `Id ${id} is used more than once` });
-    }
-
-    const styleIds = new Set(config.styles.map((s) => s.id));
-    config.messages.forEach((m, i) => {
-      if (!styleIds.has(m.styleId)) {
+    const seen = new Set<string>();
+    config.reminders.forEach((r, i) => {
+      if (seen.has(r.id)) {
         ctx.addIssue({
           code: 'custom',
-          path: ['messages', i, 'styleId'],
-          message: `Message uses a style that does not exist (${m.styleId})`,
+          path: ['reminders', i, 'id'],
+          message: `Id ${r.id} is used twice`,
         });
       }
+      seen.add(r.id);
     });
   });
 export type Config = z.infer<typeof ConfigSchema>;
+
+// ---------- History (separate file, written by the engine) ----------
+
+export const OUTCOMES = ['done', 'snoozed', 'dismissed', 'missed', 'skipped'] as const;
+
+export const HistoryEntrySchema = z.object({
+  id: IdSchema,
+  reminderId: IdSchema,
+  title: z.string(),
+  /** When it was due. */
+  dueAt: z.iso.datetime({ offset: true }),
+  /** When the outcome happened. */
+  at: z.iso.datetime({ offset: true }),
+  outcome: z.enum(OUTCOMES),
+  /** Short plain-English detail, e.g. "Snoozed 15 min", "Quiet hours". */
+  detail: z.string().optional(),
+});
+export type HistoryEntry = z.infer<typeof HistoryEntrySchema>;
+export type Outcome = HistoryEntry['outcome'];

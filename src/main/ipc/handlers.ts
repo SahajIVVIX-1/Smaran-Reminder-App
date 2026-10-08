@@ -1,50 +1,69 @@
 import * as fs from 'node:fs';
 import { BrowserWindow, dialog, ipcMain, screen, shell } from 'electron';
-import { csvToMessages, messagesToCsv } from '@shared/csv';
-import { resolveStyle } from '@shared/effectiveStyle';
 import {
-  BackupFormatSchema,
   BackupImportSchema,
-  DirtySchema,
   IPC,
+  NotifyTestSchema,
   PauseSchema,
-  PopupTestSchema,
-  ScheduleRunNowSchema,
+  ShowNowSchema,
+  ThemeSchema,
   type AppInfo,
   type BackupResult,
 } from '@shared/ipc';
-import type { Config } from '@shared/schema';
 import type { SmaranApp } from '../SmaranApp';
-import { exportJson, mergeConfigs, parseBackupJson } from '../store/backup';
-import { setSettingsDirty } from '../windows/SettingsWindow';
-import { listFonts } from '../system/fonts';
+import { exportJson, mergeReminders, parseBackupJson } from '../store/backup';
+import { setTitleBarTheme } from '../windows/AppWindow';
 
 const invalid = (what: string) => new Error(`Smaran received an invalid ${what} request.`);
 
+function broadcast(channel: string, payload: unknown): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send(channel, payload);
+  }
+}
+
 /** Registers IPC handlers. Every input from a renderer is validated here with zod. */
 export function registerIpcHandlers(smaran: SmaranApp): void {
-  const { store } = smaran;
+  const { store, history, engine } = smaran;
 
   ipcMain.handle(IPC.configGet, () => store.get());
-  // The scheduler owns runtime; a settings save never overwrites it.
-  ipcMain.handle(IPC.configSave, (_event, next: unknown) =>
-    store.save(
-      typeof next === 'object' && next !== null ? { ...next, runtime: store.get().runtime } : next,
-    ),
-  );
-
-  ipcMain.handle(IPC.popupTest, async (_event, payload: unknown) => {
-    const parsed = PopupTestSchema.safeParse(payload);
-    if (!parsed.success) throw invalid('test popup');
-    await smaran.testPopup(parsed.data);
+  // The engine owns state and the pause; a save from the app never overwrites them.
+  ipcMain.handle(IPC.configSave, (_event, next: unknown) => {
+    if (typeof next !== 'object' || next === null) throw invalid('save');
+    const current = store.get();
+    const settings = (next as { settings?: object }).settings;
+    return store.save({
+      ...next,
+      state: current.state,
+      settings:
+        typeof settings === 'object' && settings !== null
+          ? { ...settings, pausedUntil: current.settings.pausedUntil }
+          : settings,
+    });
   });
 
-  ipcMain.handle(IPC.scheduleRunNow, (_event, payload: unknown) => {
-    const parsed = ScheduleRunNowSchema.safeParse(payload);
-    if (!parsed.success) throw invalid('run-now');
-    return smaran.scheduler.runNow(parsed.data.scheduleId);
+  ipcMain.handle(IPC.historyGet, () => history.list());
+  ipcMain.handle(IPC.historyClear, () => history.clear());
+
+  ipcMain.handle(IPC.nextTimes, () => engine.nextTimes());
+  ipcMain.handle(IPC.showNow, (_event, payload: unknown) => {
+    const parsed = ShowNowSchema.safeParse(payload);
+    if (!parsed.success) throw invalid('show-now');
+    return engine.showNow(parsed.data.reminderId);
   });
-  ipcMain.handle(IPC.scheduleNext, () => smaran.scheduler.nextTimes());
+  ipcMain.handle(IPC.notifyTest, (_event, payload: unknown) => {
+    const parsed = NotifyTestSchema.safeParse(payload);
+    if (!parsed.success) throw invalid('test');
+    const settings = store.get().settings.notification;
+    engine.test({
+      reminderId: null,
+      ...parsed.data,
+      label: 'Preview',
+      preview: true,
+      hideAfterSec: parsed.data.important ? null : settings.hideAfterSec,
+      sound: settings.sound,
+    });
+  });
 
   ipcMain.handle(IPC.appPause, (_event, payload: unknown) => {
     const parsed = PauseSchema.safeParse(payload ?? {});
@@ -54,62 +73,38 @@ export function registerIpcHandlers(smaran: SmaranApp): void {
   ipcMain.handle(IPC.appResume, () => smaran.resume());
   ipcMain.handle(IPC.appInfo, (): AppInfo => smaran.info());
   ipcMain.handle(IPC.appOpenDataFolder, () => shell.openPath(store.dir));
-  ipcMain.handle(IPC.fontsList, () => listFonts());
-
-  ipcMain.on(IPC.settingsDirty, (_event, payload: unknown) => {
-    const parsed = DirtySchema.safeParse(payload);
-    if (parsed.success) setSettingsDirty(parsed.data);
+  ipcMain.on(IPC.appTheme, (_event, payload: unknown) => {
+    const parsed = ThemeSchema.safeParse(payload);
+    if (parsed.success) setTitleBarTheme(parsed.data.dark);
   });
 
-  ipcMain.handle(IPC.backupExport, async (event, payload: unknown): Promise<BackupResult> => {
-    const parsed = BackupFormatSchema.safeParse(payload);
-    if (!parsed.success) throw invalid('export');
-    const { format } = parsed.data;
+  ipcMain.handle(IPC.backupExport, async (event): Promise<BackupResult> => {
     const win = BrowserWindow.fromWebContents(event.sender);
-    const stamp = new Date().toISOString().slice(0, 10);
-    const options = {
-      title: format === 'json' ? 'Export full backup' : 'Export messages',
-      defaultPath:
-        format === 'json' ? `smaran-backup-${stamp}.json` : `smaran-messages-${stamp}.csv`,
-      filters: [
-        format === 'json'
-          ? { name: 'Smaran backup', extensions: ['json'] }
-          : { name: 'CSV', extensions: ['csv'] },
-      ],
+    const options: Electron.SaveDialogOptions = {
+      title: 'Back up your reminders',
+      defaultPath: `smaran-backup-${new Date().toISOString().slice(0, 10)}.json`,
+      filters: [{ name: 'Smaran backup', extensions: ['json'] }],
     };
     const result = win
       ? await dialog.showSaveDialog(win, options)
       : await dialog.showSaveDialog(options);
     if (result.canceled || !result.filePath) return { ok: true };
-    const config = store.get();
-    const content =
-      format === 'json' ? exportJson(config) : `\uFEFF${messagesToCsv(config.messages)}`;
     try {
-      fs.writeFileSync(result.filePath, content, 'utf8');
+      fs.writeFileSync(result.filePath, exportJson(store.get()), 'utf8');
     } catch (error) {
       return { ok: false, error: `Could not save the file: ${(error as Error).message}` };
     }
-    return { ok: true, path: result.filePath };
+    return { ok: true, path: result.filePath, detail: `Saved to ${result.filePath}` };
   });
 
   ipcMain.handle(IPC.backupImport, async (event, payload: unknown): Promise<BackupResult> => {
     const parsed = BackupImportSchema.safeParse(payload);
     if (!parsed.success) throw invalid('import');
-    const { format } = parsed.data;
     const win = BrowserWindow.fromWebContents(event.sender);
     const options: Electron.OpenDialogOptions = {
-      title:
-        format === 'json'
-          ? 'Restore a full backup'
-          : format === 'csv'
-            ? 'Import messages from CSV'
-            : 'Import Smaran v1 settings',
+      title: parsed.data.mode === 'replace' ? 'Restore a backup' : 'Add reminders from a file',
       properties: ['openFile'],
-      filters: [
-        format === 'csv'
-          ? { name: 'CSV', extensions: ['csv', 'txt'] }
-          : { name: 'JSON', extensions: ['json'] },
-      ],
+      filters: [{ name: 'Smaran backup or settings', extensions: ['json'] }],
     };
     const result = win
       ? await dialog.showOpenDialog(win, options)
@@ -124,45 +119,30 @@ export function registerIpcHandlers(smaran: SmaranApp): void {
       return { ok: false, error: `Could not read the file: ${(error as Error).message}` };
     }
     const newId = () => crypto.randomUUID();
+    const backup = parseBackupJson(text, {
+      newId,
+      now: new Date(),
+      primaryDisplayId: screen.getPrimaryDisplay().id,
+    });
+    if (!backup.ok) return { ok: false, error: backup.error };
+
     const current = store.get();
-    let next: Config;
-    let detail: string;
-
-    if (format === 'csv') {
-      const defaultStyle = resolveStyle('', current.styles);
-      const { messages, skipped } = csvToMessages(text, {
-        styleId: defaultStyle.id,
-        newId,
-        now: new Date(),
-      });
-      next = { ...current, messages: [...current.messages, ...messages] };
-      detail = `Added ${messages.length} message${messages.length === 1 ? '' : 's'}${
-        skipped ? ` (skipped ${skipped} empty row${skipped === 1 ? '' : 's'})` : ''
-      }.`;
-    } else {
-      const backup = parseBackupJson(text, {
-        newId,
-        now: new Date(),
-        primaryDisplayId: screen.getPrimaryDisplay().id,
-      });
-      if (!backup.ok) return { ok: false, error: backup.error };
-      if (format === 'json') {
-        next = backup.config;
-        detail = 'Your settings were restored from the backup.';
-      } else {
-        next = mergeConfigs(current, backup.config, newId);
-        detail = `Added ${backup.config.messages.length} messages, ${backup.config.styles.length} styles and ${backup.config.schedules.length} schedule from v1.`;
-      }
-    }
-
+    const next =
+      parsed.data.mode === 'replace'
+        ? { ...backup.config, settings: { ...backup.config.settings, onboarded: true } }
+        : mergeReminders(current, backup.config, newId);
     const saved = store.save(next);
-    return saved.ok ? { ok: true, path, detail } : { ok: false, error: saved.error };
+    if (!saved.ok) return { ok: false, error: saved.error };
+    const count = backup.config.reminders.length;
+    const what = `${count} reminder${count === 1 ? '' : 's'}`;
+    const from = backup.from ? ` (converted from ${backup.from})` : '';
+    return {
+      ok: true,
+      path,
+      detail: parsed.data.mode === 'replace' ? `Restored ${what}${from}.` : `Added ${what}${from}.`,
+    };
   });
 
-  // Every write, from any source, reaches every open window.
-  store.onChange((config) => {
-    for (const win of BrowserWindow.getAllWindows()) {
-      if (!win.isDestroyed()) win.webContents.send(IPC.configChanged, config);
-    }
-  });
+  store.onChange((config) => broadcast(IPC.configChanged, config));
+  history.onChange((entries) => broadcast(IPC.historyChanged, entries));
 }

@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "app": {
+    "startAtLogin": true,
+    "showOnStartup": false,
+    "theme": "system",
+    "respectFocusAssist": true,
+    "pausedUntil": null,
+    "onboarded": true
+  },
+  "styles": [
+    {
+      "id": "style-1",
+      "name": "Default",
+      "isDefault": true,
+      "font": { "family": "Segoe UI", "sizePx": 22, "weight": 600, "italic": false },
+      "colors": { "text": "#FFFFFFFF", "background": "#1E1E2EE6", "border": "#7C83FDFF" },
+      "border": { "widthPx": 2, "radiusPx": 14 },
+      "paddingPx": 18,
+      "opacity": 1,
+      "size": { "mode": "auto", "widthPx": 420, "heightPx": 120, "maxWidthPx": 560 },
+      "timing": { "fadeInMs": 400, "stayMs": 4000, "fadeOutMs": 600 },
+      "position": {
+        "kind": "anchor",
+        "anchor": "top-center",
+        "offsetX": 0,
+        "offsetY": 24,
+        "display": "primary"
+      }
+    }
+  ],
+  "messages": [
+    {
+      "id": "msg-1",
+      "text": "Take a breath and sit up straight.",
+      "enabled": true,
+      "tags": [],
+      "styleId": "style-1",
+      "overrides": {},
+      "createdAt": "2026-10-08T09:00:00.000Z",
+      "updatedAt": "2026-10-08T09:00:00.000Z"
+    },
+    {
+      "id": "msg-2",
+      "text": "Drink a glass of water",
+      "enabled": true,
+      "tags": ["health"],
+      "styleId": "style-1",
+      "overrides": { "position": { "kind": "exact", "displayId": 1, "x": 100, "y": 50 } },
+      "createdAt": "2026-10-08T09:00:00.000Z",
+      "updatedAt": "2026-10-08T09:00:00.000Z"
+    }
+  ],
+  "schedules": [
+    {
+      "id": "sched-1",
+      "name": "Every hour",
+      "enabled": true,
+      "rule": { "kind": "interval", "everyMs": 3600000 },
+      "burst": { "count": 1, "gapMs": 5000, "overlap": "skip" },
+      "picker": { "mode": "sequential" }
+    },
+    {
+      "id": "sched-2",
+      "name": "Water",
+      "enabled": true,
+      "rule": { "kind": "weekly", "weekdays": [1, 2, 3, 4, 5], "time": "11:00" },
+      "burst": { "count": 2, "gapMs": 300000, "overlap": "queue" },
+      "picker": { "mode": "fixed", "messageId": "msg-2" }
+    }
+  ],
+  "runtime": {
+    "sched-1": {
+      "lastFiredAt": "2026-10-08T10:00:00.000Z",
+      "seqIndex": 0,
+      "lastMessageId": "msg-1",
+      "shuffleBag": []
+    }
+  }
+}

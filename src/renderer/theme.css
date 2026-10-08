@@ -1,0 +1,156 @@
+/* Design tokens shared by the app window and notification cards.
+   Warm neutrals, a clay accent, serif headings, calm motion. */
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-side: var(--side);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-hover: var(--hover);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-danger: var(--danger);
+  --color-ok: var(--ok);
+  --color-c-clay: #d97757;
+  --color-c-amber: #d4a13a;
+  --color-c-olive: #8a9a5b;
+  --color-c-sage: #6e9c84;
+  --color-c-sky: #5b8dbe;
+  --color-c-iris: #8a7cc8;
+  --color-c-rose: #c96c8a;
+  --color-c-slate: #8c8a84;
+  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-serif: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif;
+  --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-enter: enter 220ms var(--ease-out-soft) both;
+  --animate-fade: fade 180ms ease-out both;
+  --animate-pop: pop 200ms var(--ease-out-soft) both;
+  --animate-drawer: drawer 260ms var(--ease-out-soft) both;
+  --animate-rise: rise 240ms var(--ease-out-soft) both;
+}
+
+:root {
+  --bg: #faf9f5;
+  --side: #f0eee6;
+  --surface: #ffffff;
+  --raised: #f5f4ee;
+  --hover: rgba(31, 30, 29, 0.05);
+  --line: rgba(31, 30, 29, 0.1);
+  --ink: #141413;
+  --muted: #6b6a63;
+  --faint: #9b9a92;
+  --accent: #c96442;
+  --accent-hover: #b5583a;
+  --accent-soft: rgba(201, 100, 66, 0.12);
+  --on-accent: #ffffff;
+  --danger: #b9472b;
+  --ok: #4f7a5d;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #262624;
+  --side: #1f1e1d;
+  --surface: #30302e;
+  --raised: #2b2b29;
+  --hover: rgba(250, 249, 245, 0.06);
+  --line: rgba(250, 249, 245, 0.1);
+  --ink: #f5f4ef;
+  --muted: #a6a39a;
+  --faint: #75736c;
+  --accent: #d97757;
+  --accent-hover: #e48a6c;
+  --accent-soft: rgba(217, 119, 87, 0.16);
+  --on-accent: #1f1e1d;
+  --danger: #e57a5f;
+  --ok: #86b495;
+  color-scheme: dark;
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+@keyframes drawer {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+/* Quiet scrollbars. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--faint);
+}
+
+.drag {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}

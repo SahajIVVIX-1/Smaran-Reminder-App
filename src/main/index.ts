@@ -3,7 +3,6 @@ import { registerIpcHandlers } from './ipc/handlers';
 import { SmaranApp } from './SmaranApp';
 import { chooseDataFolder } from './system/dataFolder';
 import { launchedHidden } from './system/loginItem';
-import { showSettingsWindow } from './windows/SettingsWindow';
 
 const APP_ID = 'com.sahaj.smaran';
 
@@ -11,32 +10,38 @@ const APP_ID = 'com.sahaj.smaran';
 const data = chooseDataFolder(process.env['PORTABLE_EXECUTABLE_DIR'], app.getPath('userData'));
 if (data.dir !== app.getPath('userData')) app.setPath('userData', data.dir);
 
-// Only one Smaran may run. A second launch opens the first one's settings and exits.
+// Only one Smaran may run. A second launch opens the first one's window and exits.
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   let smaran: SmaranApp | null = null;
 
   app.on('second-instance', () => {
-    showSettingsWindow();
+    smaran?.openApp();
   });
 
   app.whenReady().then(() => {
     app.setAppUserModelId(APP_ID);
     smaran = new SmaranApp(app.getPath('userData'), data.portable);
-    const { notice, firstRun } = smaran.start();
     registerIpcHandlers(smaran);
+    const { notice, firstRun } = smaran.start();
 
-    // At login Smaran starts quietly in the tray; otherwise (and on first run) settings open.
+    // At login Smaran starts quietly in the tray; otherwise (and on first run) the window opens.
     if (!launchedHidden() || firstRun || notice) {
-      const settings = showSettingsWindow();
+      smaran.openApp(firstRun ? 'today' : undefined);
       if (notice) {
-        void dialog.showMessageBox(settings, { type: 'warning', title: 'Smaran', message: notice });
+        const converted = notice.startsWith('Your settings were converted');
+        void dialog.showMessageBox({
+          type: converted ? 'info' : 'warning',
+          title: 'Smaran',
+          message: converted ? 'Smaran has been updated' : 'Smaran started with default settings',
+          detail: notice,
+        });
       }
     }
   });
 
-  // Smaran lives in the tray: closing the settings window does not quit.
+  // Smaran lives in the tray: closing the window does not quit.
   app.on('window-all-closed', () => undefined);
 
   app.on('before-quit', () => {

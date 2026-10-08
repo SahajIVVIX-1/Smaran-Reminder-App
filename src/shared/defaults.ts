@@ -1,86 +1,112 @@
 import {
   SCHEMA_VERSION,
-  type AppSettings,
   type Config,
   type Id,
-  type ScheduleRuntime,
-  type Style,
-  type StyleFields,
+  type Reminder,
+  type ReminderState,
+  type Rule,
+  type Settings,
 } from './schema';
 
 export type NewId = () => Id;
 
 const randomId: NewId = () => crypto.randomUUID();
 
-export const DEFAULT_STYLE_FIELDS: StyleFields = {
-  font: { family: 'Segoe UI', sizePx: 22, weight: 600, italic: false },
-  colors: { text: '#FFFFFFFF', background: '#1E1E2EE6', border: '#7C83FDFF' },
-  border: { widthPx: 2, radiusPx: 14 },
-  paddingPx: 18,
-  opacity: 1,
-  size: { mode: 'auto', widthPx: 420, heightPx: 120, maxWidthPx: 560 },
-  timing: { fadeInMs: 400, stayMs: 4000, fadeOutMs: 600 },
-  position: { kind: 'anchor', anchor: 'top-center', offsetX: 0, offsetY: 24, display: 'primary' },
-};
+/** Stored for "pause until resumed". */
+export const PAUSED_FOREVER = '9999-12-31T00:00:00.000Z';
 
-export const DEFAULT_APP_SETTINGS: AppSettings = {
+export const DEFAULT_SETTINGS: Settings = {
   startAtLogin: true,
-  showOnStartup: false,
   theme: 'system',
-  respectFocusAssist: true,
+  notification: {
+    corner: 'bottom-right',
+    screen: 'primary',
+    size: 'comfortable',
+    sound: true,
+    hideAfterSec: 12,
+  },
+  quietHours: { enabled: false, from: '22:00', to: '07:00' },
+  holdWhenBusy: true,
   pausedUntil: null,
   onboarded: false,
 };
 
-/** Stored for "pause until resumed". */
-export const PAUSED_FOREVER = '9999-12-31T00:00:00.000Z';
+export function emptyState(): ReminderState {
+  return { lastDueAt: null, nextLine: 0, shuffleBag: [], snoozedUntil: null, completed: false };
+}
 
-export function createDefaultStyle(newId: NewId = randomId): Style {
+export interface NewReminderInput {
+  title: string;
+  rule: Rule;
+  note?: string;
+  lines?: string[];
+}
+
+export function createReminder(
+  input: NewReminderInput,
+  newId: NewId = randomId,
+  now: Date = new Date(),
+): Reminder {
+  const stamp = now.toISOString();
   return {
     id: newId(),
-    name: 'Default',
-    isDefault: true,
-    ...structuredClone(DEFAULT_STYLE_FIELDS),
+    title: input.title,
+    note: input.note ?? '',
+    lines: input.lines ?? [],
+    lineOrder: 'inOrder',
+    enabled: true,
+    rule: input.rule,
+    priority: 'normal',
+    hideAfterSec: null,
+    followUp: { enabled: false, everyMin: 10, times: 2 },
+    color: 'clay',
+    createdAt: stamp,
+    updatedAt: stamp,
   };
 }
 
-export function emptyScheduleRuntime(): ScheduleRuntime {
-  return { lastFiredAt: null, seqIndex: 0, lastMessageId: null, shuffleBag: [] };
-}
-
-/** First-run config: one default style, one sample message, one hourly schedule. */
+/** First run: two gentle examples the user can edit or delete. */
 export function createDefaultConfig(newId: NewId = randomId, now: Date = new Date()): Config {
-  const style = createDefaultStyle(newId);
-  const stamp = now.toISOString();
-  const messageId = newId();
-  const scheduleId = newId();
-
+  const water = {
+    ...createReminder(
+      {
+        title: 'Drink some water',
+        rule: {
+          kind: 'interval',
+          everyMs: 60 * 60_000,
+          activeHours: { from: '09:00', to: '18:00' },
+        },
+      },
+      newId,
+      now,
+    ),
+    color: 'sky' as const,
+  };
+  const stretch = {
+    ...createReminder(
+      {
+        title: 'Stand up and stretch',
+        rule: {
+          kind: 'interval',
+          everyMs: 45 * 60_000,
+          activeHours: { from: '09:00', to: '18:00' },
+          weekdays: [1, 2, 3, 4, 5],
+        },
+        lines: [
+          'Roll your shoulders back',
+          'Look at something far away for 20 seconds',
+          'Take three slow breaths',
+        ],
+      },
+      newId,
+      now,
+    ),
+    color: 'sage' as const,
+  };
   return {
     version: SCHEMA_VERSION,
-    app: { ...DEFAULT_APP_SETTINGS },
-    styles: [style],
-    messages: [
-      {
-        id: messageId,
-        text: 'Take a breath and sit up straight.',
-        enabled: true,
-        tags: [],
-        styleId: style.id,
-        overrides: {},
-        createdAt: stamp,
-        updatedAt: stamp,
-      },
-    ],
-    schedules: [
-      {
-        id: scheduleId,
-        name: 'Every hour',
-        enabled: true,
-        rule: { kind: 'interval', everyMs: 60 * 60 * 1000 },
-        burst: { count: 1, gapMs: 5000, overlap: 'skip' },
-        picker: { mode: 'sequential' },
-      },
-    ],
-    runtime: { [scheduleId]: emptyScheduleRuntime() },
+    settings: structuredClone(DEFAULT_SETTINGS),
+    reminders: [water, stretch],
+    state: { [water.id]: emptyState(), [stretch.id]: emptyState() },
   };
 }
