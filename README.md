@@ -13,6 +13,7 @@ Electron + React + TypeScript. The build plan (`Smaran Reminder v2 — Electron 
 | `npm run lint`       | ESLint                                                    |
 | `npm run format`     | Prettier                                                  |
 | `npm test`           | Unit tests (Vitest)                                       |
+| `npm run test:coverage` | Unit tests with coverage (100% required on `src/shared`) |
 | `npm run test:e2e`   | Build, then Playwright tests against the real app         |
 | `npm run build:win`  | Build the NSIS installer and the portable exe             |
 | `npm run icon`       | Regenerate the placeholder icon                           |

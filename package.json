@@ -18,6 +18,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "test:e2e": "npm run build && playwright test",
     "build": "npm run typecheck && electron-vite build",
     "build:win": "npm run build && node scripts/prepare-release-dirs.mjs && electron-builder --win --x64",
@@ -31,6 +32,7 @@
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^5.1.4",
+    "@vitest/coverage-v8": "^5.0.3",
     "electron": "^44.7.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
@@ -51,5 +53,9 @@
     "esbuild@0.25.12": true,
     "esbuild@0.28.2": true,
     "electron-winstaller@5.4.0": true
+  },
+  "dependencies": {
+    "date-fns": "^4.4.0",
+    "zod": "^4.6.5"
   }
 }
