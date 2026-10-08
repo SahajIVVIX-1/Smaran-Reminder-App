@@ -1,0 +1,36 @@
+# Packaging config. Every build lands in its own versioned folder:
+#   release/<version>/installer/Smaran-Setup-<version>.exe
+#   release/<version>/portable/Smaran-<version>-portable.exe
+#   release/<version>/win-unpacked/   (unpacked app, useful for quick testing)
+appId: com.sahaj.smaran
+productName: Smaran
+directories:
+  output: release/${version}
+  buildResources: build
+files:
+  - out/**
+  - package.json
+extraResources:
+  - from: resources
+    to: resources
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+nsis:
+  artifactName: installer/${productName}-Setup-${version}.${ext}
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Smaran
+  runAfterFinish: true
+  license: build/license.txt
+  deleteAppDataOnUninstall: false
+  include: build/installer.nsh
+portable:
+  artifactName: portable/${productName}-${version}-portable.${ext}
