@@ -170,12 +170,13 @@ export function SmaranDots({
       focusable="false"
     >
       <defs>
+        {/* A soft threshold (alpha x8 - 3, not x18 - 7) keeps the merge but leaves anti-aliased edges, so small logos don't flicker. */}
         <filter id={gooId} filterUnits="userSpaceOnUse" x="-32" y="-32" width="128" height="128">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="1.8" result="blur" />
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="blur" />
           <feColorMatrix
             in="blur"
             mode="matrix"
-            values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7"
+            values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 8 -3"
             result="goo"
           />
           <feComposite in="SourceGraphic" in2="goo" operator="atop" />

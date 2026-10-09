@@ -1,3 +1,10 @@
+# Smaran 2.11.2
+
+- **Smooth liquid merge.** With Liquid Merge on, the dots no longer look pixelated or flicker: the
+  merge now uses a soft edge, so they stay anti-aliased at every size.
+
+---
+
 # Smaran 2.11.1
 
 - **The app icon stays put on the taskbar.** The taskbar button always shows Smaran's icon; only the
