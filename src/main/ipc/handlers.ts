@@ -9,6 +9,7 @@ import {
   ThemeSchema,
   type AppInfo,
   type BackupResult,
+  type FontsAddResult,
 } from '@shared/ipc';
 import type { SmaranApp } from '../SmaranApp';
 import { exportJson, mergeReminders, parseBackupJson } from '../store/backup';
@@ -63,6 +64,26 @@ export function registerIpcHandlers(smaran: SmaranApp): void {
       hideAfterSec: parsed.data.important ? null : settings.hideAfterSec,
       sound: settings.sound,
     });
+  });
+
+  ipcMain.handle(IPC.fontsList, () => smaran.fonts.catalog());
+  ipcMain.handle(IPC.fontsAdd, async (event): Promise<FontsAddResult> => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const options: Electron.OpenDialogOptions = {
+      title: 'Add font files',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'Fonts', extensions: ['ttf', 'otf', 'woff', 'woff2'] }],
+    };
+    const result = win
+      ? await dialog.showOpenDialog(win, options)
+      : await dialog.showOpenDialog(options);
+    if (result.canceled || result.filePaths.length === 0)
+      return { ok: true, added: [], skipped: [] };
+    try {
+      return { ok: true, ...smaran.fonts.add(result.filePaths) };
+    } catch (error) {
+      return { ok: false, error: `Could not add the fonts: ${(error as Error).message}` };
+    }
   });
 
   ipcMain.handle(IPC.appPause, (_event, payload: unknown) => {

@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { useEffect, useState, type ReactNode } from 'react';
 import { createReminder } from '@shared/defaults';
+import { fontFaceCss, fontStack } from '@shared/fonts';
 import type { Route } from '@shared/ipc';
 import type { Settings as SettingsT } from '@shared/schema';
 import { ReminderEditor } from './components/ReminderEditor';
@@ -44,6 +45,25 @@ export function App() {
   const { init, external, setHistory, go, edit, refreshNext } = useApp.getState();
 
   useTheme(config?.settings.theme);
+
+  // The chosen font, and @font-face rules for font files the user added.
+  const font = config?.settings.font;
+  const custom = useApp((s) => s.fonts?.custom);
+  useEffect(() => {
+    if (font) document.documentElement.style.setProperty('--font-app', fontStack(font));
+  }, [font]);
+  useEffect(() => {
+    let style = document.getElementById('smaran-faces');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'smaran-faces';
+      document.head.appendChild(style);
+    }
+    style.textContent = fontFaceCss(custom ?? []);
+  }, [custom]);
+  useEffect(() => {
+    void useApp.getState().loadFonts();
+  }, []);
 
   // Windows 11: the window has an acrylic backdrop, so the page goes translucent.
   useEffect(() => {

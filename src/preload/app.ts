@@ -3,11 +3,13 @@ import { IPC } from '@shared/channels';
 import type {
   AppInfo,
   BackupResult,
+  FontsAddResult,
   NextFire,
   NotifyTestRequest,
   Route,
   SaveResult,
 } from '@shared/ipc';
+import type { FontCatalog } from '@shared/fonts';
 import type { Config, HistoryEntry, Id } from '@shared/schema';
 
 function subscribe<T>(channel: string, listener: (value: T) => void): () => void {
@@ -46,6 +48,10 @@ const api = {
     setTheme: (dark: boolean): void => ipcRenderer.send(IPC.appTheme, { dark }),
     onNavigate: (listener: (route: Route) => void): (() => void) =>
       subscribe(IPC.navigate, listener),
+  },
+  fonts: {
+    list: (): Promise<FontCatalog> => ipcRenderer.invoke(IPC.fontsList),
+    add: (): Promise<FontsAddResult> => ipcRenderer.invoke(IPC.fontsAdd),
   },
   backup: {
     export: (): Promise<BackupResult> => ipcRenderer.invoke(IPC.backupExport),

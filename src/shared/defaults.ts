@@ -7,6 +7,7 @@ import {
   type Rule,
   type Settings,
 } from './schema';
+import { DEFAULT_FONT } from './fonts';
 
 export type NewId = () => Id;
 
@@ -27,6 +28,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   quietHours: { enabled: false, from: '22:00', to: '07:00' },
   holdWhenBusy: true,
+  font: DEFAULT_FONT,
   pausedUntil: null,
   onboarded: false,
 };

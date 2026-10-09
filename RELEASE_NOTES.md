@@ -1,3 +1,16 @@
+# Smaran 2.4.0
+
+- **Border light instead of a countdown.** A short light in Google's colours now travels round the
+  notification's border at a steady pace, like a loading indicator, with a soft glow.
+- **Choose your font.** Settings → General → Font lists every font installed on this PC, three fonts
+  bundled with Smaran (Source Serif 4, Inter, JetBrains Mono), and Anthropic Serif, Sans and Mono.
+  The default is Anthropic Serif. "Add font files…" copies .ttf/.otf/.woff files into Smaran so a
+  font works even if it isn't installed in Windows. The font applies to the app and to reminders.
+- Anthropic's typefaces can't be shipped inside the app; until you install or add them, Smaran shows
+  the bundled open stand-ins (Source Serif 4, Inter, JetBrains Mono) in their place.
+
+---
+
 # Smaran 2.3.1
 
 - The notification pill shows the title in a larger font, in the same size box, without the colour dot.

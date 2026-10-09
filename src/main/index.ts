@@ -2,6 +2,7 @@ import { app, dialog } from 'electron';
 import { registerIpcHandlers } from './ipc/handlers';
 import { SmaranApp } from './SmaranApp';
 import { chooseDataFolder } from './system/dataFolder';
+import { registerFontScheme } from './system/fonts';
 import { launchedHidden } from './system/loginItem';
 
 const APP_ID = 'com.sahaj.smaran';
@@ -9,6 +10,8 @@ const APP_ID = 'com.sahaj.smaran';
 // Portable build: keep data beside the exe when that folder is writable. Must run before 'ready'.
 const data = chooseDataFolder(process.env['PORTABLE_EXECUTABLE_DIR'], app.getPath('userData'));
 if (data.dir !== app.getPath('userData')) app.setPath('userData', data.dir);
+
+registerFontScheme();
 
 // Only one Smaran may run. A second launch opens the first one's window and exits.
 if (!app.requestSingleInstanceLock()) {

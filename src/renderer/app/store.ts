@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { FontCatalog } from '@shared/fonts';
 import type { NextFire, Route } from '@shared/ipc';
 import type { Config, HistoryEntry, Id, Reminder, Settings } from '@shared/schema';
 
@@ -23,6 +24,9 @@ interface AppState {
   pending: boolean;
   /** Tasks in flight (loading, backups, showing a reminder now). */
   tasks: number;
+  /** Fonts on this PC and fonts the user added; loaded on demand. */
+  fonts: FontCatalog | null;
+  loadFonts(): Promise<void>;
 
   init(config: Config, history: HistoryEntry[]): void;
   external(config: Config): void;
@@ -54,6 +58,11 @@ export const useApp = create<AppState>((set, get) => ({
   toast: null,
   pending: false,
   tasks: 0,
+  fonts: null,
+
+  async loadFonts() {
+    set({ fonts: await get().track(window.smaran.fonts.list()) });
+  },
 
   init(config, history) {
     set({ config, history });

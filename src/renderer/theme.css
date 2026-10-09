@@ -30,7 +30,7 @@
   --color-c-rose: #c96c8a;
   --color-c-slate: #8c8a84;
   --font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
-  --font-serif: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif;
+  --font-serif: 'Anthropic Serif', 'Source Serif 4 Variable', 'Palatino Linotype', Georgia, serif;
   --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
   --animate-enter: enter 220ms var(--ease-out-soft) both;
   --animate-fade: fade 180ms ease-out both;
@@ -202,6 +202,15 @@ input[type='number']::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
+/* The notification border light: one steady lap round the border. */
+@keyframes ring-run {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -100;
+  }
+}
 @keyframes rise {
   from {
     opacity: 0;
@@ -226,7 +235,8 @@ body,
 }
 
 body {
-  font-family: var(--font-sans);
+  /* The font chosen in Settings (set on <html> by the app); Segoe UI until then. */
+  font-family: var(--font-app, var(--font-sans));
   font-size: 13px;
   color: var(--ink);
   -webkit-font-smoothing: antialiased;

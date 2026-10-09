@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { expect, test } from '@playwright/test';
@@ -171,5 +171,30 @@ test('a Smaran 2.0 config is upgraded to reminders on first start', async () => 
   await expect(list.getByText('Every hour', { exact: true })).toBeVisible(); // two messages → rotating lines
   await expect(list.getByText('Drink a glass of water')).toBeVisible();
   expect(h.readConfig().version).toBe(3);
+  await h.close();
+});
+
+test('added font files are listed and served to the pages', async () => {
+  const font = 'C:/Windows/Fonts/segoeuib.ttf';
+  test.skip(!existsSync(font), 'needs a Windows font file');
+  const h = await launch(seedConfig());
+  const dir = join(h.userData, 'fonts');
+  mkdirSync(dir, { recursive: true });
+  copyFileSync(font, join(dir, 'segoeuib.ttf'));
+  const catalog = await h.page.evaluate(() => window.smaran.fonts.list());
+  expect(catalog.custom).toContainEqual(
+    expect.objectContaining({
+      family: 'Segoe UI',
+      weight: 700,
+      url: 'smaran-font://f/segoeuib.ttf',
+    }),
+  );
+  expect(catalog.system.length).toBeGreaterThan(10);
+  // Loaded the way the page uses it (font-src), not via fetch.
+  const loaded = await h.page.evaluate(async () => {
+    const face = await new FontFace('Added', 'url(smaran-font://f/segoeuib.ttf)').load();
+    return face.status;
+  });
+  expect(loaded).toBe('loaded');
   await h.close();
 });

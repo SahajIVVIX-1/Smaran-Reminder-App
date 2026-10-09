@@ -113,6 +113,8 @@ export const SettingsSchema = z.object({
     .refine((q) => q.from !== q.to, { message: 'Start and end must differ', path: ['to'] }),
   /** Hold normal notifications while a full-screen app, game or presentation is showing. */
   holdWhenBusy: z.boolean(),
+  /** Font family for the app and notifications. */
+  font: z.string().trim().min(1).max(200),
   /** ISO time; "until resumed" is stored as a far-future date. */
   pausedUntil: z.iso.datetime({ offset: true }).nullable(),
   onboarded: z.boolean(),

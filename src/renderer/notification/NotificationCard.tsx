@@ -3,6 +3,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type PointerEvent,
   type ReactNode,
 } from 'react';
@@ -330,12 +331,8 @@ export function NotificationCard({
           </div>
         </div>
 
-        {/* Time left runs around the border as a glowing, colourful ring. */}
-        <BorderRing
-          progress={request.hideAfterSec === null ? 1 : remaining}
-          radius={radius}
-          morph={`${MORPH_MS}ms ${MORPH}`}
-        />
+        {/* A colourful light travels round the border while the card is showing. */}
+        <BorderRing radius={radius} morph={`${MORPH_MS}ms ${MORPH}`} />
       </div>
     </div>
   );
@@ -364,66 +361,55 @@ function Action({
   );
 }
 
+/** Google's four colours, in order along the moving light. */
+const RING_COLORS = ['#4285F4', '#EA4335', '#FBBC05', '#34A853'];
+/** Each colour's share of the border (out of 100), and one lap's duration. */
+const RING_SEGMENT = 7;
+const RING_LAP_S = 2.8;
+
 /**
- * A ring drawn on the card's border in Google-style colours. Its length shows the time left before
- * the card hides itself, the colours drift around it continuously, and a soft blurred copy underneath
- * gives it a glassy glow. It follows the card as it morphs between pill and full size.
+ * A short light in Google's colours that travels round the card's border at a steady pace, like a
+ * loading indicator, with a soft blurred copy underneath for a glassy glow. Pure CSS animation of
+ * the stroke offset, so it moves smoothly; it follows the card as it morphs between pill and card.
  */
-function BorderRing({
-  progress,
-  radius,
-  morph,
-}: {
-  progress: number;
-  radius: number;
-  morph: string;
-}) {
-  // Each card has its own window, so one fixed id is enough.
-  const gradient = 'smaran-ring';
-  const shape = {
-    x: 1,
-    y: 1,
-    style: {
-      width: 'calc(100% - 2px)',
-      height: 'calc(100% - 2px)',
-      rx: Math.max(0, radius - 1),
-      ry: Math.max(0, radius - 1),
-      transition: `rx ${morph}, ry ${morph}`,
-    },
-    pathLength: 100,
-    fill: 'none',
-    stroke: `url(#${gradient})`,
-    strokeLinecap: 'round' as const,
-    strokeDasharray: `${(progress * 100).toFixed(2)} 100`,
-  };
+function BorderRing({ radius, morph }: { radius: number; morph: string }) {
+  // Each colour sits a little further along the same repeating pattern, so all four move as one.
+  const segments = RING_COLORS.map((color, i) => ({
+    color,
+    offset: RING_SEGMENT * (RING_COLORS.length - 1 - i),
+  }));
+  const rect = (color: string, offset: number, glow: boolean) => (
+    <rect
+      key={`${color}-${glow}`}
+      x={1}
+      y={1}
+      pathLength={100}
+      fill="none"
+      stroke={color}
+      strokeWidth={glow ? 4.5 : 2.2}
+      strokeLinecap="round"
+      strokeDasharray={`0 ${offset} ${RING_SEGMENT} ${100 - offset - RING_SEGMENT}`}
+      opacity={glow ? 0.55 : 1}
+      style={
+        {
+          width: 'calc(100% - 2px)',
+          height: 'calc(100% - 2px)',
+          rx: Math.max(0, radius - 1),
+          ry: Math.max(0, radius - 1),
+          transition: `rx ${morph}, ry ${morph}`,
+          animation: `ring-run ${RING_LAP_S}s linear infinite`,
+          filter: glow ? 'blur(3px)' : undefined,
+        } as CSSProperties
+      }
+    />
+  );
   return (
     <svg
       className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
       aria-hidden
     >
-      <defs>
-        <linearGradient id={gradient} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#4285F4" />
-          <stop offset="0.36" stopColor="#EA4335" />
-          <stop offset="0.66" stopColor="#FBBC05" />
-          <stop offset="1" stopColor="#34A853" />
-          <animateTransform
-            attributeName="gradientTransform"
-            type="rotate"
-            from="0 0.5 0.5"
-            to="360 0.5 0.5"
-            dur="4s"
-            repeatCount="indefinite"
-          />
-        </linearGradient>
-      </defs>
-      <rect
-        {...shape}
-        strokeWidth={4.5}
-        opacity={0.6}
-        style={{ ...shape.style, filter: 'blur(3px)' }}
-      />
-      <rect {...shape} strokeWidth={2.2} />
+      <g>{segments.map((s) => rect(s.color, s.offset, true))}</g>
+      <g>{segments.map((s) => rect(s.color, s.offset, false))}</g>
     </svg>
   );
 }

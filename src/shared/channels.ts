@@ -17,6 +17,8 @@ export const IPC = {
   appTheme: 'app:theme',
   backupExport: 'backup:export',
   backupImport: 'backup:import',
+  fontsList: 'fonts:list',
+  fontsAdd: 'fonts:add',
   navigate: 'app:navigate',
   notifInit: 'notif:init',
   notifMeasured: 'notif:measured',

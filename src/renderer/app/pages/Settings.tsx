@@ -4,6 +4,7 @@ import type { AppInfo, BackupResult } from '@shared/ipc';
 import { CORNERS, type Settings as SettingsT } from '@shared/schema';
 import { cx } from '../cx';
 import { useApp } from '../store';
+import { FontPicker } from '../components/FontPicker';
 import { Select } from '../components/Select';
 import { TimeField } from '../components/TimeField';
 import { Button, Card, Row, Segmented, Switch } from '../ui';
@@ -99,6 +100,9 @@ export function Settings() {
             checked={s.startAtLogin}
             onChange={(v) => setSettings((x) => ({ ...x, startAtLogin: v }))}
           />
+        </Row>
+        <Row label="Font" hint="Used across Smaran and in reminders.">
+          <FontPicker value={s.font} onChange={(font) => setSettings((x) => ({ ...x, font }))} />
         </Row>
         <Row label="Appearance">
           <Segmented

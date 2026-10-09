@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { app, dialog, nativeTheme, powerMonitor, screen } from 'electron';
 import { PAUSED_FOREVER } from '@shared/defaults';
 import type { AppInfo, Route } from '@shared/ipc';
@@ -6,6 +7,7 @@ import { Engine, isPaused } from './engine/Engine';
 import { ConfigStore } from './store/ConfigStore';
 import { HistoryStore } from './store/HistoryStore';
 import { windowsIsBusy } from './system/focusAssist';
+import { FontLibrary } from './system/fonts';
 import { applyLoginItem } from './system/loginItem';
 import { AppTray } from './tray/Tray';
 import { GLASS, getAppWindow, showAppWindow } from './windows/AppWindow';
@@ -19,6 +21,7 @@ export class SmaranApp {
   readonly history: HistoryStore;
   readonly notifications: NotificationCenter;
   readonly engine: Engine;
+  readonly fonts: FontLibrary;
   private tray: AppTray | null = null;
   private trayTimer: ReturnType<typeof setInterval> | null = null;
   private lastLoginItem: boolean | null = null;
@@ -31,7 +34,11 @@ export class SmaranApp {
       primaryDisplayId: () => screen.getPrimaryDisplay().id,
     });
     this.history = new HistoryStore(dataDir);
-    this.notifications = new NotificationCenter(() => this.store.get().settings);
+    this.fonts = new FontLibrary(join(dataDir, 'fonts'));
+    this.notifications = new NotificationCenter(
+      () => this.store.get().settings,
+      () => this.fonts.customFonts(),
+    );
     this.engine = new Engine({
       store: this.store,
       history: this.history,
@@ -45,6 +52,7 @@ export class SmaranApp {
     const { config, notice } = this.store.load();
     this.history.load();
 
+    this.fonts.serve();
     this.notifications.registerIpc();
     this.notifications.handleActions(
       (key, action) => this.engine.handleAction(key, action),

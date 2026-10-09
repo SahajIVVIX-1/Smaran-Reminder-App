@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { CustomFont } from './fonts';
 import { ColorSchema, IdSchema, type Id, type ReminderColor } from './schema';
 
 export { IPC, type IpcChannel } from './channels';
@@ -45,6 +46,9 @@ export const NotificationActionSchema = z.discriminatedUnion('kind', [
 export interface NotificationLook {
   theme: 'light' | 'dark';
   size: 'compact' | 'comfortable' | 'large';
+  /** Font family chosen in Settings, and any font files the user added. */
+  font: string;
+  faces: CustomFont[];
 }
 
 export interface NotificationInit {
@@ -90,5 +94,8 @@ export interface AppInfo {
   /** The window has Windows 11's acrylic backdrop, so the page can be translucent. */
   glass: boolean;
 }
+
+export type FontsAddResult =
+  { ok: true; added: string[]; skipped: string[] } | { ok: false; error: string };
 
 export type Route = 'today' | 'reminders' | 'history' | 'settings';

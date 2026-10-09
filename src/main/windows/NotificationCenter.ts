@@ -8,6 +8,7 @@ import {
   type NotificationLook,
   type NotificationRequest,
 } from '@shared/ipc';
+import type { CustomFont } from '@shared/fonts';
 import type { Settings } from '@shared/schema';
 import type { Notifier } from '../engine/Engine';
 import { loadRenderer, preloadPath } from './loadRenderer';
@@ -44,7 +45,10 @@ export class NotificationCenter implements Notifier {
   private onAction: (key: string, action: NotificationAction) => void = () => undefined;
   private onOpenApp: () => void = () => undefined;
 
-  constructor(private readonly settings: () => Settings) {}
+  constructor(
+    private readonly settings: () => Settings,
+    private readonly faces: () => CustomFont[] = () => [],
+  ) {}
 
   handleActions(
     handler: (key: string, action: NotificationAction) => void,
@@ -93,6 +97,8 @@ export class NotificationCenter implements Notifier {
             : 'light'
           : settings.theme,
       size: settings.notification.size,
+      font: settings.font,
+      faces: this.faces(),
     };
     const width = WINDOW_WIDTH[look.size];
     const win = new BrowserWindow({
