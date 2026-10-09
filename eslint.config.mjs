@@ -10,6 +10,7 @@ export default tseslint.config(
     ignores: [
       'out/**',
       'release/**',
+      'branding/**',
       'dist/**',
       'node_modules/**',
       'test-results/**',

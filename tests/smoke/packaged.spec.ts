@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { _electron as electron, expect, test } from '@playwright/test';
-import { seedConfig } from '../e2e/helpers';
+import { pageWith, seedConfig } from '../e2e/helpers';
 import pkg from '../../package.json';
 
 // Runs against the packaged app in release/<version>/win-unpacked (build:win first).
@@ -12,7 +12,8 @@ test('packaged app opens, adds a reminder and shows a notification', async () =>
   const userData = mkdtempSync(join(tmpdir(), 'smaran-smoke-'));
   writeFileSync(join(userData, 'config.json'), JSON.stringify(seedConfig()));
   const app = await electron.launch({ executablePath: exe, args: [`--user-data-dir=${userData}`] });
-  const page = await app.firstWindow();
+  // Smaran also keeps a hidden menu window ready, so pick the app window by its page.
+  const page = await pageWith(app, '/app/');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   const info = await page.evaluate(() => window.smaran.app.info());
   expect(info.version).toBe(pkg.version);
@@ -22,9 +23,9 @@ test('packaged app opens, adds a reminder and shows a notification', async () =>
   await expect(page.getByText('Added “Smoke test”', { exact: false })).toBeVisible();
 
   await page.getByRole('button', { name: 'Settings' }).click();
-  const card = app.waitForEvent('window');
   await page.getByRole('button', { name: 'Send a test reminder' }).click();
-  await expect((await card).getByTestId('notification')).toBeVisible();
+  const card = await pageWith(app, '/notification/');
+  await expect(card.getByTestId('notification')).toBeVisible();
   await app.close();
   rmSync(userData, { recursive: true, force: true });
 });

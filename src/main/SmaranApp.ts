@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { app, dialog, nativeTheme, powerMonitor, screen } from 'electron';
+import { app, dialog, nativeImage, nativeTheme, powerMonitor, screen } from 'electron';
 import { PAUSED_FOREVER } from '@shared/defaults';
 import type { AppInfo, Route } from '@shared/ipc';
 import type { Config } from '@shared/schema';
@@ -9,7 +9,7 @@ import { HistoryStore } from './store/HistoryStore';
 import { windowsIsBusy } from './system/focusAssist';
 import { FontLibrary } from './system/fonts';
 import { applyLoginItem } from './system/loginItem';
-import { AppTray } from './tray/Tray';
+import { AppTray, iconPath } from './tray/Tray';
 import { GLASS, getAppWindow, showAppWindow } from './windows/AppWindow';
 import { MenuWindow } from './windows/MenuWindow';
 import { NotificationCenter } from './windows/NotificationCenter';
@@ -95,7 +95,10 @@ export class SmaranApp {
     this.engine.start();
     this.syncSystem(config);
     this.refreshTray();
-    this.trayTimer = setInterval(() => this.refreshTray(), TRAY_REFRESH_MS);
+    this.trayTimer = setInterval(() => {
+      this.refreshTray();
+      void this.tray?.refreshIcon();
+    }, TRAY_REFRESH_MS);
     return { notice, firstRun: !config.settings.onboarded };
   }
 
@@ -144,7 +147,8 @@ export class SmaranApp {
   about(): void {
     const info = this.info();
     const options: Electron.MessageBoxOptions = {
-      type: 'info',
+      type: 'none',
+      icon: nativeImage.createFromPath(iconPath()),
       title: 'About Smaran',
       message: `Smaran ${info.version}`,
       detail:

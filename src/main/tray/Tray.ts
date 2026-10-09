@@ -1,6 +1,7 @@
 import { join } from 'node:path';
-import { app, nativeImage, Tray } from 'electron';
+import { app, nativeImage, nativeTheme, Tray } from 'electron';
 import { separator, type MenuEntry } from '@shared/menu';
+import { taskbarIsLight } from './taskbarTheme';
 import { tooltipFor, type TrayState } from './tooltip';
 
 export interface TrayActions {
@@ -13,25 +14,37 @@ export interface TrayActions {
   quit(): void;
 }
 
-export function iconPath(): string {
+function resource(...parts: string[]): string {
   return app.isPackaged
-    ? join(process.resourcesPath, 'resources', 'icon.png')
-    : join(app.getAppPath(), 'resources', 'icon.png');
+    ? join(process.resourcesPath, 'resources', ...parts)
+    : join(app.getAppPath(), 'resources', ...parts);
+}
+
+/** The app icon, for windows and dialogs. */
+export function iconPath(): string {
+  return resource('icon.png');
+}
+
+/** Monochrome tray icon: a dark glyph on a light taskbar, a white glyph on a dark one. */
+export function trayIconPath(lightTaskbar: boolean): string {
+  return resource('tray', lightTaskbar ? 'tray-light.ico' : 'tray-dark.ico');
 }
 
 /** Tray icon: click opens Smaran; right-click opens Smaran's themed menu. */
 export class AppTray {
   private readonly tray: Tray;
   private state: TrayState = { pausedUntil: null, next: null };
+  private lightTaskbar: boolean;
 
   constructor(
     private readonly actions: TrayActions,
     private readonly menu: (items: MenuEntry[]) => Promise<string | null>,
   ) {
-    const image = nativeImage
-      .createFromPath(iconPath())
-      .resize({ width: 16, height: 16, quality: 'best' });
-    this.tray = new Tray(image);
+    // First guess from the app theme; refreshIcon() reads the taskbar's own setting.
+    this.lightTaskbar = !nativeTheme.shouldUseDarkColors;
+    this.tray = new Tray(nativeImage.createFromPath(trayIconPath(this.lightTaskbar)));
+    nativeTheme.on('updated', () => void this.refreshIcon());
+    void this.refreshIcon();
     this.tray.on('click', () => this.actions.open());
     this.tray.on('right-click', () => void this.openMenu());
     this.tray.setToolTip(tooltipFor(this.state));
@@ -40,6 +53,14 @@ export class AppTray {
   update(state: TrayState): void {
     this.state = state;
     this.tray.setToolTip(tooltipFor(this.state));
+  }
+
+  /** Matches the icon to the taskbar's light/dark mode. Cheap; also called on a timer. */
+  async refreshIcon(): Promise<void> {
+    const light = (await taskbarIsLight()) ?? !nativeTheme.shouldUseDarkColors;
+    if (light === this.lightTaskbar || this.tray.isDestroyed()) return;
+    this.lightTaskbar = light;
+    this.tray.setImage(nativeImage.createFromPath(trayIconPath(light)));
   }
 
   destroy(): void {

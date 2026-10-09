@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { chooseDataFolder, isWritable, PORTABLE_DATA_DIR } from '../../src/main/system/dataFolder';
 import { isSuppressingState, NotificationState } from '../../src/main/system/focusAssist';
+import { parseSystemUsesLightTheme } from '../../src/main/tray/taskbarTheme';
 import { tooltipFor } from '../../src/main/tray/tooltip';
 import {
   EDGE,
@@ -160,5 +161,18 @@ describe('tray tooltip', () => {
     expect(tooltipFor({ pausedUntil: '9999-12-31T00:00:00.000Z', next: null }, now)).toBe(
       'Smaran is paused until you resume it',
     );
+  });
+});
+
+describe('taskbar theme', () => {
+  const out = (v: string) =>
+    String.raw`HKEY_CURRENT_USER\Software\Personalize` +
+    `\r\n    SystemUsesLightTheme    REG_DWORD    ${v}\r\n`;
+  it('reads light and dark taskbars from the registry output', () => {
+    expect(parseSystemUsesLightTheme(out('0x1'))).toBe(true);
+    expect(parseSystemUsesLightTheme(out('0x0'))).toBe(false);
+  });
+  it('returns null when the value is missing', () => {
+    expect(parseSystemUsesLightTheme('ERROR: The system was unable to find the value.')).toBeNull();
   });
 });

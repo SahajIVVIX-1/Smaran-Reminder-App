@@ -1,3 +1,15 @@
+# Smaran 2.6.0
+
+- **New logo and icons.** The placeholder icon is replaced by Smaran's own mark: a single-stroke S
+  with a reminder dot. The installer, the .exe, the taskbar, the window and the About box use the
+  new app icon (a white mark on an accent tile).
+- **Tray icon follows the taskbar.** It uses a dark glyph on a light taskbar and a white glyph on a
+  dark one. Windows lets the taskbar's mode differ from apps' mode, so Smaran reads the taskbar's
+  own setting and updates within moments when you change it.
+- The full brand kit (SVG sources, PNGs, .ico files, colours and rules) is in `branding/`.
+
+---
+
 # Smaran 2.5.0
 
 - **Themed right-click menus everywhere.** The tray icon, notifications, reminders in the list and

@@ -1,6 +1,7 @@
 import { BrowserWindow } from 'electron';
 import { IPC, type Route } from '@shared/ipc';
 import { supportsGlass } from '../system/glass';
+import { iconPath } from '../tray/Tray';
 import { loadRenderer, preloadPath } from './loadRenderer';
 
 /** Title-bar colours matching the app's sidebar, light and dark. */
@@ -34,6 +35,7 @@ function createAppWindow(dark: boolean): BrowserWindow {
     minWidth: 820,
     minHeight: 560,
     title: 'Smaran',
+    icon: iconPath(),
     show: false,
     backgroundColor: background(dark),
     ...(GLASS ? { backgroundMaterial: 'acrylic' as const } : {}),

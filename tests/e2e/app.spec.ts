@@ -199,17 +199,22 @@ test('several cards stack in the corner without overlapping', async () => {
       ),
     )
     .toBe(2);
-  const bounds = await h.app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()
-      .filter((w) => !w.isFocusable())
-      .map((w) => w.getBounds()),
-  );
-  const [first, second] = bounds;
-  expect(first!.x).toBe(second!.x);
+  const bounds = () =>
+    h.app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .filter((w) => !w.isFocusable())
+        .map((w) => w.getBounds()),
+    );
+  const apart = async () => {
+    const [first, second] = await bounds();
+    return Math.abs(first!.y - second!.y);
+  };
   // Spaced by the small pill they show (about 36 px) plus an 8 px gap, not by their window.
-  const apart = Math.abs(first!.y - second!.y);
-  expect(apart).toBeGreaterThanOrEqual(30);
-  expect(apart).toBeLessThanOrEqual(70);
+  // Cards glide into place, so wait for them to settle.
+  await expect.poll(apart).toBeGreaterThanOrEqual(30);
+  expect(await apart()).toBeLessThanOrEqual(70);
+  const [first, second] = await bounds();
+  expect(first!.x).toBe(second!.x);
   await h.close();
 });
 
