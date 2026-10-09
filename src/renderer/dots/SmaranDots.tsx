@@ -157,14 +157,22 @@ export function SmaranDots({
 
   const dimension = typeof size === 'number' ? `${size}px` : size;
   const liquid = goo === 'auto' ? typeof size === 'number' && size >= 48 : goo;
+  // The liquid filter has no anti-aliasing. With it on, draw 2x larger and scale down on its own
+  // layer (will-change), so the GPU smooths the edges instead of showing filter pixels.
+  const ss = liquid && typeof size === 'number' ? 2 : 1;
 
   const svg = (
     <svg
       ref={svgRef}
       className="smaran-dots__svg"
       viewBox="0 0 64 64"
-      width={dimension}
-      height={dimension}
+      width={ss > 1 ? (size as number) * ss : dimension}
+      height={ss > 1 ? (size as number) * ss : dimension}
+      style={
+        ss > 1
+          ? { transform: `scale(${1 / ss})`, transformOrigin: '0 0', willChange: 'transform' }
+          : undefined
+      }
       overflow="visible"
       aria-hidden="true"
       focusable="false"
@@ -198,6 +206,11 @@ export function SmaranDots({
     </svg>
   );
 
+  // Always the same wrapper, so turning liquid on or off never remounts the <svg> the frame loop draws into.
+  const frame = (
+    <span style={{ display: 'block', width: dimension, height: dimension }}>{svg}</span>
+  );
+
   const shared = {
     className: ['smaran-dots', className].filter(Boolean).join(' '),
     style,
@@ -211,13 +224,13 @@ export function SmaranDots({
   if (onClick) {
     return (
       <button type="button" aria-label={label} title={label} onClick={handleClick} {...shared}>
-        {svg}
+        {frame}
       </button>
     );
   }
   return (
     <span role="img" aria-label={label} onClick={interactive ? handleClick : undefined} {...shared}>
-      {svg}
+      {frame}
     </span>
   );
 }

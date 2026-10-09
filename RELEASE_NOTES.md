@@ -1,3 +1,11 @@
+# Smaran 2.11.3
+
+- **Liquid merge, smooth for real.** With Liquid Merge on, the dots are drawn at twice the size on
+  their own layer and scaled down, so the edges stay smooth while they move instead of showing
+  pixels. (Turning it on or off also no longer stops the animation until a restart.)
+
+---
+
 # Smaran 2.11.2
 
 - **Smooth liquid merge.** With Liquid Merge on, the dots no longer look pixelated or flicker: the
