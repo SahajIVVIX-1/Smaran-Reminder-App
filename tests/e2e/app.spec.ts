@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { expect, test } from '@playwright/test';
 import electronPath from 'electron';
-import { launch, nextNotification, seedConfig } from './helpers';
+import { launch, nextNotification, pageWith, seedConfig } from './helpers';
 
 test('first run: welcome, then it is remembered', async () => {
   const h = await launch(null);
@@ -22,7 +22,7 @@ test('a second launch exits and leaves the first one running; closing keeps it i
   });
   const code = await new Promise<number | null>((resolve) => second.on('exit', resolve));
   expect(code).toBe(0);
-  expect(h.app.windows()).toHaveLength(1);
+  expect(h.app.windows().filter((w) => w.url().includes('/app/'))).toHaveLength(1);
   await h.page.close();
   expect(await h.app.evaluate(({ app }) => app.isReady())).toBe(true);
   await h.close();
@@ -135,6 +135,55 @@ test('snoozing from the card schedules it again', async () => {
   await h.close();
 });
 
+test('right-click opens the themed menu on reminders and on cards', async () => {
+  const h = await launch(seedConfig());
+  const p = h.page;
+  const first = h.readConfig().reminders[0]!;
+  await p.getByRole('button', { name: 'Reminders', exact: true }).click();
+  await p
+    .getByRole('list', { name: 'Reminders' })
+    .getByText(first.title)
+    .click({ button: 'right' });
+  const menu = p.getByRole('menu');
+  await expect(menu.getByRole('menuitem')).toHaveText([
+    /Edit/,
+    'Show now',
+    'Duplicate',
+    'Turn off',
+    /Delete/,
+  ]);
+  await menu.getByRole('menuitem', { name: /Delete/ }).click();
+  await expect.poll(() => h.readConfig().reminders.some((r) => r.id === first.id)).toBe(false);
+  await expect(p.getByRole('menu')).toHaveCount(0);
+
+  // Text fields get Cut/Copy/Paste.
+  await p.getByLabel('Search reminders').click({ button: 'right' });
+  await expect(p.getByRole('menuitem', { name: /Paste/ })).toBeVisible();
+  await p.keyboard.press('Escape');
+  await expect(p.getByRole('menu')).toHaveCount(0);
+
+  // On a card, the menu opens in its own window, in front of everything.
+  const second = h.readConfig().reminders[0]!;
+  const pending = nextNotification(h);
+  await p.evaluate((rid) => window.smaran.reminders.showNow(rid), second.id);
+  const card = await pending;
+  await card.getByTestId('notification').hover();
+  await card.getByTestId('notification').click({ button: 'right' });
+  const menuWin = await pageWith(h.app, '/menu/');
+  await expect(menuWin.getByRole('menuitem')).toHaveText([
+    'Done',
+    '5 min',
+    '15 min',
+    '1 hour',
+    'Tomorrow',
+    'Open Smaran',
+    'Dismiss',
+  ]);
+  await menuWin.getByRole('menuitem', { name: 'Done' }).click();
+  await card.waitForEvent('close');
+  await h.close();
+});
+
 test('several cards stack in the corner without overlapping', async () => {
   const h = await launch(seedConfig());
   const [a, b] = h.readConfig().reminders;
@@ -157,7 +206,10 @@ test('several cards stack in the corner without overlapping', async () => {
   );
   const [first, second] = bounds;
   expect(first!.x).toBe(second!.x);
-  expect(Math.abs(first!.y - second!.y)).toBeGreaterThanOrEqual(first!.height - 40);
+  // Spaced by the small pill they show (about 36 px) plus an 8 px gap, not by their window.
+  const apart = Math.abs(first!.y - second!.y);
+  expect(apart).toBeGreaterThanOrEqual(30);
+  expect(apart).toBeLessThanOrEqual(70);
   await h.close();
 });
 

@@ -11,6 +11,7 @@ import { FontLibrary } from './system/fonts';
 import { applyLoginItem } from './system/loginItem';
 import { AppTray } from './tray/Tray';
 import { GLASS, getAppWindow, showAppWindow } from './windows/AppWindow';
+import { MenuWindow } from './windows/MenuWindow';
 import { NotificationCenter } from './windows/NotificationCenter';
 
 const TRAY_REFRESH_MS = 30_000;
@@ -22,6 +23,7 @@ export class SmaranApp {
   readonly notifications: NotificationCenter;
   readonly engine: Engine;
   readonly fonts: FontLibrary;
+  readonly menu: MenuWindow;
   private tray: AppTray | null = null;
   private trayTimer: ReturnType<typeof setInterval> | null = null;
   private lastLoginItem: boolean | null = null;
@@ -36,6 +38,10 @@ export class SmaranApp {
     this.history = new HistoryStore(dataDir);
     this.fonts = new FontLibrary(join(dataDir, 'fonts'));
     this.notifications = new NotificationCenter(
+      () => this.store.get().settings,
+      () => this.fonts.customFonts(),
+    );
+    this.menu = new MenuWindow(
       () => this.store.get().settings,
       () => this.fonts.customFonts(),
     );
@@ -54,20 +60,25 @@ export class SmaranApp {
 
     this.fonts.serve();
     this.notifications.registerIpc();
+    this.menu.registerIpc();
     this.notifications.handleActions(
       (key, action) => this.engine.handleAction(key, action),
       () => this.openApp('history'),
     );
 
-    this.tray = new AppTray({
-      showNow: () => this.engine.showNow(),
-      newReminder: () => this.openApp('reminders'),
-      pause: (minutes) => this.pause(minutes),
-      resume: () => this.resume(),
-      open: () => this.openApp('today'),
-      about: () => this.about(),
-      quit: () => app.quit(),
-    });
+    this.tray = new AppTray(
+      {
+        showNow: () => this.engine.showNow(),
+        newReminder: () => this.openApp('reminders'),
+        pause: (minutes) => this.pause(minutes),
+        resume: () => this.resume(),
+        open: () => this.openApp('today'),
+        about: () => this.about(),
+        quit: () => app.quit(),
+      },
+      (items) => this.menu.popup(items),
+    );
+    this.menu.warm();
 
     nativeTheme.themeSource = config.settings.theme;
     this.store.onChange((next) => {
@@ -91,6 +102,7 @@ export class SmaranApp {
   stop(): void {
     this.engine.stop();
     this.notifications.closeAll();
+    this.menu.destroy();
     this.history.flush();
     if (this.trayTimer) clearInterval(this.trayTimer);
     this.tray?.destroy();

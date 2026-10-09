@@ -27,6 +27,12 @@ export const IPC = {
   notifClose: 'notif:close',
   notifDone: 'notif:done',
   notifInteractive: 'notif:interactive',
+  notifShape: 'notif:shape',
+  menuInit: 'menu:init',
+  menuMeasured: 'menu:measured',
+  menuPick: 'menu:pick',
+  menuPopup: 'menu:popup',
+  appEdit: 'app:edit',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];

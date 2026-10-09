@@ -3,11 +3,12 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type CSSProperties,
+  type MouseEvent,
   type PointerEvent,
   type ReactNode,
 } from 'react';
 import type { NotificationAction, NotificationLook, NotificationRequest } from '@shared/ipc';
+import { separator } from '@shared/menu';
 import { COLOR_BG } from '../colors';
 import { playChime } from './chime';
 
@@ -65,6 +66,8 @@ export function NotificationCard({
   const [expanded, setExpanded] = useState(false);
   const [snoozing, setSnoozing] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(false);
   const [remaining, setRemaining] = useState(1);
   const [drag, setDrag] = useState<{ startY: number; dy: number } | null>(null);
   const acted = useRef(false);
@@ -103,7 +106,8 @@ export function NotificationCard({
 
   // Auto-hide countdown; hovering, dragging or choosing a snooze pauses it.
   useEffect(() => {
-    if (phase !== 'in' || request.hideAfterSec === null || hovered || snoozing || drag) return;
+    if (phase !== 'in' || request.hideAfterSec === null || hovered || snoozing || drag || menuOpen)
+      return;
     const total = request.hideAfterSec * 1000;
     let last = performance.now();
     const timer = window.setInterval(() => {
@@ -113,11 +117,17 @@ export function NotificationCard({
       setRemaining((r) => Math.max(0, r - step));
     }, 80);
     return () => window.clearInterval(timer);
-  }, [phase, hovered, snoozing, drag, request.hideAfterSec]);
+  }, [phase, hovered, snoozing, drag, menuOpen, request.hideAfterSec]);
 
   useEffect(() => {
     if (remaining === 0) act({ kind: 'expired' });
   });
+
+  // Tell main how tall the card looks now, so stacked cards sit close together.
+  const visibleHeight = sizes ? (expanded ? sizes.full.height : sizes.pill.height) : undefined;
+  useEffect(() => {
+    if (visibleHeight) window.smaranNotification.shape(visibleHeight);
+  }, [visibleHeight]);
 
   function act(action: NotificationAction) {
     if (acted.current) return;
@@ -136,11 +146,40 @@ export function NotificationCard({
     window.smaranNotification.interactive(false);
     setHovered(false);
     window.clearTimeout(collapseTimer.current);
+    if (menuRef.current) return; // stays open while its menu is up
     collapseTimer.current = window.setTimeout(() => {
       setExpanded(false);
       // Back to Done/Snooze once folded away.
       window.setTimeout(() => setSnoozing(false), MORPH_MS);
     }, COLLAPSE_DELAY_MS);
+  }
+
+  // ---------- right-click menu ----------
+  async function onContextMenu(e: MouseEvent<HTMLDivElement>) {
+    e.preventDefault();
+    const card = e.currentTarget;
+    if (menuRef.current) return;
+    menuRef.current = true;
+    setMenuOpen(true);
+    const id = await window.smaranNotification.menu([
+      { kind: 'item', id: 'done', label: 'Done' },
+      separator,
+      { kind: 'heading', label: 'Snooze' },
+      ...SNOOZE.map((s, i) => ({ kind: 'item' as const, id: `snooze-${i}`, label: s.label })),
+      separator,
+      { kind: 'item', id: 'open', label: 'Open Smaran' },
+      { kind: 'item', id: 'dismiss', label: 'Dismiss', danger: true },
+    ]);
+    menuRef.current = false;
+    setMenuOpen(false);
+    if (id === 'done') act({ kind: 'done' });
+    else if (id === 'dismiss') act({ kind: 'dismiss' });
+    else if (id === 'open') window.smaranNotification.openApp();
+    else if (id?.startsWith('snooze-')) {
+      const choice = SNOOZE[Number(id.slice(7))];
+      if (choice) act({ kind: 'snooze', minutes: choice.minutes });
+    }
+    if ((!id || id === 'open') && !card.matches(':hover')) onLeave();
   }
 
   // ---------- swipe to dismiss ----------
@@ -198,6 +237,7 @@ export function NotificationCard({
         onMouseEnter={onEnter}
         onMouseLeave={onLeave}
         onPointerDown={onPointerDown}
+        onContextMenu={(e) => void onContextMenu(e)}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
@@ -332,7 +372,7 @@ export function NotificationCard({
         </div>
 
         {/* A colourful light travels round the border while the card is showing. */}
-        <BorderRing radius={radius} morph={`${MORPH_MS}ms ${MORPH}`} />
+        <BorderRing />
       </div>
     </div>
   );
@@ -361,55 +401,16 @@ function Action({
   );
 }
 
-/** Google's four colours, in order along the moving light. */
-const RING_COLORS = ['#4285F4', '#EA4335', '#FBBC05', '#34A853'];
-/** Each colour's share of the border (out of 100), and one lap's duration. */
-const RING_SEGMENT = 7;
-const RING_LAP_S = 2.8;
-
 /**
- * A short light in Google's colours that travels round the card's border at a steady pace, like a
- * loading indicator, with a soft blurred copy underneath for a glassy glow. Pure CSS animation of
- * the stroke offset, so it moves smoothly; it follows the card as it morphs between pill and card.
+ * A soft light in Google's colours, blended into one another, that travels round the card's border
+ * like a loading indicator: it speeds up and slows down through each lap and stretches and shrinks
+ * as it goes, with faded ends and a blurred glow underneath. Pure CSS (see .ring-light in theme.css).
  */
-function BorderRing({ radius, morph }: { radius: number; morph: string }) {
-  // Each colour sits a little further along the same repeating pattern, so all four move as one.
-  const segments = RING_COLORS.map((color, i) => ({
-    color,
-    offset: RING_SEGMENT * (RING_COLORS.length - 1 - i),
-  }));
-  const rect = (color: string, offset: number, glow: boolean) => (
-    <rect
-      key={`${color}-${glow}`}
-      x={1}
-      y={1}
-      pathLength={100}
-      fill="none"
-      stroke={color}
-      strokeWidth={glow ? 4.5 : 2.2}
-      strokeLinecap="round"
-      strokeDasharray={`0 ${offset} ${RING_SEGMENT} ${100 - offset - RING_SEGMENT}`}
-      opacity={glow ? 0.55 : 1}
-      style={
-        {
-          width: 'calc(100% - 2px)',
-          height: 'calc(100% - 2px)',
-          rx: Math.max(0, radius - 1),
-          ry: Math.max(0, radius - 1),
-          transition: `rx ${morph}, ry ${morph}`,
-          animation: `ring-run ${RING_LAP_S}s linear infinite`,
-          filter: glow ? 'blur(3px)' : undefined,
-        } as CSSProperties
-      }
-    />
-  );
+function BorderRing() {
   return (
-    <svg
-      className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
-      aria-hidden
-    >
-      <g>{segments.map((s) => rect(s.color, s.offset, true))}</g>
-      <g>{segments.map((s) => rect(s.color, s.offset, false))}</g>
-    </svg>
+    <>
+      <div className="ring-light ring-glow" aria-hidden />
+      <div className="ring-light" aria-hidden />
+    </>
   );
 }

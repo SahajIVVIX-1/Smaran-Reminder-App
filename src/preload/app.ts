@@ -3,6 +3,7 @@ import { IPC } from '@shared/channels';
 import type {
   AppInfo,
   BackupResult,
+  EditCommand,
   FontsAddResult,
   NextFire,
   NotifyTestRequest,
@@ -46,6 +47,8 @@ const api = {
     openDataFolder: (): Promise<string> => ipcRenderer.invoke(IPC.appOpenDataFolder),
     /** Tells main the page's theme so the window's caption buttons match. */
     setTheme: (dark: boolean): void => ipcRenderer.send(IPC.appTheme, { dark }),
+    /** Runs a clipboard/edit command on the focused field (for the right-click menu). */
+    edit: (command: EditCommand): void => ipcRenderer.send(IPC.appEdit, command),
     onNavigate: (listener: (route: Route) => void): (() => void) =>
       subscribe(IPC.navigate, listener),
   },

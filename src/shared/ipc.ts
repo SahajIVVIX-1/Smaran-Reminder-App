@@ -78,6 +78,11 @@ export const MeasuredSchema = z.object({
   h: z.number().positive().max(10_000),
 });
 
+export const EditCommandSchema = z.enum(['undo', 'redo', 'cut', 'copy', 'paste', 'selectAll']);
+export type EditCommand = z.infer<typeof EditCommandSchema>;
+
+export const ShapeSchema = z.object({ h: z.number().positive().max(10_000) });
+
 export const ThemeSchema = z.object({ dark: z.boolean() });
 
 export interface NextFire {

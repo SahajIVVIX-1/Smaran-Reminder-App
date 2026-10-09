@@ -1,3 +1,19 @@
+# Smaran 2.5.0
+
+- **Themed right-click menus everywhere.** The tray icon, notifications, reminders in the list and
+  every text field now open Smaran's own rounded menu (in your theme and font) instead of the plain
+  Windows one, with separators, shortcut hints and Delete in red.
+  - Notification: Done, Snooze (5 min, 15 min, 1 hour, Tomorrow), Open Smaran, Dismiss.
+  - Reminder row: Edit, Show now, Duplicate, Turn on/off, Delete. A focused row also deletes with Del.
+  - Text fields: Undo, Redo, Cut, Copy, Paste, Select all.
+- **Softer border light.** Google's colours now blend into one another along a light with faded,
+  rounded ends. It travels a little slower and, like a real loading indicator, speeds up and eases
+  off within each lap while it stretches and shrinks.
+- **Tighter stack.** Several reminders on screen now sit 8 px apart, spaced by the size they show
+  (a small pill or the opened card) instead of the room their window keeps for opening.
+
+---
+
 # Smaran 2.4.0
 
 - **Border light instead of a countdown.** A short light in Google's colours now travels round the

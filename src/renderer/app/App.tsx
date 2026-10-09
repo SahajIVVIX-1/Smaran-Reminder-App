@@ -4,6 +4,7 @@ import { createReminder } from '@shared/defaults';
 import { fontFaceCss, fontStack } from '@shared/fonts';
 import type { Route } from '@shared/ipc';
 import type { Settings as SettingsT } from '@shared/schema';
+import { ContextMenuHost } from './components/ContextMenu';
 import { ReminderEditor } from './components/ReminderEditor';
 import { cx } from './cx';
 import { BellIcon, ClockIcon, GearIcon, MoonIcon, PlusIcon, SunIcon } from './icons';
@@ -127,6 +128,7 @@ export function App() {
 
       <ReminderEditor />
       <ToastView />
+      <ContextMenuHost />
       <Welcome open={!!config && !config.settings.onboarded} />
     </div>
   );

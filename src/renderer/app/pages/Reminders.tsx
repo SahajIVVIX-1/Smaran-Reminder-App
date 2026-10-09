@@ -1,5 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type MouseEvent } from 'react';
 import { createReminder } from '@shared/defaults';
+import { separator } from '@shared/menu';
+import type { Reminder } from '@shared/schema';
+import { openContextMenu } from '../contextMenu';
 import { ruleSummary } from '@shared/ruleSummary';
 import { COLOR_BG } from '../../colors';
 import { cx } from '../cx';
@@ -14,7 +17,34 @@ type Filter = 'all' | 'on' | 'off';
 export function Reminders() {
   const config = useApp((s) => s.config);
   const nextTimes = useApp((s) => s.nextTimes);
-  const { edit, upsertReminder } = useApp.getState();
+  const { edit, upsertReminder, removeReminder, track } = useApp.getState();
+
+  const toggle = (r: Reminder) =>
+    upsertReminder({ ...r, enabled: !r.enabled, updatedAt: new Date().toISOString() });
+  const duplicate = (r: Reminder) =>
+    edit({
+      mode: 'new',
+      draft: { ...structuredClone(r), id: crypto.randomUUID(), title: `${r.title} (copy)` },
+    });
+  const rowMenu = (e: MouseEvent, r: Reminder) =>
+    openContextMenu(
+      e,
+      [
+        { kind: 'item', id: 'edit', label: 'Edit', hint: 'Enter' },
+        { kind: 'item', id: 'show', label: 'Show now' },
+        { kind: 'item', id: 'duplicate', label: 'Duplicate' },
+        { kind: 'item', id: 'toggle', label: r.enabled ? 'Turn off' : 'Turn on' },
+        separator,
+        { kind: 'item', id: 'delete', label: 'Delete', hint: 'Del', danger: true },
+      ],
+      (id) => {
+        if (id === 'edit') edit({ mode: 'edit', id: r.id });
+        else if (id === 'show') void track(window.smaran.reminders.showNow(r.id));
+        else if (id === 'duplicate') duplicate(r);
+        else if (id === 'toggle') toggle(r);
+        else if (id === 'delete') removeReminder(r.id);
+      },
+    );
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
 
@@ -98,7 +128,12 @@ export function Reminders() {
                   role="button"
                   tabIndex={0}
                   onClick={() => edit({ mode: 'edit', id: r.id })}
-                  onKeyDown={(e) => e.key === 'Enter' && edit({ mode: 'edit', id: r.id })}
+                  onContextMenu={(e) => rowMenu(e, r)}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === 'Enter') edit({ mode: 'edit', id: r.id });
+                    else if (e.key === 'Delete') removeReminder(r.id);
+                  }}
                   className={cx(
                     'group flex cursor-pointer items-center gap-4 rounded-xl border border-line bg-surface px-3.5 py-2.5',
                     'transition-[box-shadow,transform,border-color] duration-200 hover:-translate-y-px hover:border-ink/15 hover:shadow-[0_6px_18px_-8px_rgba(0,0,0,0.15)]',

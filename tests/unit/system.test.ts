@@ -11,6 +11,9 @@ import {
   GAP,
   pickDisplay,
   stackLayout,
+  stackWindows,
+  menuPosition,
+  CARD_GAP,
   type DisplayInfo,
 } from '../../src/main/windows/placement';
 
@@ -25,7 +28,46 @@ const second: DisplayInfo = {
   workArea: { x: 1920, y: 0, width: 1280, height: 1024 },
 };
 
+describe('right-click menu placement', () => {
+  const wa = { x: 0, y: 0, width: 1920, height: 1040 };
+  const size = { width: 240, height: 300 };
+  it('puts the panel corner at the pointer', () => {
+    expect(menuPosition({ x: 500, y: 400 }, size, wa, 10)).toEqual({ x: 490, y: 390 });
+  });
+  it('opens upwards and leftwards from the tray, staying on screen', () => {
+    // The tray sits in the taskbar, below the work area.
+    expect(menuPosition({ x: 1900, y: 1060 }, size, wa, 10)).toEqual({
+      x: 1900 - 240 + 10,
+      y: 1040 - 300 + 10,
+    });
+  });
+});
+
 describe('notification stack', () => {
+  it('packs cards by their visible height, so small pills sit close together', () => {
+    const win = { width: 420, height: 260 };
+    const pos = stackWindows('bottom-right', primary.workArea, [
+      { window: win, cardHeight: 40 },
+      { window: win, cardHeight: 40 },
+    ]);
+    expect(pos[0]).toEqual({ x: 1920 - 420 - SIDE, y: 1040 - 260 });
+    expect(pos[1]).toEqual({ x: 1920 - 420 - SIDE, y: 1040 - 40 - CARD_GAP - 260 });
+    const top = stackWindows('top-left', primary.workArea, [
+      { window: win, cardHeight: 40 },
+      { window: win, cardHeight: 40 },
+    ]);
+    expect(top[1]).toEqual({ x: SIDE, y: 40 + CARD_GAP });
+  });
+
+  it('leaves out cards that would not fit on the screen', () => {
+    const pos = stackWindows('top-right', { x: 0, y: 0, width: 800, height: 100 }, [
+      { window: { width: 300, height: 200 }, cardHeight: 40 },
+      { window: { width: 300, height: 200 }, cardHeight: 40 },
+    ]);
+    expect(pos[0]).not.toBeNull();
+    expect(pos[1]).toBeNull();
+  });
+
   const card = { width: 400, height: 120 };
 
   it('stacks from the bottom-right corner upwards, newest nearest the corner', () => {

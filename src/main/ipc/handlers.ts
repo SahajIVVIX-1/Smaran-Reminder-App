@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import { BrowserWindow, dialog, ipcMain, screen, shell } from 'electron';
 import {
   BackupImportSchema,
+  EditCommandSchema,
   IPC,
   NotifyTestSchema,
   PauseSchema,
@@ -28,6 +29,11 @@ export function registerIpcHandlers(smaran: SmaranApp): void {
   const { store, history, engine } = smaran;
 
   ipcMain.handle(IPC.configGet, () => store.get());
+  // Cut, copy, paste… from the app's right-click menu, run on the field that has focus.
+  ipcMain.on(IPC.appEdit, (event, payload: unknown) => {
+    const command = EditCommandSchema.safeParse(payload);
+    if (command.success) event.sender[command.data]();
+  });
   // The engine owns state and the pause; a save from the app never overwrites them.
   ipcMain.handle(IPC.configSave, (_event, next: unknown) => {
     if (typeof next !== 'object' || next === null) throw invalid('save');

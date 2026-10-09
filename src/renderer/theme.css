@@ -202,13 +202,60 @@ input[type='number']::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
-/* The notification border light: one steady lap round the border. */
-@keyframes ring-run {
+/* The notification border light: a blended Google-colour arc that circles the border. Its speed
+   eases up and down within each lap and its length breathes, like a real loading indicator. */
+@property --ring-a {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+@property --ring-len {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 100deg;
+}
+.ring-light {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 2px;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--ring-a),
+    transparent 0deg,
+    #4285f4 calc(var(--ring-len) * 0.2),
+    #ea4335 calc(var(--ring-len) * 0.45),
+    #fbbc05 calc(var(--ring-len) * 0.68),
+    #34a853 calc(var(--ring-len) * 0.86),
+    transparent var(--ring-len),
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation:
+    ring-spin 3.8s cubic-bezier(0.55, 0.12, 0.45, 0.88) infinite,
+    ring-len 2.9s ease-in-out infinite alternate;
+}
+.ring-glow {
+  inset: -3px;
+  padding: 4px;
+  filter: blur(5px);
+  opacity: 0.6;
+}
+@keyframes ring-spin {
+  to {
+    --ring-a: 360deg;
+  }
+}
+@keyframes ring-len {
   from {
-    stroke-dashoffset: 0;
+    --ring-len: 70deg;
   }
   to {
-    stroke-dashoffset: -100;
+    --ring-len: 150deg;
   }
 }
 @keyframes rise {

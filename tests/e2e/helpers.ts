@@ -35,8 +35,7 @@ export async function launch(
   if (seed) writeFileSync(join(userData, 'config.json'), JSON.stringify(seed, null, 2));
   if (history.length) writeFileSync(join(userData, 'history.json'), JSON.stringify(history));
   const app = await electron.launch({ args: ['.', `--user-data-dir=${userData}`, ...extraArgs] });
-  const page = await app.firstWindow();
-  await page.waitForLoadState('domcontentloaded');
+  const page = await appWindow(app);
   return {
     app,
     page,
@@ -49,9 +48,30 @@ export async function launch(
   };
 }
 
+/** The main app window (Smaran also keeps a hidden menu window ready). */
+async function appWindow(app: ElectronApplication): Promise<Page> {
+  return pageWith(app, '/app/');
+}
+
+/** The open window whose page URL contains `part`, once it has loaded. */
+export async function pageWith(app: ElectronApplication, part: string): Promise<Page> {
+  const until = Date.now() + 20_000;
+  for (;;) {
+    const win = app.windows().find((w) => w.url().includes(part));
+    if (win) {
+      await win.waitForLoadState('domcontentloaded');
+      return win;
+    }
+    if (Date.now() > until) throw new Error(`No window with ${part}`);
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
 /** The next notification window that opens. */
 export async function nextNotification(h: Harness): Promise<Page> {
-  const win = await h.app.waitForEvent('window');
-  await win.waitForLoadState('domcontentloaded');
-  return win;
+  for (;;) {
+    const win = await h.app.waitForEvent('window');
+    await win.waitForLoadState('domcontentloaded');
+    if (win.url().includes('/notification/')) return win;
+  }
 }

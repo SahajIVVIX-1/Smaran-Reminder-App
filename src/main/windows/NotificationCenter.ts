@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain, nativeTheme, screen, type WebContents } from 'e
 import {
   IPC,
   MeasuredSchema,
+  ShapeSchema,
   NotificationActionSchema,
   type NotificationAction,
   type NotificationInit,
@@ -12,7 +13,7 @@ import type { CustomFont } from '@shared/fonts';
 import type { Settings } from '@shared/schema';
 import type { Notifier } from '../engine/Engine';
 import { loadRenderer, preloadPath } from './loadRenderer';
-import { pickDisplay, stackLayout, type Size } from './placement';
+import { pickDisplay, stackWindows, type Size } from './placement';
 
 /** First guess at the window width; the card reports its real size (card + shadow room). */
 const WINDOW_WIDTH: Record<Settings['notification']['size'], number> = {
@@ -29,6 +30,8 @@ interface Card {
   key: string;
   win: BrowserWindow;
   size: Size;
+  /** Visible card height (pill or expanded), for spacing the stack. */
+  cardHeight: number;
   ready: boolean;
   shown: boolean;
   closing: boolean;
@@ -66,6 +69,14 @@ export class NotificationCenter implements Notifier {
       card.size = { width: Math.ceil(size.data.w), height: Math.ceil(size.data.h) };
       card.ready = true;
       this.layout();
+    });
+    // The card changed shape (pill ↔ expanded): neighbours glide to make room or close up.
+    ipcMain.on(IPC.notifShape, (event, payload: unknown) => {
+      const card = this.fromSender(event.sender);
+      const shape = ShapeSchema.safeParse(payload);
+      if (!card || !shape.success || card.cardHeight === shape.data.h) return;
+      card.cardHeight = shape.data.h;
+      if (card.shown) this.layout();
     });
     ipcMain.on(IPC.notifAction, (event, payload: unknown) => {
       const card = this.fromSender(event.sender);
@@ -127,6 +138,7 @@ export class NotificationCenter implements Notifier {
       key: request.key,
       win,
       size: { width, height: 160 },
+      cardHeight: 40,
       ready: false,
       shown: false,
       closing: false,
@@ -202,10 +214,10 @@ export class NotificationCenter implements Notifier {
       .sort((a, b) => a.createdAt - b.createdAt);
     // The oldest cards stay; newer ones wait for room.
     const visible = ready.slice(0, MAX_VISIBLE).reverse();
-    const positions = stackLayout(
+    const positions = stackWindows(
       settings.corner,
       display.workArea,
-      visible.map((c) => c.size),
+      visible.map((c) => ({ window: c.size, cardHeight: c.cardHeight })),
     );
 
     visible.forEach((card, i) => {
