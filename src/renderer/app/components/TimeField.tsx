@@ -56,7 +56,7 @@ export function TimeField({
               setOpen(false);
             }
           }}
-          className="w-11 bg-transparent text-[13px] text-ink tabular-nums outline-none"
+          className="w-12 bg-transparent font-mono text-[12.5px] text-ink tabular-nums outline-none"
         />
         <button
           type="button"
@@ -126,7 +126,7 @@ function Column({
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => onPick(x)}
           className={cx(
-            'block h-7 w-full rounded-md text-center text-[13px] tabular-nums transition-colors duration-100',
+            'block h-7 w-full rounded-md text-center font-mono text-[12.5px] tabular-nums transition-colors duration-100',
             x === selected ? 'bg-accent font-medium text-on-accent' : 'text-ink hover:bg-hover',
           )}
         >

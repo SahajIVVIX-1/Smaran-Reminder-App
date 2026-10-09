@@ -112,9 +112,7 @@ export function MenuPanel({
             )}
             <span className="flex-1 truncate">{entry.label}</span>
             {entry.hint && (
-              <span className="ml-6 shrink-0 text-[12px] text-faint tabular-nums">
-                {entry.hint}
-              </span>
+              <span className="ml-6 shrink-0 font-mono text-[11px] text-faint">{entry.hint}</span>
             )}
           </button>
         );

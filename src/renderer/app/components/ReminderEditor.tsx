@@ -21,8 +21,10 @@ function Section({
 }) {
   return (
     <section className="border-t border-line px-5 py-4">
-      <h3 className="text-[12.5px] font-semibold">{title}</h3>
-      {hint && <p className="mt-0.5 text-[12px] leading-snug text-muted">{hint}</p>}
+      <h3 className="font-serif text-[15px] font-semibold">{title}</h3>
+      {hint && (
+        <p className="mt-0.5 font-serif text-[13px] leading-snug text-muted italic">{hint}</p>
+      )}
       <div className="mt-2.5">{children}</div>
     </section>
   );
@@ -86,7 +88,7 @@ export function ReminderEditor() {
         closing && 'pointer-events-none',
       )}
       role="dialog"
-      aria-label={isNew ? 'New reminder' : 'Edit reminder'}
+      aria-label={isNew ? 'New Reminder' : 'Edit Reminder'}
     >
       <button
         type="button"
@@ -104,7 +106,7 @@ export function ReminderEditor() {
         )}
       >
         <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line px-5">
-          <span className="font-serif text-[17px]">{isNew ? 'New reminder' : 'Edit reminder'}</span>
+          <span className="font-serif text-[17px]">{isNew ? 'New Reminder' : 'Edit Reminder'}</span>
           {!isNew && (
             <span className="text-[12.5px] text-muted">
               {form.enabled
@@ -132,7 +134,7 @@ export function ReminderEditor() {
             <TextArea
               aria-label="Note"
               placeholder="Add a note (optional)"
-              className="min-h-16"
+              className="min-h-16 font-serif text-[14px] italic"
               value={form.note}
               onChange={(e) => change({ note: e.currentTarget.value })}
             />
@@ -186,7 +188,7 @@ export function ReminderEditor() {
           </Section>
 
           <Section
-            title="If I don’t respond"
+            title="If I Don’t Respond"
             hint="Smaran can remind you again when a reminder hides itself unanswered."
           >
             <div className="flex flex-wrap items-center gap-3 text-[13px]">
@@ -217,13 +219,13 @@ export function ReminderEditor() {
                   />
                 </>
               ) : (
-                <span className="text-muted">Don’t remind again</span>
+                <span className="text-muted">Don’t Remind Again</span>
               )}
             </div>
           </Section>
 
           <Section
-            title="Rotating lines"
+            title="Rotating Lines"
             hint="Optional. Each time it appears, the reminder shows the next line: stretches, affirmations, tips."
           >
             <LinesEditor lines={form.lines} onChange={(lines) => change({ lines })} />
@@ -233,7 +235,7 @@ export function ReminderEditor() {
                   label="Line order"
                   value={form.lineOrder}
                   options={[
-                    { value: 'inOrder', label: 'In order' },
+                    { value: 'inOrder', label: 'In Order' },
                     { value: 'shuffle', label: 'Shuffled' },
                   ]}
                   onChange={(lineOrder) => change({ lineOrder })}
@@ -256,7 +258,7 @@ export function ReminderEditor() {
               label="Sound"
               value={form.sound}
               options={[
-                { value: 'default', label: 'App setting' },
+                { value: 'default', label: 'App Setting' },
                 { value: 'on', label: 'On' },
                 { value: 'off', label: 'Off' },
               ]}
@@ -306,7 +308,7 @@ export function ReminderEditor() {
                   toastMsg(`Added “${parsed.data.title}”`);
                 }}
               >
-                Create reminder
+                Create Reminder
               </Button>
             </>
           ) : (
@@ -324,12 +326,12 @@ export function ReminderEditor() {
               <Button
                 variant="ghost"
                 size="sm"
-                title="Show it now"
+                title="Show It Now"
                 onClick={() =>
                   void useApp.getState().track(window.smaran.reminders.showNow(form.id))
                 }
               >
-                <SendIcon size={15} /> Show now
+                <SendIcon size={15} /> Show Now
               </Button>
               <Button
                 variant="ghost"

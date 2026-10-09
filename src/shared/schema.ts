@@ -2,9 +2,9 @@ import { z } from 'zod';
 
 /**
  * Config format version. 1 = Smaran 2.0 (messages/styles/schedules), 2 = 2.1 (reminders),
- * 3 = 2.2 (per-reminder sound, new defaults).
+ * 3 = 2.2 (per-reminder sound, new defaults), 4 = 2.8 (Anthropic Sans as the default text font).
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /** Ids are crypto.randomUUID() strings. Nothing is keyed by display text or array index. */
 export const IdSchema = z.string().min(1);

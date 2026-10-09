@@ -157,7 +157,7 @@ export class Engine {
         body: 'They came due while Smaran was off. They’re listed in History.',
         color: 'slate',
         important: false,
-        label: 'While you were away',
+        label: 'While You Were Away',
         hideAfterSec: config.settings.notification.hideAfterSec,
         sound: false,
       });
@@ -278,7 +278,7 @@ export class Engine {
     }
   }
 
-  /** Tray "Show now" / "Remind me now": shows a reminder at once without changing its schedule. */
+  /** Tray "Show Now" / "Remind me now": shows a reminder at once without changing its schedule. */
   showNow(reminderId?: Id): boolean {
     const config = this.deps.store.get();
     const reminder = reminderId

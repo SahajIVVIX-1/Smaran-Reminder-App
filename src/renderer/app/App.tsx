@@ -106,7 +106,7 @@ export function App() {
       {/* Title bar: draggable; Windows draws the caption buttons on the right. */}
       <div className="drag flex h-9 shrink-0 items-center gap-2 pl-4 select-none">
         <Logo />
-        <span className="text-[12.5px] font-medium text-muted">Smaran</span>
+        <span className="font-serif text-[14px] font-semibold text-muted">Smaran</span>
       </div>
 
       <div className="flex min-h-0 flex-1">
@@ -155,12 +155,12 @@ function Sidebar() {
           edit({ mode: 'new', draft: createReminder({ title: '', rule: defaultRule('daily') }) })
         }
         className="mb-3 flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium text-accent transition-colors duration-150 hover:bg-accent-soft"
-        title="New reminder (Ctrl+N)"
+        title="New Reminder (Ctrl+N)"
       >
         <span className="grid h-[22px] w-[22px] place-items-center rounded-full bg-accent text-on-accent">
           <PlusIcon size={14} strokeWidth={2.4} />
         </span>
-        New reminder
+        New Reminder
       </button>
 
       {NAV.map((item) => (
@@ -306,15 +306,18 @@ function Welcome({ open }: { open: boolean }) {
       actions={
         <>
           <Button variant="ghost" onClick={() => finish(true)}>
-            Bring reminders from an older Smaran…
+            Bring Reminders from an Older Smaran…
           </Button>
           <Button variant="primary" onClick={() => finish(false)}>
-            Get started
+            Get Started
           </Button>
         </>
       }
     >
-      <p>Gentle reminders, on your schedule. A few things to know:</p>
+      <p>
+        <span className="font-serif text-[15px] italic">Gentle reminders, on your schedule.</span> A
+        few things to know:
+      </p>
       <ul className="mt-3 space-y-1.5 text-ink">
         <li>· Type a reminder the way you’d say it: “stretch every 45 min”, “call mom at 6pm”.</li>
         <li>· Reminders appear in the corner of your screen. Press Done, or Snooze for later.</li>

@@ -32,7 +32,7 @@ function editItems(field: Field | HTMLElement): MenuEntry[] {
     { kind: 'item', id: 'copy', label: 'Copy', hint: 'Ctrl+C', disabled: !hasSelection },
     { kind: 'item', id: 'paste', label: 'Paste', hint: 'Ctrl+V', disabled: readOnly },
     separator,
-    { kind: 'item', id: 'selectAll', label: 'Select all', hint: 'Ctrl+A' },
+    { kind: 'item', id: 'selectAll', label: 'Select All', hint: 'Ctrl+A' },
   ];
 }
 

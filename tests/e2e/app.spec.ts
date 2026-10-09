@@ -9,7 +9,7 @@ test('first run: welcome, then it is remembered', async () => {
   const h = await launch(null);
   const p = h.page;
   await expect(p.getByRole('dialog', { name: 'Welcome to Smaran' })).toBeVisible();
-  await p.getByRole('button', { name: 'Get started' }).click();
+  await p.getByRole('button', { name: 'Get Started' }).click();
   await expect(p.getByRole('dialog')).toHaveCount(0);
   await expect.poll(() => h.readConfig().settings.onboarded).toBe(true);
   await h.close();
@@ -47,11 +47,11 @@ test('create, edit and delete (with undo) a reminder', async () => {
   const h = await launch(seedConfig());
   const p = h.page;
   await p.getByRole('button', { name: 'Reminders', exact: true }).click();
-  await p.getByRole('button', { name: 'New reminder' }).last().click();
+  await p.getByRole('button', { name: 'New Reminder' }).last().click();
   await p.getByLabel('Title').fill('Water the plants');
   await p.getByRole('radio', { name: 'Weekly' }).click();
   await p.getByRole('radio', { name: 'Important' }).click();
-  await p.getByRole('button', { name: 'Create reminder' }).click();
+  await p.getByRole('button', { name: 'Create Reminder' }).click();
   await expect
     .poll(() => h.readConfig().reminders.find((r) => r.title === 'Water the plants')?.priority)
     .toBe('important');
@@ -147,9 +147,9 @@ test('right-click opens the themed menu on reminders and on cards', async () => 
   const menu = p.getByRole('menu');
   await expect(menu.getByRole('menuitem')).toHaveText([
     /Edit/,
-    'Show now',
+    'Show Now',
     'Duplicate',
-    'Turn off',
+    'Turn Off',
     /Delete/,
   ]);
   await menu.getByRole('menuitem', { name: /Delete/ }).click();
@@ -227,7 +227,7 @@ test('a Smaran 2.0 config is upgraded to reminders on first start', async () => 
   const list = h.page.getByRole('list', { name: 'Reminders' });
   await expect(list.getByText('Every hour', { exact: true })).toBeVisible(); // two messages → rotating lines
   await expect(list.getByText('Drink a glass of water')).toBeVisible();
-  expect(h.readConfig().version).toBe(3);
+  expect(h.readConfig().version).toBe(4);
   await h.close();
 });
 

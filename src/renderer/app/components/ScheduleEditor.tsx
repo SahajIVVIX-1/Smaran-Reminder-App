@@ -10,7 +10,7 @@ import { TimeField } from './TimeField';
 
 const KINDS = [
   { value: 'once', label: 'Once' },
-  { value: 'interval', label: 'Repeat every' },
+  { value: 'interval', label: 'Repeat Every' },
   { value: 'daily', label: 'Daily' },
   { value: 'weekly', label: 'Weekly' },
   { value: 'monthly', label: 'Monthly' },
@@ -165,18 +165,18 @@ function KindFields({ rule, onChange }: { rule: Rule; onChange: (r: Rule) => voi
                     onChange(next);
                   }}
                 >
-                  All day
+                  All Day
                 </Button>
               </>
             ) : (
               <>
-                <span className="text-[13px]">All day</span>
+                <span className="text-[13px]">All Day</span>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => onChange({ ...rule, activeHours: { from: '09:00', to: '18:00' } })}
                 >
-                  Set hours
+                  Set Hours
                 </Button>
               </>
             )}
@@ -197,18 +197,18 @@ function KindFields({ rule, onChange }: { rule: Rule; onChange: (r: Rule) => voi
                     onChange(next);
                   }}
                 >
-                  Every day
+                  Every Day
                 </Button>
               </>
             ) : (
               <>
-                <span className="text-[13px]">Every day</span>
+                <span className="text-[13px]">Every Day</span>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => onChange({ ...rule, weekdays: [1, 2, 3, 4, 5] })}
                 >
-                  Pick days
+                  Pick Days
                 </Button>
               </>
             )}
@@ -279,7 +279,7 @@ function KindFields({ rule, onChange }: { rule: Rule; onChange: (r: Rule) => voi
                   value: String(i + 1),
                   label: `${i + 1}${i + 1 > 28 ? ' (or the last day)' : ''}`,
                 })),
-                { value: 'last', label: 'The last day' },
+                { value: 'last', label: 'The Last Day' },
               ]}
               onChange={(v) => onChange({ ...rule, day: v === 'last' ? 'last' : Number(v) })}
             />

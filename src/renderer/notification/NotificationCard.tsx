@@ -269,7 +269,7 @@ export function NotificationCard({
             }}
           >
             <span
-              className="truncate text-[15px] leading-[18px] font-semibold tracking-[-0.005em] text-ink"
+              className="truncate font-serif text-[16px] leading-[18px] font-semibold tracking-[-0.005em] text-ink"
               data-testid="notification-pill"
             >
               {request.title}
@@ -332,13 +332,13 @@ export function NotificationCard({
                   </button>
                 </div>
                 <div
-                  className="mt-1 line-clamp-2 text-[14.5px] leading-snug font-semibold text-ink"
+                  className="mt-1 line-clamp-2 font-serif text-[15.5px] leading-snug font-semibold text-ink"
                   data-testid="notification-title"
                 >
                   {request.title}
                 </div>
                 {request.body && (
-                  <div className="mt-0.5 line-clamp-2 text-[12.5px] leading-snug text-muted">
+                  <div className="mt-0.5 line-clamp-2 font-serif text-[13px] leading-snug text-muted italic">
                     {request.body}
                   </div>
                 )}

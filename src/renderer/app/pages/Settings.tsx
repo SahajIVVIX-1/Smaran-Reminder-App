@@ -85,7 +85,9 @@ export function Settings() {
     <div className="mx-auto max-w-[760px] space-y-5 px-7 pt-8 pb-16">
       <header className="animate-enter">
         <h1 className="font-serif text-[26px] leading-tight">Settings</h1>
-        <p className="mt-1 text-[13.5px] text-muted">Changes are saved as you make them.</p>
+        <p className="mt-1 font-serif text-[14.5px] text-muted italic">
+          Changes are saved as you make them.
+        </p>
       </header>
 
       <Card title="General" className="animate-enter [animation-delay:30ms]">
@@ -101,7 +103,10 @@ export function Settings() {
             onChange={(v) => setSettings((x) => ({ ...x, startAtLogin: v }))}
           />
         </Row>
-        <Row label="Font" hint="Used across Smaran and in reminders.">
+        <Row
+          label="Text Font"
+          hint="For text and buttons. Titles stay in Anthropic Serif, times in Anthropic Mono."
+        >
           <FontPicker value={s.font} onChange={(font) => setSettings((x) => ({ ...x, font }))} />
         </Row>
         <Row label="Appearance">
@@ -132,8 +137,8 @@ export function Settings() {
             className="w-64"
             value={n.screen}
             options={[
-              { value: 'primary', label: 'Main screen' },
-              { value: 'cursor', label: 'Screen with the mouse pointer' },
+              { value: 'primary', label: 'Main Screen' },
+              { value: 'cursor', label: 'Screen with the Mouse Pointer' },
             ]}
             onChange={(screen) => setN({ screen })}
           />
@@ -176,7 +181,7 @@ export function Settings() {
             onChange={(sound) => setN({ sound })}
           />
         </Row>
-        <Row label="Try it">
+        <Row label="Try It">
           <Button
             onClick={() =>
               void window.smaran.reminders.test({
@@ -187,7 +192,7 @@ export function Settings() {
               })
             }
           >
-            Send a test reminder
+            Send a Test Reminder
           </Button>
         </Row>
       </Card>
@@ -198,7 +203,7 @@ export function Settings() {
         className="animate-enter [animation-delay:90ms]"
       >
         <Row
-          label="Quiet hours"
+          label="Quiet Hours"
           hint={
             s.quietHours.enabled
               ? 'Repeating reminders are skipped; timed ones wait until quiet hours end. Important ones still come through.'
@@ -227,7 +232,7 @@ export function Settings() {
           )}
           <Switch
             id="set-quiet"
-            label="Quiet hours"
+            label="Quiet Hours"
             checked={s.quietHours.enabled}
             onChange={(enabled) =>
               setSettings((x) => ({ ...x, quietHours: { ...x.quietHours, enabled } }))
@@ -267,7 +272,7 @@ export function Settings() {
                 3 hours
               </Button>
               <Button size="sm" onClick={() => void window.smaran.app.pause()}>
-                Until I resume
+                Until I Resume
               </Button>
             </>
           )}
@@ -281,7 +286,7 @@ export function Settings() {
       >
         <Row label="Back up" hint="Save all reminders and settings to a file.">
           <Button onClick={() => void runBackup(() => window.smaran.backup.export())}>
-            Back up…
+            Back Up…
           </Button>
         </Row>
         <Row label="Restore" hint="Replace everything with a backup.">
@@ -294,7 +299,7 @@ export function Settings() {
           hint="Add reminders from a backup, Smaran 2.0 or Smaran v1 (smaran_settings.json)."
         >
           <Button onClick={() => void runBackup(() => window.smaran.backup.import('add'))}>
-            Choose file…
+            Choose File…
           </Button>
         </Row>
         <Row label="Data folder" hint={info?.dataFolder}>

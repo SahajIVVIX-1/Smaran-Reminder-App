@@ -13,7 +13,7 @@ interface Group {
 /**
  * Picks the app font: Anthropic's typefaces first (with the bundled stand-in shown until the real
  * font is installed or added), then the fonts bundled with Smaran, fonts you added, and every font
- * installed on this PC. Each name is drawn in its own font. "Add font files…" copies .ttf/.otf/.woff
+ * installed on this PC. Each name is drawn in its own font. "Add Font Files…" copies .ttf/.otf/.woff
  * files into Smaran so they work even if they aren't installed in Windows.
  */
 export function FontPicker({
@@ -166,7 +166,7 @@ export function FontPicker({
             }}
             className="flex h-8 w-full items-center rounded-lg px-2.5 text-[13px] text-accent transition-colors hover:bg-hover"
           >
-            Add font files…
+            Add Font Files…
           </button>
         </div>
       </Popover>
@@ -192,9 +192,9 @@ function buildGroups(catalog: FontCatalog | null, query: string): Group[] {
       })),
     },
     { title: 'Included with Smaran', fonts: BUNDLED.map((f) => ({ family: f.family })) },
-    { title: 'Your fonts', fonts: customFamilies.map((family) => ({ family })) },
+    { title: 'Your Fonts', fonts: customFamilies.map((family) => ({ family })) },
     {
-      title: 'On this computer',
+      title: 'On This Computer',
       fonts: (catalog?.system ?? [])
         .filter((f) => !customFamilies.includes(f))
         .map((family) => ({ family })),

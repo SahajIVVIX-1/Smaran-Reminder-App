@@ -63,7 +63,9 @@ export function Today() {
     <div className="mx-auto max-w-[720px] px-7 pt-9 pb-16">
       <header className="animate-enter">
         <h1 className="font-serif text-[30px] leading-tight tracking-[-0.01em]">{greeting(now)}</h1>
-        <p className="mt-1 text-[14px] text-muted">{format(now, 'EEEE d MMMM')}</p>
+        <p className="mt-1 font-serif text-[15px] text-muted italic">
+          {format(now, 'EEEE d MMMM')}
+        </p>
       </header>
 
       <div className="mt-6 animate-enter [animation-delay:40ms]">
@@ -72,7 +74,7 @@ export function Today() {
 
       {next ? (
         <section className="mt-6 animate-enter rounded-xl border border-line bg-surface px-4 py-3.5 [animation-delay:80ms]">
-          <div className="text-[12px] font-medium tracking-wide text-muted uppercase">Up next</div>
+          <div className="text-[12px] font-medium tracking-wide text-muted uppercase">Up Next</div>
           <div className="mt-2 flex items-start gap-3">
             <span
               className={cx(
@@ -83,7 +85,8 @@ export function Today() {
             <div className="min-w-0 flex-1">
               <div className="text-[15px] font-medium">{next.reminder.title}</div>
               <div className="mt-0.5 text-[13px] text-muted">
-                {whenLabel(next.at, now)} · {timeOf(next.at)}
+                {whenLabel(next.at, now)} ·{' '}
+                <span className="font-mono text-[12.5px]">{timeOf(next.at)}</span>
               </div>
             </div>
             <Button
@@ -99,14 +102,14 @@ export function Today() {
                 void useApp.getState().track(window.smaran.reminders.showNow(next.reminder.id))
               }
             >
-              Show now
+              Show Now
             </Button>
           </div>
         </section>
       ) : (
         <section className="mt-6 animate-enter rounded-2xl border border-dashed border-line p-8 text-center [animation-delay:80ms]">
-          <p className="font-serif text-[19px]">Nothing scheduled</p>
-          <p className="mt-1 text-[13px] text-muted">
+          <p className="font-serif text-[19px]">Nothing Scheduled</p>
+          <p className="mt-1 font-serif text-[14px] text-muted italic">
             Add a reminder above. Smaran will take it from there.
           </p>
         </section>
@@ -114,7 +117,7 @@ export function Today() {
 
       {later.length > 1 && (
         <section className="mt-6 animate-enter [animation-delay:120ms]">
-          <h2 className="mb-2 text-[13px] font-semibold">Later today</h2>
+          <h2 className="mb-2 font-serif text-[15.5px] font-semibold">Later Today</h2>
           <ol className="relative ml-1.5 border-l border-line">
             {later.slice(1).map((slot, i) => (
               <li
@@ -132,7 +135,7 @@ export function Today() {
                   onClick={() => edit({ mode: 'edit', id: slot.reminder.id })}
                   className="flex w-full items-baseline gap-3 rounded-lg px-2 py-1 text-left transition-colors hover:bg-hover"
                 >
-                  <span className="w-11 shrink-0 text-[12.5px] text-muted tabular-nums">
+                  <span className="w-12 shrink-0 font-mono text-[12px] text-muted tabular-nums">
                     {timeOf(slot.at)}
                   </span>
                   <span className="truncate text-[13.5px]">{slot.reminder.title}</span>
@@ -145,7 +148,7 @@ export function Today() {
 
       {snoozed.length > 0 && (
         <section className="mt-6 animate-enter [animation-delay:140ms]">
-          <h2 className="mb-2 text-[13px] font-semibold">Snoozed</h2>
+          <h2 className="mb-2 font-serif text-[15.5px] font-semibold">Snoozed</h2>
           <ul className="space-y-1">
             {snoozed.map((r) => {
               const until = new Date(config.state[r.id]?.snoozedUntil ?? '');
@@ -166,7 +169,7 @@ export function Today() {
 
       {done.length > 0 && (
         <section className="mt-6 animate-enter [animation-delay:160ms]">
-          <h2 className="mb-2 text-[13px] font-semibold">Earlier today</h2>
+          <h2 className="mb-2 font-serif text-[15.5px] font-semibold">Earlier Today</h2>
           <ul className="space-y-0.5">
             {done.map((h) => (
               <HistoryLine key={h.id} entry={h} />
@@ -181,7 +184,7 @@ export function Today() {
 function HistoryLine({ entry }: { entry: HistoryEntry }) {
   return (
     <li className="flex items-center gap-3 rounded-lg px-2 py-1.5 text-[13.5px]">
-      <span className="w-11 shrink-0 text-[12.5px] text-muted tabular-nums">
+      <span className="w-12 shrink-0 font-mono text-[12px] text-muted tabular-nums">
         {timeOf(new Date(entry.dueAt))}
       </span>
       <span className="flex-1 truncate text-muted">{entry.title}</span>

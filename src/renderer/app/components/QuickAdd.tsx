@@ -15,7 +15,7 @@ const EXAMPLES = [
 ];
 
 /**
- * The composer: type a reminder the way you'd say it. Enter creates it; "More options" opens the
+ * The composer: type a reminder the way you'd say it. Enter creates it; "More Options" opens the
  * full editor with what was understood filled in.
  */
 export function QuickAdd() {
@@ -50,7 +50,7 @@ export function QuickAdd() {
       <div className="flex items-center gap-2 px-4 pt-3">
         <input
           aria-label="Quick add"
-          className="h-9 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-faint"
+          className="h-9 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:font-serif placeholder:text-[16px] placeholder:text-faint placeholder:italic"
           placeholder="Remind me to…"
           value={text}
           onFocus={() => setFocused(true)}
@@ -106,7 +106,7 @@ export function QuickAdd() {
               setText('');
             }}
           >
-            More options
+            More Options
           </button>
         )}
       </div>

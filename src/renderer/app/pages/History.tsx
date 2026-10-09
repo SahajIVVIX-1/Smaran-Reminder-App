@@ -46,7 +46,7 @@ export function History() {
         </div>
         {history.length > 0 && (
           <Button variant="ghost" size="sm" onClick={() => setConfirm(true)}>
-            Clear history
+            Clear History
           </Button>
         )}
       </header>
@@ -66,7 +66,9 @@ export function History() {
       </div>
 
       {groups.length === 0 ? (
-        <p className="mt-16 animate-fade text-center text-[13.5px] text-muted">Nothing here yet.</p>
+        <p className="mt-16 animate-fade text-center font-serif text-[15px] text-muted italic">
+          Nothing here yet.
+        </p>
       ) : (
         <div className="mt-6 space-y-7">
           {groups.map(([day, entries]) => (
@@ -78,7 +80,7 @@ export function History() {
                     key={h.id}
                     className="flex items-center gap-4 border-b border-line px-4 py-2.5 last:border-b-0"
                   >
-                    <span className="w-11 shrink-0 text-[12.5px] text-muted tabular-nums">
+                    <span className="w-12 shrink-0 font-mono text-[12px] text-muted tabular-nums">
                       {timeOf(new Date(h.dueAt))}
                     </span>
                     <span className="min-w-0 flex-1">
@@ -98,7 +100,7 @@ export function History() {
 
       <Dialog
         open={confirm}
-        title="Clear history?"
+        title="Clear History?"
         onClose={() => setConfirm(false)}
         actions={
           <>
@@ -112,7 +114,7 @@ export function History() {
                 setConfirm(false);
               }}
             >
-              Clear history
+              Clear History
             </Button>
           </>
         }

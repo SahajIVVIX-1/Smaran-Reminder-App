@@ -23,7 +23,7 @@ test('packaged app opens, adds a reminder and shows a notification', async () =>
   await expect(page.getByText('Added “Smoke test”', { exact: false })).toBeVisible();
 
   await page.getByRole('button', { name: 'Settings' }).click();
-  await page.getByRole('button', { name: 'Send a test reminder' }).click();
+  await page.getByRole('button', { name: 'Send a Test Reminder' }).click();
   const card = await pageWith(app, '/notification/');
   await expect(card.getByTestId('notification')).toBeVisible();
   await app.close();

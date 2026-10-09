@@ -31,9 +31,9 @@ export function Reminders() {
       e,
       [
         { kind: 'item', id: 'edit', label: 'Edit', hint: 'Enter' },
-        { kind: 'item', id: 'show', label: 'Show now' },
+        { kind: 'item', id: 'show', label: 'Show Now' },
         { kind: 'item', id: 'duplicate', label: 'Duplicate' },
-        { kind: 'item', id: 'toggle', label: r.enabled ? 'Turn off' : 'Turn on' },
+        { kind: 'item', id: 'toggle', label: r.enabled ? 'Turn Off' : 'Turn On' },
         separator,
         { kind: 'item', id: 'delete', label: 'Delete', hint: 'Del', danger: true },
       ],
@@ -80,7 +80,7 @@ export function Reminders() {
             edit({ mode: 'new', draft: createReminder({ title: '', rule: defaultRule('daily') }) })
           }
         >
-          <PlusIcon size={16} /> New reminder
+          <PlusIcon size={16} /> New Reminder
         </Button>
       </header>
 
@@ -108,7 +108,7 @@ export function Reminders() {
       </div>
 
       {list.length === 0 ? (
-        <p className="mt-16 animate-fade text-center text-[13.5px] text-muted">
+        <p className="mt-16 animate-fade text-center font-serif text-[15px] text-muted italic">
           {query || filter !== 'all'
             ? 'No reminders match.'
             : 'Create your first reminder to get started.'}
@@ -160,7 +160,7 @@ export function Reminders() {
                     </div>
                   </div>
                   <Switch
-                    label={`${r.enabled ? 'Turn off' : 'Turn on'} ${r.title}`}
+                    label={`${r.enabled ? 'Turn Off' : 'Turn On'} ${r.title}`}
                     checked={r.enabled}
                     onChange={(enabled) =>
                       upsertReminder({ ...r, enabled, updatedAt: new Date().toISOString() })

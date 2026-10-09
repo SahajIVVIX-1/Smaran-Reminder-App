@@ -29,7 +29,11 @@
   --color-c-iris: #8a7cc8;
   --color-c-rose: #c96c8a;
   --color-c-slate: #8c8a84;
-  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  /* Anthropic's typefaces, each with its bundled open stand-in: Serif for titles and quiet
+     italic notes, Sans for text (the font setting can change it), Mono for times and shortcuts. */
+  --font-sans:
+    'Anthropic Sans', 'Inter Variable', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Anthropic Mono', 'JetBrains Mono Variable', 'Cascadia Mono', Consolas, monospace;
   --font-serif: 'Anthropic Serif', 'Source Serif 4 Variable', 'Palatino Linotype', Georgia, serif;
   --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
   --animate-enter: enter 220ms var(--ease-out-soft) both;
@@ -282,7 +286,7 @@ body,
 }
 
 body {
-  /* The font chosen in Settings (set on <html> by the app); Segoe UI until then. */
+  /* The text font chosen in Settings (set on <html> by the app); Anthropic Sans until then. */
   font-family: var(--font-app, var(--font-sans));
   font-size: 13px;
   color: var(--ink);

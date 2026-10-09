@@ -4,6 +4,7 @@ import { fontFaceCss, fontStack } from '@shared/fonts';
 import { MenuRoot } from './MenuRoot';
 import '../theme.css';
 import '@fontsource-variable/source-serif-4';
+import '@fontsource-variable/source-serif-4/wght-italic.css';
 import '@fontsource-variable/inter';
 import '@fontsource-variable/jetbrains-mono';
 

@@ -1,3 +1,16 @@
+# Smaran 2.8.0
+
+- **Anthropic type, mixed.** Titles, section headings and reminder titles use Anthropic Serif;
+  text and buttons use Anthropic Sans; times, time fields and menu shortcuts use Anthropic Mono.
+  Dates, notes, hints and empty states are set in Serif italic. (Each falls back to its bundled
+  open stand-in until the real font is installed.)
+- **Title Case labels.** Buttons, titles, tabs and menus now read "New Reminder", "Show Now",
+  "Clear History", "Pause Reminders" and so on. Descriptions stay in sentence case.
+- The font setting is now **Text Font** and defaults to Anthropic Sans. If you were on the old
+  default (Anthropic Serif), you're moved to Anthropic Sans; a font you picked yourself is kept.
+
+---
+
 # Smaran 2.7.0
 
 - **New colourful logo.** The S mark is replaced by the bloom: six rounded petals in six colours,

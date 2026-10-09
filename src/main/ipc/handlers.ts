@@ -76,7 +76,7 @@ export function registerIpcHandlers(smaran: SmaranApp): void {
   ipcMain.handle(IPC.fontsAdd, async (event): Promise<FontsAddResult> => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const options: Electron.OpenDialogOptions = {
-      title: 'Add font files',
+      title: 'Add Font Files',
       properties: ['openFile', 'multiSelections'],
       filters: [{ name: 'Fonts', extensions: ['ttf', 'otf', 'woff', 'woff2'] }],
     };
@@ -108,7 +108,7 @@ export function registerIpcHandlers(smaran: SmaranApp): void {
   ipcMain.handle(IPC.backupExport, async (event): Promise<BackupResult> => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const options: Electron.SaveDialogOptions = {
-      title: 'Back up your reminders',
+      title: 'Back Up Your Reminders',
       defaultPath: `smaran-backup-${new Date().toISOString().slice(0, 10)}.json`,
       filters: [{ name: 'Smaran backup', extensions: ['json'] }],
     };

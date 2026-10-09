@@ -271,8 +271,10 @@ export function Card({
     <section className={cx('rounded-xl border border-line bg-surface', className)}>
       {title && (
         <header className="px-4 pt-3.5 pb-0.5">
-          <h2 className="text-[13px] font-semibold">{title}</h2>
-          {description && <p className="mt-0.5 text-[12px] text-muted">{description}</p>}
+          <h2 className="font-serif text-[15.5px] font-semibold tracking-[-0.005em]">{title}</h2>
+          {description && (
+            <p className="mt-0.5 font-serif text-[13px] text-muted italic">{description}</p>
+          )}
         </header>
       )}
       <div className="px-4 py-1">{children}</div>
@@ -298,7 +300,9 @@ export function Row({
         <label htmlFor={htmlFor} className="block text-[13px]">
           {label}
         </label>
-        {hint && <div className="mt-0.5 text-[12px] leading-snug text-muted">{hint}</div>}
+        {hint && (
+          <div className="mt-0.5 font-serif text-[13px] leading-snug text-muted italic">{hint}</div>
+        )}
       </div>
       <div className="flex shrink-0 items-center gap-2">{children}</div>
     </div>

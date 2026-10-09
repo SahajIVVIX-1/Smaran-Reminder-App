@@ -71,23 +71,23 @@ export class AppTray {
     const paused = this.state.pausedUntil !== null && new Date(this.state.pausedUntil) > new Date();
     const items: MenuEntry[] = [
       { kind: 'item', id: 'open', label: 'Open Smaran' },
-      { kind: 'item', id: 'new', label: 'New reminder…' },
+      { kind: 'item', id: 'new', label: 'New Reminder…' },
       separator,
       {
         kind: 'item',
         id: 'show',
-        label: 'Show next reminder now',
+        label: 'Show Next Reminder Now',
         disabled: this.state.next === null,
       },
       separator,
       ...(paused
-        ? [{ kind: 'item', id: 'resume', label: 'Resume reminders' } as const]
+        ? [{ kind: 'item', id: 'resume', label: 'Resume Reminders' } as const]
         : ([
-            { kind: 'heading', label: 'Pause reminders' },
-            { kind: 'item', id: 'pause-30', label: 'For 30 minutes' },
-            { kind: 'item', id: 'pause-60', label: 'For 1 hour' },
-            { kind: 'item', id: 'pause-180', label: 'For 3 hours' },
-            { kind: 'item', id: 'pause', label: 'Until I resume' },
+            { kind: 'heading', label: 'Pause Reminders' },
+            { kind: 'item', id: 'pause-30', label: 'For 30 Minutes' },
+            { kind: 'item', id: 'pause-60', label: 'For 1 Hour' },
+            { kind: 'item', id: 'pause-180', label: 'For 3 Hours' },
+            { kind: 'item', id: 'pause', label: 'Until I Resume' },
           ] as const)),
       separator,
       { kind: 'item', id: 'about', label: 'About Smaran' },
