@@ -1,3 +1,13 @@
+# Smaran 2.9.1
+
+- **Smoother moving logo.** The title-bar dots were drawn through a "liquid" filter that has no
+  anti-aliasing, which made their edges look jagged at small sizes. Below 48 px the dots are now
+  drawn as clean, anti-aliased lines (the liquid merge stays on for bigger logos).
+- The taskbar button frames are drawn at 64 px and scaled down by Windows, so their edges are
+  smoother too.
+
+---
+
 # Smaran 2.9.0
 
 - **Your dots logo.** Three dots that dance, flow into shapes and settle into an S with a reminder

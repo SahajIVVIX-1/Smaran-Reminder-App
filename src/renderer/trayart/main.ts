@@ -39,17 +39,19 @@ function strokeColor(weights: Float64Array | undefined, palette: Record<string, 
 }
 
 /** Draws the three strokes. Small icons zoom in a little and thicken lines so they stay legible. */
-async function draw(size: number): Promise<Uint8Array> {
+async function draw(size: number, shownAt = size): Promise<Uint8Array> {
   const canvas = new OffscreenCanvas(size, size);
   const ctx = canvas.getContext('2d');
   if (!ctx || !play) return new Uint8Array();
   const palette = play.lightTaskbar ? TASKBAR_PALETTES.light : TASKBAR_PALETTES.dark;
   const zoom = 1.12;
   const k = (size / 64) * zoom;
-  const boost = size <= 20 ? 1.6 : size <= 32 ? 1.35 : 1.15;
+  // Line weight follows the size the icon is shown at, not the size it is drawn at.
+  const boost = shownAt <= 20 ? 1.6 : shownAt <= 32 ? 1.35 : 1.15;
   ctx.setTransform(k, 0, 0, k, size / 2 - 32 * k, size / 2 - 32 * k);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
+  ctx.imageSmoothingQuality = 'high';
   for (let s = 0; s < 3; s++) {
     ctx.beginPath();
     for (let p = 0; p < N; p++) {
@@ -106,7 +108,10 @@ async function tick(): Promise<void> {
     done = (calmSince > 0 && now - calmSince > SETTLE_MS) || now - startedAt > MAX_STILL_MS;
   }
   if (done) stop();
-  const [tray, win] = await Promise.all([draw(current.traySize), draw(current.windowSize)]);
+  const [tray, win] = await Promise.all([
+    draw(current.traySize),
+    draw(current.windowSize, current.windowSize / 2),
+  ]);
   // A newer play may have started while this frame was drawing.
   if (play === current) window.smaranLogo.frame({ tray, window: win, last: done });
 }

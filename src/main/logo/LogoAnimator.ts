@@ -4,9 +4,12 @@ import type { LogoFrame, LogoPlay } from '@shared/logoArt';
 import type { LogoAnimation } from '@shared/logoState';
 import { loadRenderer, preloadPath } from '../windows/loadRenderer';
 
-/** Tray icons are 16 px at 100 % scaling; the taskbar button uses a 32 px icon. */
+/**
+ * Tray icons are 16 px at 100 % scaling. The taskbar button shows 24-32 px; it gets a 64 px frame
+ * that Windows scales down smoothly, so its edges stay clean.
+ */
 const TRAY_PX = 16;
-const WINDOW_PX = 32;
+const WINDOW_PX = 64;
 
 /**
  * Animates the Smaran dots frame by frame for the notification-area icon and the taskbar button.

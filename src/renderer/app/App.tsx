@@ -156,7 +156,7 @@ function Logo() {
     void window.smaran.logo.get().then(setState);
     return window.smaran.logo.onState(setState);
   }, []);
-  return <SmaranDots size={22} scene={busy ? 'bounce' : TITLE_SCENES[state]} />;
+  return <SmaranDots size={24} scene={busy ? 'bounce' : TITLE_SCENES[state]} />;
 }
 
 function Sidebar() {

@@ -28,8 +28,11 @@ export interface SmaranDotsProps {
   /** time multiplier, e.g. 0.1 = slow motion. Default 1 */
   speed?: number;
   paused?: boolean;
-  /** liquid merge effect when dots touch. Default true */
-  goo?: boolean;
+  /**
+   * Liquid merge effect when dots touch. 'auto' (default) turns it on from 48 px up: the filter's
+   * hard alpha edge has no anti-aliasing, so small logos look pixelated with it.
+   */
+  goo?: boolean | 'auto';
   /** hover grow, press squeeze, click "pop". Default true */
   interactive?: boolean;
   /** makes the logo a button */
@@ -100,7 +103,7 @@ export function SmaranDots({
   size = 28,
   speed = 1,
   paused = false,
-  goo = true,
+  goo = 'auto',
   interactive = true,
   onClick,
   onSceneChange,
@@ -189,6 +192,7 @@ export function SmaranDots({
   };
 
   const dimension = typeof size === 'number' ? `${size}px` : size;
+  const liquid = goo === 'auto' ? typeof size === 'number' && size >= 48 : goo;
 
   const svg = (
     <svg
@@ -213,9 +217,16 @@ export function SmaranDots({
           <feComposite in="SourceGraphic" in2="goo" operator="atop" />
         </filter>
       </defs>
-      <g filter={goo ? `url(#${gooId})` : undefined}>
+      <g filter={liquid ? `url(#${gooId})` : undefined}>
         {[0, 1, 2].map((i) => (
-          <path key={i} data-stroke={i} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            key={i}
+            data-stroke={i}
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            shapeRendering="geometricPrecision"
+          />
         ))}
       </g>
     </svg>
