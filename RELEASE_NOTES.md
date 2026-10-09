@@ -1,3 +1,13 @@
+# Smaran 2.7.0
+
+- **New colourful logo.** The S mark is replaced by the bloom: six rounded petals in six colours,
+  turning around a shared centre, with no square tile behind it. The app icon, installer, taskbar,
+  window, About box and tray all use it. The wordmark is set in Source Serif 4.
+- The tray icon still matches the taskbar: a light-taskbar version, and a dark-taskbar version with
+  brighter petals.
+
+---
+
 # Smaran 2.6.0
 
 - **New logo and icons.** The placeholder icon is replaced by Smaran's own mark: a single-stroke S

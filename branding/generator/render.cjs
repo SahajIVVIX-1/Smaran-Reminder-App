@@ -10,6 +10,13 @@ app.whenReady().then(async () => {
   win.webContents.setFrameRate(1);
   const { nativeImage } = require('electron');
   for (const j of jobs) {
+    if (j.measure) {
+      const m = j.measure;
+      await win.loadURL('data:text/html,<html><body></body></html>');
+      const width = await win.webContents.executeJavaScript(`(async()=>{const f=new FontFace('M','url(data:font/woff2;base64,${fs.readFileSync(m.font).toString('base64')})',{weight:'${m.weight}'});await f.load();document.fonts.add(f);const c=document.createElement('canvas').getContext('2d');c.font='${m.weight} ${m.size}px M';const t=c.measureText(${JSON.stringify(m.text)});return {width:t.width,ascent:t.actualBoundingBoxAscent,descent:t.actualBoundingBoxDescent,left:t.actualBoundingBoxLeft,right:t.actualBoundingBoxRight}})()`);
+      fs.writeFileSync(j.out, JSON.stringify(width));
+      continue;
+    }
     if (j.ico) { fs.writeFileSync(j.ico, makeIco(j.pngs.map((p) => nativeImage.createFromPath(p)))); continue; }
     const html = j.html ? fs.readFileSync(j.html, 'utf8') : `<html><body style="margin:0;background:transparent"><img id=i width=${j.w} height=${j.h} src="data:image/svg+xml;base64,${fs.readFileSync(j.svg).toString('base64')}"></body></html>`;
     win.setContentSize(Math.max(j.w, 16), Math.max(j.h, 16));

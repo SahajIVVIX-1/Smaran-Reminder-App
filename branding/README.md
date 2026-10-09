@@ -1,61 +1,54 @@
 # Smaran brand kit
 
-The symbol is a geometric, single-stroke **S** with a **reminder dot** at its top right, like a
-notification badge. It is drawn from two circles of the same radius and one round-capped stroke, so
-it stays legible down to 16 × 16 px.
+The mark is **the bloom**: six rounded petals, each its own colour, turning around a shared centre
+where they overlap. It suggests a reminder going round the clock and something worth remembering
+coming into flower. It needs no tile or background and stays recognisable at 16 × 16 px.
 
 ![Preview](previews/preview-sheet.png)
 
 ## Colours
 
+| Petal | Light backgrounds | Dark backgrounds |
+| --- | --- | --- |
+| Clay | `#D97757` | `#E8876A` |
+| Amber | `#F2A93B` | `#F6B955` |
+| Green | `#3FA27A` | `#4FB98C` |
+| Blue | `#3E7FD8` | `#5A95E6` |
+| Violet | `#8A63D2` | `#9B78E0` |
+| Rose | `#D9608C` | `#E5739C` |
+
+Petals are 86% opaque (93% on dark backgrounds), so the colours mix where they overlap. There are
+no gradients or shadows.
+
 | Role | Hex | Use |
 | --- | --- | --- |
-| Accent | `#C96442` | The reminder dot, the app-icon tile, links and primary buttons |
-| Ink | `#1F1E1D` | The mark and text on light backgrounds |
-| Paper | `#F5F4EF` | The mark and text on dark backgrounds |
-| Tray, light taskbar | `#1A1A1A` | Monochrome tray glyph |
-| Tray, dark taskbar | `#FFFFFF` | Monochrome tray glyph |
-
-The accent has a contrast of 3.9:1 on `#FFFFFF` and 4.2:1 on `#1F1F1F`. That passes WCAG AA for
-graphics and large text (3:1) on both. No single colour can reach 4.5:1 on both of those
-backgrounds (the best possible is about 4.06:1), so don't use the accent for small body text. Use
-Ink or Paper for that.
+| UI accent | `#C96442` | Buttons, links and highlights in the app. It has 3.9:1 contrast on white and 4.2:1 on `#1F1F1F`, which passes WCAG AA for graphics and large text on both |
+| Ink | `#1F1E1D` | The wordmark and text on light backgrounds |
+| Paper | `#F5F4EF` | The wordmark and text on dark backgrounds |
 
 ## Files
 
 | Folder | What |
 | --- | --- |
-| `svg/` | Editable sources. `symbol-light/dark`, `symbol-adaptive` (switches with `prefers-color-scheme`), `symbol-currentcolor` (takes the CSS text colour), horizontal and stacked lockups (light, dark, adaptive), `app-icon.svg` (1024) and the hand-tuned small app icons `app-icon-16…48.svg` |
-| `logo/` | PNG exports: symbol at 64–512 px, horizontal and stacked lockups, light and dark |
-| `tray/` | `tray-light.ico` (dark glyph, for a light taskbar) and `tray-dark.ico` (white glyph, for a dark taskbar), each with 16, 20, 24, 32 and 48 px. `png/` and `svg/` hold every size, including 40 px |
-| `app-icon/` | `app-icon.ico` (16, 20, 24, 32, 40, 48, 64, 128, 256 px), `app-icon-1024.png` and the PNG sizes |
-| `previews/` | The preview sheet: lockups, both Windows 11 taskbars, every tray size and the app icon |
-| `generator/` | The scripts that draw everything. Run `node build.mjs`, then `npx electron render.cjs jobs.json` |
+| `svg/` | Editable sources: `symbol-light/dark`, `symbol-adaptive` (switches with `prefers-color-scheme`), horizontal and stacked lockups (light, dark, adaptive), `app-icon.svg` and the small app-icon sizes |
+| `logo/` | PNG exports: the symbol at 64–512 px, and the lockups, light and dark |
+| `tray/` | `tray-light.ico` (for a light taskbar) and `tray-dark.ico` (brighter petals for a dark taskbar), each with 16, 20, 24, 32 and 48 px. `png/` and `svg/` hold every size, including 40 px |
+| `app-icon/` | `app-icon.ico` (16 to 256 px), `app-icon-1024.png` and the PNG sizes |
+| `previews/` | The preview sheet |
+| `generator/` | The scripts that draw everything (see the top of `build.mjs`) |
 
-"Light" means the version for light backgrounds (dark mark). "Dark" means the version for dark
-backgrounds (light mark). The geometry is the same in both. Only the colour of the S changes; the
-dot stays accent in the full-colour mark.
-
-## Pixel tuning
-
-The tray icon and the small app icons are not just scaled down. Each size (16, 20, 24, 32, 40, 48)
-has its own stroke width and bowl radius chosen so that the S's outer edges land on whole pixels,
-with at least 1 px between the S and the dot. The stroke is 2 px at 16, 3 px at 20 and 24, then 4, 5
-and 6 px.
-
-The `.ico` files store sizes below 256 as 32-bit bitmaps with alpha, the classic format every
-Windows tool reads. The 256 px size is stored as PNG, as Windows expects.
+At 32 px and below the petals are a little fuller and more opaque, so the colours stay clear.
 
 ## Wordmark
 
-"Smaran" is drawn as SVG paths with the same round, single-weight stroke as the symbol. That way it
-needs no font and looks the same everywhere. To set "Smaran" as live text, use **Nunito** (Google
-Fonts, SemiBold or Bold). It is the closest free typeface to the drawn letters.
+"Smaran" is set in **Source Serif 4 SemiBold** (free, SIL Open Font License), which Smaran already
+bundles. The lockup SVGs embed the font, so they render the same everywhere. To edit them in a
+design tool, install Source Serif 4 from Google Fonts.
 
 ## Clear space and minimum size
 
-- **Clear space:** keep space equal to the dot's diameter clear on every side of the symbol or
-  lockup.
-- **Minimum size:** symbol 16 px (use the tuned tray or app-icon files below 48 px); horizontal
-  lockup 96 px wide; stacked lockup 64 px wide.
-- Don't recolour the S in the accent. Don't stretch the mark, outline it or add effects.
+- **Clear space:** keep a quarter of the bloom's width clear on every side.
+- **Minimum size:** the bloom at 16 px; the horizontal lockup at 120 px wide; the stacked lockup at
+  72 px wide.
+- Keep the petal order and colours. Don't recolour the wordmark in the petal colours, and don't
+  put the bloom on a busy photo.

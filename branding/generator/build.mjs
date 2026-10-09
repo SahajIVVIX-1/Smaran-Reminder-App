@@ -1,90 +1,83 @@
-// Builds the Smaran brand kit into ../ (svg, logo, tray, app-icon, previews). Run: node build.mjs, then render.
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { f } from './geo.mjs';
-import { GRID, parts, symbolSvg } from './symbol.mjs';
-import { tileSvg, TILE_GRID } from './tile.mjs';
-import { W as WM_W, wordmark } from './wordmark.mjs';
+// Builds the Smaran brand kit into ../. Run from this folder:
+//   npx electron render.cjs measure.json   (once, measures the wordmark)
+//   node build.mjs && npx electron render.cjs jobs.json
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { bloomAdaptive, bloomInner, bloomSvg, PETAL, petalFor } from './bloom.mjs';
 
-export const C = { accent: '#C96442', ink: '#1F1E1D', paper: '#F5F4EF', white: '#FFFFFF', trayInk: '#1A1A1A' };
+export const C = { accent: '#C96442', ink: '#1F1E1D', paper: '#F5F4EF' };
+const FONT = '../../node_modules/@fontsource-variable/source-serif-4/files/source-serif-4-latin-wght-normal.woff2';
+const WORD = { text: 'Smaran', size: 100, weight: 600 };
 const OUT = '..';
-for (const d of ['svg', 'logo', 'tray', 'app-icon', 'previews']) mkdirSync(`${OUT}/${d}`, { recursive: true });
+
+if (!existsSync('measure-out.json')) {
+  writeFileSync('measure.json', JSON.stringify([{ measure: { font: FONT, ...WORD }, out: 'measure-out.json' }]));
+  console.log('Run: npx electron render.cjs measure.json, then build again.');
+  process.exit(0);
+}
+const M = JSON.parse(readFileSync('measure-out.json', 'utf8'));
+for (const d of ['svg', 'logo', 'tray/png', 'tray/svg', 'app-icon/png', 'previews']) mkdirSync(`${OUT}/${d}`, { recursive: true });
 const jobs = [];
-const svgOut = (path, svg) => writeFileSync(`${OUT}/${path}`, svg + '\n');
-const png = (svgPath, w, h, out) => jobs.push({ svg: `${OUT}/${svgPath}`, w, h, out: `${OUT}/${out}` });
+const save = (path, svg) => writeFileSync(`${OUT}/${path}`, svg + '\n');
+const png = (svg, w, h, out) => jobs.push({ svg: `${OUT}/${svg}`, w, h, out: `${OUT}/${out}` });
+const fontFace = `@font-face{font-family:'Smaran Serif';src:url(data:font/woff2;base64,${readFileSync(FONT).toString('base64')});font-weight:200 900}`;
+const textAttrs = `font-family="'Smaran Serif','Source Serif 4',Georgia,serif" font-size="${WORD.size}" font-weight="${WORD.weight}" letter-spacing="-1"`;
+const inkStyle = `.ink{fill:${C.ink}}@media (prefers-color-scheme:dark){.ink{fill:${C.paper}}}`;
 
-// ---- symbol (24 px master grid) ----
-const m = parts(24);
-const symbolInner = (inkAttr) =>
-  `<path ${inkAttr} d="${m.d}" fill="none" stroke-width="${m.w}" stroke-linecap="round"/>` +
-  `<circle cx="${m.badge[0]}" cy="${m.badge[1]}" r="${m.badge[2]}" fill="${C.accent}"/>`;
-const adaptiveStyle = (cls = 'ink') =>
-  `<style>.${cls}{stroke:${C.ink}}.${cls}-fill{fill:${C.ink}}@media (prefers-color-scheme:dark){.${cls}{stroke:${C.paper}}.${cls}-fill{fill:${C.paper}}}</style>`;
-const sym = (ink, size = 24) => `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">${symbolInner(`stroke="${ink}"`)}</svg>`;
-svgOut('svg/symbol-light.svg', sym(C.ink));
-svgOut('svg/symbol-dark.svg', sym(C.paper));
-svgOut('svg/symbol-adaptive.svg', `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">${adaptiveStyle()}${symbolInner('class="ink"')}</svg>`);
-svgOut('svg/symbol-currentcolor.svg', `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">${symbolInner('stroke="currentColor"')}</svg>`);
-for (const [name, ink] of [['light', C.ink], ['dark', C.paper]])
-  for (const s of [64, 128, 256, 512]) png(`svg/symbol-${name}.svg`, s, s, `logo/symbol-${name}-${s}.png`);
+// ---- symbol ----
+save('svg/symbol-light.svg', bloomSvg('light', 512, PETAL));
+save('svg/symbol-dark.svg', bloomSvg('dark', 512, PETAL));
+save('svg/symbol-adaptive.svg', `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 100 100">${bloomAdaptive()}</svg>`);
+for (const mode of ['light', 'dark']) for (const s of [64, 128, 256, 512]) png(`svg/symbol-${mode}.svg`, s, s, `logo/symbol-${mode}-${s}.png`);
 
-// ---- lockups ----
-const wm = wordmark();
-const k = 35 / 21; // the symbol's S stands a little taller than the wordmark's capital S
-const symX = 0, symY = 20 - 22 * k; // S bottom on the baseline
-const gap = 9;
-const wmX = 22 * k + gap;
-const lockupInner = (inkAttr) =>
-  `<g transform="translate(${symX} ${f(symY)}) scale(${f(k)})">${symbolInner(inkAttr)}</g>` +
-  `<path ${inkAttr} transform="translate(${f(wmX)} 0)" d="${wm.d}" fill="none" stroke-width="${WM_W}" stroke-linecap="round" stroke-linejoin="round"/>`;
-const pad = 4;
-const hx = -pad, hy = f(symY + k - pad), hw = f(wmX + wm.width + 2 * pad), hh = f(20 - (symY + k) + 2 * pad);
-const horiz = (inner, extra = '') => `<svg xmlns="http://www.w3.org/2000/svg" width="${f(hw * 4)}" height="${f(hh * 4)}" viewBox="${hx} ${hy} ${hw} ${hh}">${extra}${inner}</svg>`;
-svgOut('svg/logo-horizontal-light.svg', horiz(lockupInner(`stroke="${C.ink}"`)));
-svgOut('svg/logo-horizontal-dark.svg', horiz(lockupInner(`stroke="${C.paper}"`)));
-svgOut('svg/logo-horizontal-adaptive.svg', horiz(lockupInner('class="ink"'), adaptiveStyle()));
-// Stacked: symbol above, wordmark centred below.
-const sk = 2.6, symW = 24 * sk;
-const stW = Math.max(symW, wm.width) + 2 * pad;
-const stackInner = (inkAttr) =>
-  `<g transform="translate(${f((stW - symW) / 2 - pad + 0.5 * sk)} 0) scale(${sk})">${symbolInner(inkAttr)}</g>` +
-  `<path ${inkAttr} transform="translate(${f((stW - wm.width) / 2 - pad)} ${f(24 * sk + 14)})" d="${wm.d}" fill="none" stroke-width="${WM_W}" stroke-linecap="round" stroke-linejoin="round"/>`;
-const stH = 24 * sk + 14 + 20 + 2 * pad;
-const stack = (inner, extra = '') => `<svg xmlns="http://www.w3.org/2000/svg" width="${f(stW * 4)}" height="${f(stH * 4)}" viewBox="${-pad} ${-pad} ${f(stW)} ${f(stH)}">${extra}${inner}</svg>`;
-svgOut('svg/logo-stacked-light.svg', stack(stackInner(`stroke="${C.ink}"`)));
-svgOut('svg/logo-stacked-dark.svg', stack(stackInner(`stroke="${C.paper}"`)));
-svgOut('svg/logo-stacked-adaptive.svg', stack(stackInner('class="ink"'), adaptiveStyle()));
-for (const name of ['light', 'dark']) {
-  png(`svg/logo-horizontal-${name}.svg`, Math.round(hw * 8), Math.round(hh * 8), `logo/logo-horizontal-${name}.png`);
-  png(`svg/logo-stacked-${name}.svg`, Math.round(stW * 6), Math.round(stH * 6), `logo/logo-stacked-${name}.png`);
+// ---- lockups: the wordmark is Source Serif 4 SemiBold, embedded so the SVG renders anywhere ----
+const textW = M.width - 6; // letter-spacing -1 over six letters
+const gap = 30, sym = 118; // symbol a little taller than the capitals
+const capTop = 100 - M.ascent; // baseline at y = 100
+const symY = capTop + M.ascent / 2 - sym / 2;
+const hW = sym + gap + textW + 8, hTop = Math.min(symY, capTop) - 6, hH = Math.max(symY + sym, 100 + M.descent) - hTop + 6;
+const horiz = (mode, adaptive) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(hW * 1.2)}" height="${Math.round(hH * 1.2)}" viewBox="-4 ${hTop.toFixed(1)} ${hW.toFixed(1)} ${hH.toFixed(1)}">` +
+  `<style>${fontFace}${adaptive ? inkStyle : ''}</style>` +
+  `<svg x="0" y="${symY.toFixed(1)}" width="${sym}" height="${sym}" viewBox="0 0 100 100">${adaptive ? bloomAdaptive() : bloomInner(mode)}</svg>` +
+  `<text x="${sym + gap}" y="100" ${textAttrs} ${adaptive ? 'class="ink"' : `fill="${mode === 'light' ? C.ink : C.paper}"`}>Smaran</text></svg>`;
+const sSym = 190, sW = Math.max(sSym, textW) + 40, sH = sSym + 34 + M.ascent + M.descent + 20;
+const stacked = (mode, adaptive) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(sW)}" height="${Math.round(sH)}" viewBox="0 0 ${sW.toFixed(1)} ${sH.toFixed(1)}">` +
+  `<style>${fontFace}${adaptive ? inkStyle : ''}</style>` +
+  `<svg x="${((sW - sSym) / 2).toFixed(1)}" y="10" width="${sSym}" height="${sSym}" viewBox="0 0 100 100">${adaptive ? bloomAdaptive() : bloomInner(mode)}</svg>` +
+  `<text x="${(sW / 2).toFixed(1)}" y="${(10 + sSym + 34 + M.ascent).toFixed(1)}" text-anchor="middle" ${textAttrs} ${adaptive ? 'class="ink"' : `fill="${mode === 'light' ? C.ink : C.paper}"`}>Smaran</text></svg>`;
+for (const mode of ['light', 'dark']) {
+  save(`svg/logo-horizontal-${mode}.svg`, horiz(mode, false));
+  save(`svg/logo-stacked-${mode}.svg`, stacked(mode, false));
+  png(`svg/logo-horizontal-${mode}.svg`, Math.round(hW * 3), Math.round(hH * 3), `logo/logo-horizontal-${mode}.png`);
+  png(`svg/logo-stacked-${mode}.svg`, Math.round(sW * 2), Math.round(sH * 2), `logo/logo-stacked-${mode}.png`);
 }
+save('svg/logo-horizontal-adaptive.svg', horiz('light', true));
+save('svg/logo-stacked-adaptive.svg', stacked('light', true));
 
-// ---- tray: monochrome, pixel-tuned per size ----
-const icoJobs = [];
-mkdirSync(`${OUT}/tray/svg`, { recursive: true });
-mkdirSync(`${OUT}/tray/png`, { recursive: true });
-for (const [variant, ink] of [['light', C.trayInk], ['dark', C.white]]) {
-  const pngs = [];
-  for (const s of Object.keys(GRID).map(Number)) {
-    svgOut(`tray/svg/tray-${variant}-${s}.svg`, symbolSvg(s, ink, ink));
+// ---- tray: the colour bloom, fuller petals at small sizes; brighter palette for dark taskbars ----
+const ico = [];
+for (const [variant, mode] of [['light', 'light'], ['dark', 'dark']]) {
+  const files = [];
+  for (const s of [16, 20, 24, 32, 40, 48]) {
+    save(`tray/svg/tray-${variant}-${s}.svg`, bloomSvg(mode, s));
     png(`tray/svg/tray-${variant}-${s}.svg`, s, s, `tray/png/tray-${variant}-${s}.png`);
-    pngs.push(`${OUT}/tray/png/tray-${variant}-${s}.png`);
+    if (s !== 40) files.push(`${OUT}/tray/png/tray-${variant}-${s}.png`);
   }
-  icoJobs.push({ ico: `${OUT}/tray/tray-${variant}.ico`, pngs: pngs.filter((p) => !p.endsWith('-40.png')) });
+  ico.push({ ico: `${OUT}/tray/tray-${variant}.ico`, pngs: files });
 }
 
-// ---- app icon ----
-const look = { tile: C.accent, ink: C.white, dot: C.white };
-svgOut('svg/app-icon.svg', tileSvg(1024, look));
+// ---- app icon: the bloom itself, no tile ----
+save('svg/app-icon.svg', bloomSvg('light', 1024, PETAL));
 png('svg/app-icon.svg', 1024, 1024, 'app-icon/app-icon-1024.png');
-mkdirSync(`${OUT}/app-icon/png`, { recursive: true });
-const appPngs = [];
+const appFiles = [];
 for (const s of [16, 20, 24, 32, 40, 48, 64, 128, 256]) {
-  if (TILE_GRID[s]) {
-    svgOut(`svg/app-icon-${s}.svg`, tileSvg(s, look));
+  if (s <= 32) {
+    save(`svg/app-icon-${s}.svg`, bloomSvg('light', s, petalFor(s)));
     png(`svg/app-icon-${s}.svg`, s, s, `app-icon/png/app-icon-${s}.png`);
   } else png('svg/app-icon.svg', s, s, `app-icon/png/app-icon-${s}.png`);
-  appPngs.push(`${OUT}/app-icon/png/app-icon-${s}.png`);
+  appFiles.push(`${OUT}/app-icon/png/app-icon-${s}.png`);
 }
-icoJobs.push({ ico: `${OUT}/app-icon/app-icon.ico`, pngs: appPngs });
-writeFileSync('jobs.json', JSON.stringify([...jobs, ...icoJobs]));
-console.log(jobs.length, 'renders,', icoJobs.length, 'icons');
+ico.push({ ico: `${OUT}/app-icon/app-icon.ico`, pngs: appFiles });
+writeFileSync('jobs.json', JSON.stringify([...jobs, ...ico]));
+console.log(jobs.length, 'renders,', ico.length, 'icons');
