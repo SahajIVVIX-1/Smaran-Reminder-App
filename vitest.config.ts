@@ -19,8 +19,9 @@ export default defineConfig({
         'src/main/system/dataFolder.ts',
         'src/main/tray/tooltip.ts',
       ],
-      // Frozen 2.0 code, only kept for upgrades; exercised by the migration tests.
-      exclude: ['src/shared/channels.ts', 'src/shared/legacy/**'],
+      // Frozen 2.0 code is exercised by the migration tests; the dots logo package (animation
+      // scenes full of defensive fallbacks) has its own tests in dots.test.ts.
+      exclude: ['src/shared/channels.ts', 'src/shared/legacy/**', 'src/shared/dots/**'],
       reporter: ['text', 'html'],
       thresholds: {
         // The pure logic the app relies on. A few defensive fallbacks stay uncovered.

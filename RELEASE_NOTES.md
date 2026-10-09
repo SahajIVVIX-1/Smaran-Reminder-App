@@ -1,3 +1,19 @@
+# Smaran 2.9.0
+
+- **Your dots logo.** Three dots that dance, flow into shapes and settle into an S with a reminder
+  dot. They live top left in the title bar and follow what Smaran is doing; the app, installer and
+  .exe icons are the still S.
+- **Animated tray and taskbar icon.** The notification-area icon (Shell_NotifyIcon) and the taskbar
+  button are animated frame by frame: the dots form the S at start-up, ring a bell while a reminder
+  is on screen, show a check when you press Done, an hourglass when you snooze, a moon while paused
+  or in quiet hours, and a clock when a reminder is under a minute away. When nothing is happening
+  the S stays still (no CPU use) and now and then, or when you rest the pointer on it, does a short
+  dance.
+- The S is drawn dark on a light taskbar and light on a dark one, and switches when you change
+  Windows' mode.
+
+---
+
 # Smaran 2.8.0
 
 - **Anthropic type, mixed.** Titles, section headings and reminder titles use Anthropic Serif;

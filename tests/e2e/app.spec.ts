@@ -202,7 +202,7 @@ test('several cards stack in the corner without overlapping', async () => {
   const bounds = () =>
     h.app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()
-        .filter((w) => !w.isFocusable())
+        .filter((w) => w.isVisible() && !w.isFocusable())
         .map((w) => w.getBounds()),
     );
   const apart = async () => {
@@ -253,5 +253,26 @@ test('added font files are listed and served to the pages', async () => {
     return face.status;
   });
   expect(loaded).toBe('loaded');
+  await h.close();
+});
+
+test('the dots logo rings in the tray while a reminder is on screen', async () => {
+  const h = await launch(seedConfig((c) => (c.settings.notification.hideAfterSec = 30)));
+  await h.app.evaluate(({ ipcMain }) => {
+    const g = globalThis as unknown as { trayFrames: number };
+    g.trayFrames = 0;
+    ipcMain.on('logo:frame', () => (g.trayFrames += 1));
+  });
+  const id = h.readConfig().reminders[0]!.id;
+  const pending = nextNotification(h);
+  await h.page.evaluate((rid) => window.smaran.reminders.showNow(rid), id);
+  const card = await pending;
+  await expect.poll(() => h.page.evaluate(() => window.smaran.logo.get())).toBe('alert');
+  await expect
+    .poll(() => h.app.evaluate(() => (globalThis as unknown as { trayFrames: number }).trayFrames))
+    .toBeGreaterThan(5);
+  await card.getByTestId('notification').hover();
+  await card.getByRole('button', { name: 'Done' }).click();
+  await expect.poll(() => h.page.evaluate(() => window.smaran.logo.get())).toBe('done');
   await h.close();
 });

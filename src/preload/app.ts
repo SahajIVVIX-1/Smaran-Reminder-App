@@ -11,6 +11,7 @@ import type {
   SaveResult,
 } from '@shared/ipc';
 import type { FontCatalog } from '@shared/fonts';
+import type { LogoState } from '@shared/logoState';
 import type { Config, HistoryEntry, Id } from '@shared/schema';
 
 function subscribe<T>(channel: string, listener: (value: T) => void): () => void {
@@ -51,6 +52,12 @@ const api = {
     edit: (command: EditCommand): void => ipcRenderer.send(IPC.appEdit, command),
     onNavigate: (listener: (route: Route) => void): (() => void) =>
       subscribe(IPC.navigate, listener),
+  },
+  logo: {
+    /** What the Smaran dots should show right now, and every change after. */
+    get: (): Promise<LogoState> => ipcRenderer.invoke(IPC.logoGet),
+    onState: (listener: (state: LogoState) => void): (() => void) =>
+      subscribe(IPC.logoState, listener),
   },
   fonts: {
     list: (): Promise<FontCatalog> => ipcRenderer.invoke(IPC.fontsList),

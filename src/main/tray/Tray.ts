@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { app, nativeImage, nativeTheme, Tray } from 'electron';
+import { app, nativeImage, nativeTheme, Tray, type NativeImage } from 'electron';
 import { separator, type MenuEntry } from '@shared/menu';
 import { taskbarIsLight } from './taskbarTheme';
 import { tooltipFor, type TrayState } from './tooltip';
@@ -35,10 +35,12 @@ export class AppTray {
   private readonly tray: Tray;
   private state: TrayState = { pausedUntil: null, next: null };
   private lightTaskbar: boolean;
+  private onTaskbar: (light: boolean) => void = () => undefined;
 
   constructor(
     private readonly actions: TrayActions,
     private readonly menu: (items: MenuEntry[]) => Promise<string | null>,
+    private readonly onHover: () => void = () => undefined,
   ) {
     // First guess from the app theme; refreshIcon() reads the taskbar's own setting.
     this.lightTaskbar = !nativeTheme.shouldUseDarkColors;
@@ -47,6 +49,7 @@ export class AppTray {
     void this.refreshIcon();
     this.tray.on('click', () => this.actions.open());
     this.tray.on('right-click', () => void this.openMenu());
+    this.tray.on('mouse-enter', () => this.onHover());
     this.tray.setToolTip(tooltipFor(this.state));
   }
 
@@ -55,12 +58,27 @@ export class AppTray {
     this.tray.setToolTip(tooltipFor(this.state));
   }
 
+  get isLightTaskbar(): boolean {
+    return this.lightTaskbar;
+  }
+
+  /** Called when the taskbar switches between light and dark. */
+  watchTaskbar(listener: (light: boolean) => void): void {
+    this.onTaskbar = listener;
+  }
+
+  /** One frame of the animated logo. */
+  setFrame(image: NativeImage): void {
+    if (!this.tray.isDestroyed()) this.tray.setImage(image);
+  }
+
   /** Matches the icon to the taskbar's light/dark mode. Cheap; also called on a timer. */
   async refreshIcon(): Promise<void> {
     const light = (await taskbarIsLight()) ?? !nativeTheme.shouldUseDarkColors;
     if (light === this.lightTaskbar || this.tray.isDestroyed()) return;
     this.lightTaskbar = light;
     this.tray.setImage(nativeImage.createFromPath(trayIconPath(light)));
+    this.onTaskbar(light);
   }
 
   destroy(): void {

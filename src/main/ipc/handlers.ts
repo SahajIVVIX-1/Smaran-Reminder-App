@@ -29,6 +29,7 @@ export function registerIpcHandlers(smaran: SmaranApp): void {
   const { store, history, engine } = smaran;
 
   ipcMain.handle(IPC.configGet, () => store.get());
+  ipcMain.handle(IPC.logoGet, () => smaran.logoState);
   // Cut, copy, paste… from the app's right-click menu, run on the field that has focus.
   ipcMain.on(IPC.appEdit, (event, payload: unknown) => {
     const command = EditCommandSchema.safeParse(payload);

@@ -14,7 +14,9 @@ import { Settings } from './pages/Settings';
 import { Today } from './pages/Today';
 import { defaultRule } from './rules';
 import { selectBusy, useApp } from './store';
-import { Spark } from './components/Spark';
+import type { SceneKey } from '@shared/dots/dotsScenes';
+import type { LogoState } from '@shared/logoState';
+import { SmaranDots } from '../dots';
 import { useExit } from './useExit';
 import { Button, Dialog, Switch } from './ui';
 
@@ -134,10 +136,27 @@ export function App() {
   );
 }
 
-/** The app mark in the title bar; it comes alive while Smaran is busy. */
+/** What the title-bar dots show for each app state; idle lets them dance and form shapes. */
+const TITLE_SCENES: Record<LogoState, SceneKey | undefined> = {
+  alert: 'bell-ring',
+  done: 'check',
+  snoozed: 'hourglass',
+  startup: 's-mark',
+  paused: 'moon',
+  quiet: 'moon',
+  soon: 'clock',
+  idle: undefined,
+};
+
+/** The Smaran dots in the title bar, following the same state as the tray icon. */
 function Logo() {
   const busy = useApp(selectBusy);
-  return <Spark busy={busy} />;
+  const [state, setState] = useState<LogoState>('startup');
+  useEffect(() => {
+    void window.smaran.logo.get().then(setState);
+    return window.smaran.logo.onState(setState);
+  }, []);
+  return <SmaranDots size={22} scene={busy ? 'bounce' : TITLE_SCENES[state]} />;
 }
 
 function Sidebar() {

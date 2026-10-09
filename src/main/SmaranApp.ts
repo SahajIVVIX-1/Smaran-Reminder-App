@@ -1,9 +1,21 @@
 import { join } from 'node:path';
-import { app, dialog, nativeImage, nativeTheme, powerMonitor, screen } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  nativeImage,
+  nativeTheme,
+  powerMonitor,
+  screen,
+} from 'electron';
 import { PAUSED_FOREVER } from '@shared/defaults';
-import type { AppInfo, Route } from '@shared/ipc';
+import { IPC, type AppInfo, type Route } from '@shared/ipc';
+import type { LogoState } from '@shared/logoState';
+import { inWindow } from '@shared/time';
 import type { Config } from '@shared/schema';
 import { Engine, isPaused } from './engine/Engine';
+import { LogoAnimator } from './logo/LogoAnimator';
+import { LogoConductor } from './logo/LogoConductor';
 import { ConfigStore } from './store/ConfigStore';
 import { HistoryStore } from './store/HistoryStore';
 import { windowsIsBusy } from './system/focusAssist';
@@ -25,6 +37,8 @@ export class SmaranApp {
   readonly fonts: FontLibrary;
   readonly menu: MenuWindow;
   private tray: AppTray | null = null;
+  private logoAnimator: LogoAnimator | null = null;
+  private logo: LogoConductor | null = null;
   private trayTimer: ReturnType<typeof setInterval> | null = null;
   private lastLoginItem: boolean | null = null;
 
@@ -62,7 +76,11 @@ export class SmaranApp {
     this.notifications.registerIpc();
     this.menu.registerIpc();
     this.notifications.handleActions(
-      (key, action) => this.engine.handleAction(key, action),
+      (key, action) => {
+        this.engine.handleAction(key, action);
+        if (action.kind === 'done') this.logo?.flash('done');
+        else if (action.kind === 'snooze') this.logo?.flash('snoozed');
+      },
       () => this.openApp('history'),
     );
 
@@ -77,8 +95,23 @@ export class SmaranApp {
         quit: () => app.quit(),
       },
       (items) => this.menu.popup(items),
+      () => this.logo?.flourish(true),
     );
     this.menu.warm();
+
+    // The animated dots: tray icon and taskbar button, frame by frame.
+    this.logoAnimator = new LogoAnimator((trayImage, windowImage) => {
+      this.tray?.setFrame(trayImage);
+      getAppWindow()?.setIcon(windowImage);
+    });
+    this.logoAnimator.registerIpc();
+    this.logo = new LogoConductor(this.logoAnimator, (state) => {
+      for (const win of BrowserWindow.getAllWindows())
+        if (!win.isDestroyed()) win.webContents.send(IPC.logoState, state);
+    });
+    this.notifications.watchCount((showing) => this.logo?.set({ showing }));
+    this.tray.watchTaskbar((light) => this.logo?.setLightTaskbar(light));
+    this.logo.start(this.tray.isLightTaskbar);
 
     nativeTheme.themeSource = config.settings.theme;
     this.store.onChange((next) => {
@@ -106,10 +139,17 @@ export class SmaranApp {
     this.engine.stop();
     this.notifications.closeAll();
     this.menu.destroy();
+    this.logo?.stop();
+    this.logoAnimator?.destroy();
     this.history.flush();
     if (this.trayTimer) clearInterval(this.trayTimer);
     this.tray?.destroy();
     this.tray = null;
+  }
+
+  /** What the Smaran dots are showing (for the title bar when it opens). */
+  get logoState(): LogoState {
+    return this.logo?.current ?? 'idle';
   }
 
   get dark(): boolean {
@@ -183,6 +223,13 @@ export class SmaranApp {
       return;
     }
     const next = this.engine.upcoming()[0];
+    const now = new Date();
+    const { quietHours } = config.settings;
+    this.logo?.set({
+      paused: isPaused(config, now),
+      quiet: quietHours.enabled && inWindow(quietHours, now),
+      nextAt: next?.at ?? null,
+    });
     this.tray?.update({
       pausedUntil: config.settings.pausedUntil,
       next: next ? { name: next.reminder.title, at: next.at } : null,

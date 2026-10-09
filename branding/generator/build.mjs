@@ -2,7 +2,7 @@
 //   npx electron render.cjs measure.json   (once, measures the wordmark)
 //   node build.mjs && npx electron render.cjs jobs.json
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { bloomAdaptive, bloomInner, bloomSvg, PETAL, petalFor } from './bloom.mjs';
+import { markAdaptive, markInner, markSvg } from './dotsMark.mjs';
 
 export const C = { accent: '#C96442', ink: '#1F1E1D', paper: '#F5F4EF' };
 const FONT = '../../node_modules/@fontsource-variable/source-serif-4/files/source-serif-4-latin-wght-normal.woff2';
@@ -24,9 +24,9 @@ const textAttrs = `font-family="'Smaran Serif','Source Serif 4',Georgia,serif" f
 const inkStyle = `.ink{fill:${C.ink}}@media (prefers-color-scheme:dark){.ink{fill:${C.paper}}}`;
 
 // ---- symbol ----
-save('svg/symbol-light.svg', bloomSvg('light', 512, PETAL));
-save('svg/symbol-dark.svg', bloomSvg('dark', 512, PETAL));
-save('svg/symbol-adaptive.svg', `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 100 100">${bloomAdaptive()}</svg>`);
+save('svg/symbol-light.svg', markSvg('light', 512));
+save('svg/symbol-dark.svg', markSvg('dark', 512));
+save('svg/symbol-adaptive.svg', `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 64 64">${markAdaptive()}</svg>`);
 for (const mode of ['light', 'dark']) for (const s of [64, 128, 256, 512]) png(`svg/symbol-${mode}.svg`, s, s, `logo/symbol-${mode}-${s}.png`);
 
 // ---- lockups: the wordmark is Source Serif 4 SemiBold, embedded so the SVG renders anywhere ----
@@ -38,13 +38,13 @@ const hW = sym + gap + textW + 8, hTop = Math.min(symY, capTop) - 6, hH = Math.m
 const horiz = (mode, adaptive) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(hW * 1.2)}" height="${Math.round(hH * 1.2)}" viewBox="-4 ${hTop.toFixed(1)} ${hW.toFixed(1)} ${hH.toFixed(1)}">` +
   `<style>${fontFace}${adaptive ? inkStyle : ''}</style>` +
-  `<svg x="0" y="${symY.toFixed(1)}" width="${sym}" height="${sym}" viewBox="0 0 100 100">${adaptive ? bloomAdaptive() : bloomInner(mode)}</svg>` +
+  `<svg x="0" y="${symY.toFixed(1)}" width="${sym}" height="${sym}" viewBox="0 0 64 64">${adaptive ? markAdaptive() : markInner(mode)}</svg>` +
   `<text x="${sym + gap}" y="100" ${textAttrs} ${adaptive ? 'class="ink"' : `fill="${mode === 'light' ? C.ink : C.paper}"`}>Smaran</text></svg>`;
 const sSym = 190, sW = Math.max(sSym, textW) + 40, sH = sSym + 34 + M.ascent + M.descent + 20;
 const stacked = (mode, adaptive) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(sW)}" height="${Math.round(sH)}" viewBox="0 0 ${sW.toFixed(1)} ${sH.toFixed(1)}">` +
   `<style>${fontFace}${adaptive ? inkStyle : ''}</style>` +
-  `<svg x="${((sW - sSym) / 2).toFixed(1)}" y="10" width="${sSym}" height="${sSym}" viewBox="0 0 100 100">${adaptive ? bloomAdaptive() : bloomInner(mode)}</svg>` +
+  `<svg x="${((sW - sSym) / 2).toFixed(1)}" y="10" width="${sSym}" height="${sSym}" viewBox="0 0 64 64">${adaptive ? markAdaptive() : markInner(mode)}</svg>` +
   `<text x="${(sW / 2).toFixed(1)}" y="${(10 + sSym + 34 + M.ascent).toFixed(1)}" text-anchor="middle" ${textAttrs} ${adaptive ? 'class="ink"' : `fill="${mode === 'light' ? C.ink : C.paper}"`}>Smaran</text></svg>`;
 for (const mode of ['light', 'dark']) {
   save(`svg/logo-horizontal-${mode}.svg`, horiz(mode, false));
@@ -55,25 +55,25 @@ for (const mode of ['light', 'dark']) {
 save('svg/logo-horizontal-adaptive.svg', horiz('light', true));
 save('svg/logo-stacked-adaptive.svg', stacked('light', true));
 
-// ---- tray: the colour bloom, fuller petals at small sizes; brighter palette for dark taskbars ----
+// ---- tray: still fallback icons (the app animates them at run time); dark S on light taskbars ----
 const ico = [];
 for (const [variant, mode] of [['light', 'light'], ['dark', 'dark']]) {
   const files = [];
   for (const s of [16, 20, 24, 32, 40, 48]) {
-    save(`tray/svg/tray-${variant}-${s}.svg`, bloomSvg(mode, s));
+    save(`tray/svg/tray-${variant}-${s}.svg`, markSvg(mode, s));
     png(`tray/svg/tray-${variant}-${s}.svg`, s, s, `tray/png/tray-${variant}-${s}.png`);
     if (s !== 40) files.push(`${OUT}/tray/png/tray-${variant}-${s}.png`);
   }
   ico.push({ ico: `${OUT}/tray/tray-${variant}.ico`, pngs: files });
 }
 
-// ---- app icon: the bloom itself, no tile ----
-save('svg/app-icon.svg', bloomSvg('light', 1024, PETAL));
+// ---- app icon: the dots S in colour, no tile ----
+save('svg/app-icon.svg', markSvg('app', 1024));
 png('svg/app-icon.svg', 1024, 1024, 'app-icon/app-icon-1024.png');
 const appFiles = [];
 for (const s of [16, 20, 24, 32, 40, 48, 64, 128, 256]) {
   if (s <= 32) {
-    save(`svg/app-icon-${s}.svg`, bloomSvg('light', s, petalFor(s)));
+    save(`svg/app-icon-${s}.svg`, markSvg('app', s));
     png(`svg/app-icon-${s}.svg`, s, s, `app-icon/png/app-icon-${s}.png`);
   } else png('svg/app-icon.svg', s, s, `app-icon/png/app-icon-${s}.png`);
   appFiles.push(`${OUT}/app-icon/png/app-icon-${s}.png`);

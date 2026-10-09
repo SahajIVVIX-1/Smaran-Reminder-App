@@ -47,6 +47,7 @@ export class NotificationCenter implements Notifier {
   private readonly cards = new Map<string, Card>();
   private onAction: (key: string, action: NotificationAction) => void = () => undefined;
   private onOpenApp: () => void = () => undefined;
+  private onCount: (count: number) => void = () => undefined;
 
   constructor(
     private readonly settings: () => Settings,
@@ -182,6 +183,11 @@ export class NotificationCenter implements Notifier {
     for (const card of [...this.cards.values()]) this.destroy(card);
   }
 
+  /** Called whenever cards come or go (the logo rings while any are on screen). */
+  watchCount(listener: (count: number) => void): void {
+    this.onCount = listener;
+  }
+
   get count(): number {
     return this.cards.size;
   }
@@ -202,6 +208,7 @@ export class NotificationCenter implements Notifier {
 
   /** Places visible cards; newest nearest the corner. Cards beyond the first four wait. */
   private layout(): void {
+    this.onCount(this.cards.size);
     const settings = this.settings().notification;
     const display = pickDisplay(
       settings.screen,

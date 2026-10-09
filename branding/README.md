@@ -1,30 +1,40 @@
 # Smaran brand kit
 
-The mark is **the bloom**: six rounded petals, each its own colour, turning around a shared centre
-where they overlap. It suggests a reminder going round the clock and something worth remembering
-coming into flower. It needs no tile or background and stays recognisable at 16 × 16 px.
+The mark is **the dots**: three dots that dance around each other and flow together into shapes
+(a bell, a clock, a check…), then settle into an **S with a reminder dot**. The animation lives in
+the app (`src/renderer/dots`, engine in `src/shared/dots`); this kit holds the still S.
 
 ![Preview](previews/preview-sheet.png)
 
 ## Colours
 
-| Petal | Light backgrounds | Dark backgrounds |
+| Use | Light backgrounds | Dark backgrounds |
 | --- | --- | --- |
-| Clay | `#D97757` | `#E8876A` |
-| Amber | `#F2A93B` | `#F6B955` |
-| Green | `#3FA27A` | `#4FB98C` |
-| Blue | `#3E7FD8` | `#5A95E6` |
-| Violet | `#8A63D2` | `#9B78E0` |
-| Rose | `#D9608C` | `#E5739C` |
+| S line | `#1F1E1D` | `#F5F4EF` |
+| Reminder dot | `#5B5BD6` | `#8B8DF8` |
+| Third dot (dances) | `#F59F00` | `#FCC419` |
+| Bell ringing | `#E8590C` | `#FF922B` |
+| Done | `#2F9E44` | `#51CF66` |
 
-Petals are 86% opaque (93% on dark backgrounds), so the colours mix where they overlap. There are
-no gradients or shadows.
+The app icon (the .exe and installer) can't follow the theme, so it uses an indigo S (`#5B5BD6`)
+with an amber dot (`#F59F00`), which reads on light and dark taskbars alike. The app's own UI accent
+stays `#C96442`.
 
-| Role | Hex | Use |
-| --- | --- | --- |
-| UI accent | `#C96442` | Buttons, links and highlights in the app. It has 3.9:1 contrast on white and 4.2:1 on `#1F1F1F`, which passes WCAG AA for graphics and large text on both |
-| Ink | `#1F1E1D` | The wordmark and text on light backgrounds |
-| Paper | `#F5F4EF` | The wordmark and text on dark backgrounds |
+## In the tray and on the taskbar
+
+Smaran animates its notification-area icon frame by frame (`Tray.setImage`, which uses
+`Shell_NotifyIcon`) and its taskbar button (`BrowserWindow.setIcon`). It only animates while
+something is happening, and draws the S dark on a light taskbar and light on a dark one:
+
+| When | The dots show |
+| --- | --- |
+| Smaran starts | the dots form the S |
+| A reminder is on screen | a ringing bell |
+| You press Done | a check, then back to the S |
+| You snooze | an hourglass, then back to the S |
+| Reminders are paused, or it's quiet hours | a moon with a "z" |
+| A reminder is due within a minute | a clock with turning hands |
+| Nothing going on | the still S; now and then (and when you rest the pointer on it) a short dance |
 
 ## Files
 
@@ -32,12 +42,12 @@ no gradients or shadows.
 | --- | --- |
 | `svg/` | Editable sources: `symbol-light/dark`, `symbol-adaptive` (switches with `prefers-color-scheme`), horizontal and stacked lockups (light, dark, adaptive), `app-icon.svg` and the small app-icon sizes |
 | `logo/` | PNG exports: the symbol at 64–512 px, and the lockups, light and dark |
-| `tray/` | `tray-light.ico` (for a light taskbar) and `tray-dark.ico` (brighter petals for a dark taskbar), each with 16, 20, 24, 32 and 48 px. `png/` and `svg/` hold every size, including 40 px |
+| `tray/` | Still tray icons, used until the animation starts: `tray-light.ico` (dark S, for a light taskbar) and `tray-dark.ico` (light S, for a dark taskbar), each with 16, 20, 24, 32 and 48 px. `png/` and `svg/` hold every size, including 40 px |
 | `app-icon/` | `app-icon.ico` (16 to 256 px), `app-icon-1024.png` and the PNG sizes |
 | `previews/` | The preview sheet |
 | `generator/` | The scripts that draw everything (see the top of `build.mjs`) |
 
-At 32 px and below the petals are a little fuller and more opaque, so the colours stay clear.
+Small sizes zoom in slightly and draw thicker lines (1.6x at 16–20 px, 1.35x up to 32 px), the same as the live tray animation, so the S stays legible.
 
 ## Wordmark
 
@@ -47,8 +57,8 @@ design tool, install Source Serif 4 from Google Fonts.
 
 ## Clear space and minimum size
 
-- **Clear space:** keep a quarter of the bloom's width clear on every side.
-- **Minimum size:** the bloom at 16 px; the horizontal lockup at 120 px wide; the stacked lockup at
+- **Clear space:** keep the reminder dot's width clear on every side.
+- **Minimum size:** the S at 16 px; the horizontal lockup at 120 px wide; the stacked lockup at
   72 px wide.
-- Keep the petal order and colours. Don't recolour the wordmark in the petal colours, and don't
-  put the bloom on a busy photo.
+- Keep the dot top right and in its own colour. Don't recolour the S in the dot's colour, and don't
+  put the mark on a busy photo.

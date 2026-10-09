@@ -33,6 +33,10 @@ export const IPC = {
   menuPick: 'menu:pick',
   menuPopup: 'menu:popup',
   appEdit: 'app:edit',
+  logoPlay: 'logo:play',
+  logoFrame: 'logo:frame',
+  logoState: 'logo:state',
+  logoGet: 'logo:get',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];

@@ -1,0 +1,67 @@
+/*
+ * Smaran dots colours.
+ * ------------------------------------------------------------------
+ * Point these at your app's own tokens, e.g.
+ *   --smaran-logo-accent: var(--color-accent);
+ * The three dancing dots use primary, accent and accent-2.
+ * Shapes also use alert (ringing bell), success (done) and error (cross).
+ */
+
+/* Light: the S line in Smaran's ink; dark (.dark on <html>): in paper. */
+:root {
+  --smaran-logo-primary: #1f1e1d;
+  --smaran-logo-accent: #5b5bd6;
+  --smaran-logo-accent-2: #f59f00;
+  --smaran-logo-alert: #e8590c;
+  --smaran-logo-success: #2f9e44;
+  --smaran-logo-error: #e03131;
+}
+
+:root.dark {
+  --smaran-logo-primary: #f5f4ef;
+  --smaran-logo-accent: #8b8df8;
+  --smaran-logo-accent-2: #fcc419;
+  --smaran-logo-alert: #ff922b;
+  --smaran-logo-success: #51cf66;
+  --smaran-logo-error: #ff6b6b;
+}
+
+.smaran-dots {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  line-height: 0;
+  cursor: pointer;
+  overflow: visible;
+  border-radius: 8px;
+  -webkit-tap-highlight-color: transparent;
+  /* frameless Electron window: the title bar drags, the logo stays clickable */
+  -webkit-app-region: no-drag;
+}
+
+.smaran-dots:focus {
+  outline: none;
+}
+
+.smaran-dots:focus-visible {
+  outline: 2px solid var(--smaran-logo-accent);
+  outline-offset: 2px;
+}
+
+.smaran-dots__svg {
+  display: block;
+  overflow: visible;
+}
+
+/* Top-left placement helper for the title bar */
+.smaran-titlebar-logo {
+  display: flex;
+  align-items: center;
+  padding-left: 12px;
+  height: 100%;
+}

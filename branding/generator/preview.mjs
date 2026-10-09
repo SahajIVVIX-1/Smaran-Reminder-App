@@ -1,5 +1,5 @@
 import { writeFileSync } from 'node:fs';
-import { PETALS } from './bloom.mjs';
+import { PALETTES } from './dotsMark.mjs';
 const img = (p, w, h = w, style = '') => `<img src="data:image/png;base64,%%../${p}%%" width="${w}" height="${h}" style="${style}">`;
 const taskbar = (bg, fg, tray) => `
 <div style="height:48px;background:${bg};display:flex;align-items:center;padding:0 14px;gap:14px;border-radius:8px;color:${fg};font:12px 'Segoe UI'">
@@ -11,7 +11,7 @@ const sw = (c, label) => `<div style="display:flex;gap:8px;align-items:center"><
 const html = `<html><head><meta charset="utf-8"></head><body style="margin:0;width:1200px;height:1180px;background:#ECEAE4;font:13px 'Segoe UI';color:#3d3c38">
 <div style="padding:28px 32px">
 <div style="font-size:22px;font-weight:600;color:#1F1E1D;margin-bottom:4px">Smaran brand kit</div>
-<div style="margin-bottom:22px;color:#6b6a63">The bloom: six colour petals turning around a shared centre. Wordmark in Source Serif 4 SemiBold.</div>
+<div style="margin-bottom:22px;color:#6b6a63">The dots: three dots that dance and settle into an S with a reminder dot. Wordmark in Source Serif 4 SemiBold.</div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
   <div style="background:#FFFFFF;border-radius:14px;height:190px;display:flex;align-items:center;justify-content:center">${img('logo/logo-horizontal-light.png', 380, 'auto')}</div>
   <div style="background:#1F1F1F;border-radius:14px;height:190px;display:flex;align-items:center;justify-content:center">${img('logo/logo-horizontal-dark.png', 380, 'auto')}</div>
@@ -32,7 +32,7 @@ ${taskbar('#202020', '#ffffff', 'dark')}
   ${img('app-icon/app-icon-1024.png', 170)}
   ${[128, 64, 48, 32, 24, 16].map((s) => `<div style="text-align:center">${img(`app-icon/png/app-icon-${s}.png`, s)}<div>${s}</div></div>`).join('')}
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-left:auto">
-    ${PETALS.light.map((c) => sw(c)).join('')}
+    ${[PALETTES.light.line, PALETTES.light.dot, PALETTES.app.dot, PALETTES.dark.line, PALETTES.dark.dot, '#e8590c'].map((c) => sw(c)).join('')}
     ${sw('#C96442', 'UI accent')}${sw('#1F1E1D', 'ink')}
   </div>
 </div>
