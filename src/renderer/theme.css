@@ -37,6 +37,7 @@
   --animate-pop: pop 200ms var(--ease-out-soft) both;
   --animate-drawer: drawer 260ms var(--ease-out-soft) both;
   --animate-rise: rise 240ms var(--ease-out-soft) both;
+  --animate-modal: modal 280ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
 }
 
 :root {
@@ -92,19 +93,20 @@
 }
 
 /* Windows 11 draws an acrylic backdrop behind the window; the page lets it show through. */
+/* Tinted enough that text stays readable whatever window is behind (a white page included). */
 .glass {
-  --side: transparent;
-  --bg: rgba(250, 249, 245, 0.72);
-  --surface: rgba(255, 255, 255, 0.62);
-  --raised: rgba(255, 255, 255, 0.5);
-  --sheet: rgba(251, 250, 247, 0.9);
+  --side: rgba(240, 238, 230, 0.8);
+  --bg: rgba(250, 249, 245, 0.88);
+  --surface: rgba(255, 255, 255, 0.7);
+  --raised: rgba(255, 255, 255, 0.55);
+  --sheet: rgba(251, 250, 247, 0.94);
 }
 .glass.dark {
-  --side: transparent;
-  --bg: rgba(34, 34, 32, 0.66);
-  --surface: rgba(255, 255, 255, 0.045);
-  --raised: rgba(255, 255, 255, 0.04);
-  --sheet: rgba(36, 36, 34, 0.9);
+  --side: rgba(22, 21, 20, 0.88);
+  --bg: rgba(36, 36, 34, 0.9);
+  --surface: rgba(255, 255, 255, 0.05);
+  --raised: rgba(255, 255, 255, 0.045);
+  --sheet: rgba(38, 38, 36, 0.95);
 }
 .glass body,
 .glass #root {
@@ -147,6 +149,12 @@
   from {
     opacity: 0;
     transform: translateX(24px);
+  }
+}
+@keyframes modal {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.965);
   }
 }
 @keyframes rise {

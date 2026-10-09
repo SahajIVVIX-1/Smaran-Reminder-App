@@ -1,5 +1,9 @@
 import {
   forwardRef,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
@@ -152,6 +156,7 @@ export function Switch({
   );
 }
 
+/** Options with a highlight that slides to the chosen one. */
 export function Segmented<T extends string>({
   value,
   options,
@@ -163,12 +168,38 @@ export function Segmented<T extends string>({
   onChange: (v: T) => void;
   label: string;
 }) {
+  const group = useRef<HTMLDivElement>(null);
+  const [thumb, setThumb] = useState<{ left: number; width: number } | null>(null);
+  const [animate, setAnimate] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = group.current?.querySelector<HTMLElement>('[aria-checked="true"]');
+    if (el) setThumb({ left: el.offsetLeft, width: el.offsetWidth });
+  }, [value, options]);
+
+  // No slide on first paint; only when the choice changes.
+  useEffect(() => {
+    const t = window.setTimeout(() => setAnimate(true), 50);
+    return () => window.clearTimeout(t);
+  }, []);
+
   return (
     <div
+      ref={group}
       role="radiogroup"
       aria-label={label}
-      className="inline-flex rounded-lg bg-raised p-0.5 ring-1 ring-line"
+      className="relative inline-flex rounded-lg bg-raised p-0.5 ring-1 ring-line"
     >
+      {thumb && (
+        <span
+          aria-hidden
+          className={cx(
+            'absolute top-0.5 bottom-0.5 rounded-md bg-surface shadow-sm ring-1 ring-line',
+            animate && 'transition-[left,width] duration-300 ease-[cubic-bezier(0.2,0.9,0.25,1)]',
+          )}
+          style={{ left: thumb.left, width: thumb.width }}
+        />
+      )}
       {options.map((o) => (
         <button
           key={o.value}
@@ -177,15 +208,38 @@ export function Segmented<T extends string>({
           aria-checked={o.value === value}
           onClick={() => onChange(o.value)}
           className={cx(
-            'h-7 rounded-md px-2.5 text-[12.5px] transition-[background-color,color,box-shadow] duration-150',
-            o.value === value
-              ? 'bg-surface font-medium text-ink shadow-sm ring-1 ring-line'
-              : 'text-muted hover:text-ink',
+            'relative h-7 rounded-md px-2.5 text-[12.5px] whitespace-nowrap transition-colors duration-200',
+            o.value === value ? 'font-medium text-ink' : 'text-muted hover:text-ink',
           )}
         >
           {o.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+/** Animates its height to fit whatever it contains (e.g. fields that change with a choice). */
+export function AutoHeight({ children }: { children: ReactNode }) {
+  const inner = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | undefined>(undefined);
+  useLayoutEffect(() => {
+    const el = inner.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => setHeight(el.offsetHeight));
+    observer.observe(el);
+    setHeight(el.offsetHeight);
+    return () => observer.disconnect();
+  }, []);
+  return (
+    // The 4px inset keeps focus rings from being clipped.
+    <div
+      className="-m-1 overflow-hidden transition-[height] duration-300 ease-[cubic-bezier(0.2,0.9,0.25,1)]"
+      style={{ height }}
+    >
+      <div ref={inner} className="p-1">
+        {children}
+      </div>
     </div>
   );
 }

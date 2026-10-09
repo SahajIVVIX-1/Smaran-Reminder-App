@@ -27,7 +27,7 @@ function Section({
   );
 }
 
-/** Side panel to create or edit one reminder. Edits to an existing reminder save as you type. */
+/** Popup to create or edit one reminder. Edits to an existing reminder save as you type. */
 export function ReminderEditor() {
   const editing = useApp((s) => s.editing);
   const config = useApp((s) => s.config);
@@ -75,17 +75,18 @@ export function ReminderEditor() {
 
   return (
     <div
-      className="fixed inset-0 z-40 flex justify-end"
+      // Below the title bar, so the window's own buttons stay clear.
+      className="fixed inset-x-0 top-9 bottom-0 z-40 grid place-items-center p-6"
       role="dialog"
       aria-label={isNew ? 'New reminder' : 'Edit reminder'}
     >
       <button
         type="button"
         aria-label="Close"
-        className="absolute inset-0 animate-fade bg-black/15"
+        className="absolute inset-0 animate-fade bg-black/30 backdrop-blur-[2px]"
         onClick={() => edit(null)}
       />
-      <aside className="relative flex h-full w-[460px] max-w-[92vw] animate-drawer flex-col border-l border-line bg-sheet shadow-2xl backdrop-blur-2xl">
+      <aside className="relative flex max-h-full w-[600px] max-w-full animate-modal flex-col overflow-hidden rounded-2xl border border-line bg-sheet shadow-[0_24px_60px_-12px_rgba(0,0,0,0.5)] backdrop-blur-2xl">
         <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line px-5">
           <span className="font-serif text-[17px]">{isNew ? 'New reminder' : 'Edit reminder'}</span>
           {!isNew && (
@@ -102,7 +103,7 @@ export function ReminderEditor() {
           </IconButton>
         </header>
 
-        <div className="flex-1 overflow-y-auto pb-6">
+        <div className="min-h-0 flex-1 overflow-y-auto pb-2">
           <div className="space-y-2.5 px-5 pt-4 pb-4">
             <Input
               ref={title}

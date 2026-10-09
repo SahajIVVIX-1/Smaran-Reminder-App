@@ -3,11 +3,11 @@ import { MONTH_SHORT, WEEKDAY_SHORT } from '@shared/ruleSummary';
 import type { Rule } from '@shared/schema';
 import { cx } from '../cx';
 import { defaultRule } from '../rules';
-import { Button, NumberField, Segmented, Select } from '../ui';
+import { AutoHeight, Button, NumberField, Segmented, Select } from '../ui';
 
 const KINDS = [
   { value: 'once', label: 'Once' },
-  { value: 'interval', label: 'Every…' },
+  { value: 'interval', label: 'Repeat every' },
   { value: 'daily', label: 'Daily' },
   { value: 'weekly', label: 'Weekly' },
   { value: 'monthly', label: 'Monthly' },
@@ -83,9 +83,11 @@ export function ScheduleEditor({ rule, onChange }: { rule: Rule; onChange: (r: R
         options={KINDS}
         onChange={(kind) => kind !== rule.kind && onChange(defaultRule(kind))}
       />
-      <div key={rule.kind} className="animate-fade space-y-3">
-        <KindFields rule={rule} onChange={onChange} />
-      </div>
+      <AutoHeight>
+        <div key={rule.kind} className="animate-enter space-y-3">
+          <KindFields rule={rule} onChange={onChange} />
+        </div>
+      </AutoHeight>
     </div>
   );
 }

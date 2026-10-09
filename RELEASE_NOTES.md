@@ -1,3 +1,13 @@
+# Smaran 2.2.1
+
+- The reminder editor is now a centred popup instead of a side panel, so it no longer collides with
+  the window's minimise/maximise/close buttons.
+- The schedule picker's highlight slides between choices and the fields below change height smoothly.
+  "Every…" is now "Repeat every"; the "All day" and "Every day" buttons sit on the same line.
+- In dark mode the glass sidebar stays dark and readable even with a white window behind it.
+
+---
+
 # Smaran 2.2.0
 
 - **Phone-style notifications.** Reminders slide down from the top of the screen, then reveal Done
