@@ -26,6 +26,7 @@ const REMINDER_DEFAULTS = {
   followUp: { enabled: false, everyMin: 10, times: 2 },
   color: 'clay',
   sound: 'default',
+  animation: 'auto',
 };
 
 /**

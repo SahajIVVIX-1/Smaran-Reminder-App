@@ -9,7 +9,8 @@ import {
 } from 'react';
 import type { NotificationAction, NotificationLook, NotificationRequest } from '@shared/ipc';
 import { separator } from '@shared/menu';
-import { COLOR_BG } from '../colors';
+import type { SceneKey } from '@shared/dots/dotsScenes';
+import { SmaranDots } from '../dots';
 import { playChime } from './chime';
 
 /** Expanded card widths: small, like a phone banner. */
@@ -290,23 +291,17 @@ export function NotificationCard({
             }}
           >
             <div className="flex gap-2.5 px-3 pt-3 pb-2.5">
-              <span
-                className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-[9px] text-white ${COLOR_BG[request.color]}`}
-                aria-hidden
-              >
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.1"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8" />
-                  <path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" />
-                </svg>
+              {/* The Smaran dots: this reminder's animation, or auto mode. */}
+              <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center" aria-hidden>
+                <SmaranDots
+                  size={30}
+                  scene={
+                    request.animation && request.animation !== 'auto'
+                      ? (request.animation as SceneKey)
+                      : undefined
+                  }
+                  interactive={false}
+                />
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex h-4 items-center gap-1.5 text-[11px] leading-none text-muted">

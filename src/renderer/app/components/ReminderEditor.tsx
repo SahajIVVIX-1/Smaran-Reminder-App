@@ -8,6 +8,9 @@ import { whenLabel } from '../format';
 import { CopyIcon, SendIcon, TrashIcon, XIcon } from '../icons';
 import { useApp } from '../store';
 import { Button, IconButton, Input, NumberField, Segmented, Switch, TextArea } from '../ui';
+import { getScene, type SceneKey } from '@shared/dots/dotsScenes';
+import { SmaranDots } from '../../dots';
+import { AnimationBrowser } from './LogoSettings';
 import { ScheduleEditor } from './ScheduleEditor';
 
 function Section({
@@ -63,6 +66,7 @@ export function ReminderEditor() {
 
   // Stay mounted briefly after closing so the popup can animate out.
   const { mounted, closing } = useExit(editing !== null, 190);
+  const [choosingAnimation, setChoosingAnimation] = useState(false);
   const [lastMode, setLastMode] = useState<'new' | 'edit'>('edit');
   if (editing && editing.mode !== lastMode) setLastMode(editing.mode);
   if (!mounted || !form) return null;
@@ -263,6 +267,48 @@ export function ReminderEditor() {
                 { value: 'off', label: 'Off' },
               ]}
               onChange={(sound) => change({ sound })}
+            />
+          </Section>
+
+          <Section
+            title="Animation"
+            hint={
+              form.animation === 'auto'
+                ? 'Auto: the dots dance and form shapes beside the title.'
+                : `${getScene(form.animation).name} · ${getScene(form.animation).category}`
+            }
+          >
+            <div className="flex items-center gap-3">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-line bg-raised">
+                <SmaranDots
+                  size={34}
+                  scene={form.animation === 'auto' ? undefined : (form.animation as SceneKey)}
+                  interactive={false}
+                />
+              </span>
+              <Segmented
+                label="Notification animation"
+                value={form.animation === 'auto' ? 'auto' : 'one'}
+                options={[
+                  { value: 'auto', label: 'Auto' },
+                  { value: 'one', label: 'One Animation' },
+                ]}
+                onChange={(v) =>
+                  v === 'auto' ? change({ animation: 'auto' }) : setChoosingAnimation(true)
+                }
+              />
+              <Button size="sm" onClick={() => setChoosingAnimation(true)}>
+                Choose…
+              </Button>
+            </div>
+            <AnimationBrowser
+              open={choosingAnimation}
+              current={form.animation === 'auto' ? null : form.animation}
+              onClose={() => setChoosingAnimation(false)}
+              onPick={(animation) => {
+                change({ animation });
+                setChoosingAnimation(false);
+              }}
             />
           </Section>
 

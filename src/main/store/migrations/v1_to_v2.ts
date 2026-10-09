@@ -58,6 +58,7 @@ export function v1ToV2(old: V1Config, newId: NewId, now: Date): Config {
       },
       color: 'clay',
       sound: 'default',
+      animation: 'auto',
       createdAt: stamp,
       updatedAt: stamp,
     });
@@ -89,6 +90,7 @@ export function v1ToV2(old: V1Config, newId: NewId, now: Date): Config {
       followUp: { enabled: false, everyMin: 10, times: 2 },
       color: 'slate',
       sound: 'default',
+      animation: 'auto',
       createdAt: stamp,
       updatedAt: stamp,
     });

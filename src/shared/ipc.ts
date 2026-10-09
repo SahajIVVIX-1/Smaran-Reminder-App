@@ -21,6 +21,8 @@ export interface NotificationRequest {
   /** Seconds before it hides itself; null = stays until the user acts. */
   hideAfterSec: number | null;
   sound: boolean;
+  /** The dots beside the title: 'auto' (default) or an animation's key. */
+  animation?: string;
   /** A sample from Settings: shows Done/Snooze, records nothing. */
   preview?: boolean;
 }

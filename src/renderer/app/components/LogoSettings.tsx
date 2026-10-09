@@ -320,7 +320,7 @@ function FamilyPicker({
 type Tab = 'all' | 'dance' | 'shape';
 
 /** Every animation, like the dots explorer: search, dances/shapes, families, live tiles. */
-function AnimationBrowser({
+export function AnimationBrowser({
   open,
   current,
   onClose,

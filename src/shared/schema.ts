@@ -83,6 +83,8 @@ export const ReminderSchema = z.object({
   color: ColorSchema,
   /** Chime when it appears: follow the app setting, or always / never for this reminder. */
   sound: z.enum(['default', 'on', 'off']),
+  /** The Smaran dots on its notification: 'auto' (dance and form shapes) or one animation's key. */
+  animation: z.string().min(1).max(60),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });

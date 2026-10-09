@@ -75,6 +75,7 @@ export function createReminder(
     followUp: { enabled: false, everyMin: 10, times: 2 },
     color: 'clay',
     sound: 'default',
+    animation: 'auto',
     createdAt: stamp,
     updatedAt: stamp,
   };

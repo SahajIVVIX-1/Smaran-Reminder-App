@@ -220,9 +220,9 @@ input[type='number']::-webkit-outer-spin-button {
 }
 .ring-light {
   position: absolute;
-  inset: -1px;
+  inset: -0.5px;
   border-radius: inherit;
-  padding: 2px;
+  padding: 1px;
   pointer-events: none;
   background: conic-gradient(
     from var(--ring-a),
@@ -244,10 +244,10 @@ input[type='number']::-webkit-outer-spin-button {
     ring-len 2.9s ease-in-out infinite alternate;
 }
 .ring-glow {
-  inset: -3px;
-  padding: 4px;
-  filter: blur(5px);
-  opacity: 0.6;
+  inset: -1.5px;
+  padding: 2px;
+  filter: blur(3px);
+  opacity: 0.45;
 }
 @keyframes ring-spin {
   to {

@@ -1,3 +1,12 @@
+# Smaran 2.11.0
+
+- **Thinner colour bar.** The light that runs round a notification is now 1 px with a softer glow.
+- **The dots on every notification.** The bell icon beside the title is replaced by the Smaran
+  dots. By default they run in Auto (dancing and forming shapes); each reminder can pick one
+  animation instead under **Animation** in its editor (Choose… opens the full browser).
+
+---
+
 # Smaran 2.10.0
 
 - **259 logo animations.** The dots now know 126 dances in 8 families (loaders, choreography,
