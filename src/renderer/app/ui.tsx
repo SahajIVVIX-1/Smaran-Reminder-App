@@ -9,6 +9,7 @@ import {
   type ReactNode,
   type TextareaHTMLAttributes,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { cx } from './cx';
 import { useExit } from './useExit';
 
@@ -336,19 +337,20 @@ export function Dialog({
   children,
   actions,
   onClose,
-  wide,
+  size,
 }: {
   open: boolean;
   title: string;
   children: ReactNode;
   actions: ReactNode;
   onClose?: () => void;
-  /** A roomier dialog (welcome). */
-  wide?: boolean;
+  /** Roomier dialogs: 'wide' (welcome), 'xl' (the animation browser). */
+  size?: 'wide' | 'xl';
 }) {
   const { mounted, closing } = useExit(open, 190);
   if (!mounted) return null;
-  return (
+  // In a portal: a transformed ancestor (an entering card) would otherwise anchor this fixed overlay.
+  return createPortal(
     <div
       className={cx(
         'fixed inset-x-0 top-9 bottom-0 z-50 grid place-items-center bg-black/30 backdrop-blur-[2px]',
@@ -363,8 +365,8 @@ export function Dialog({
     >
       <div
         className={cx(
-          'max-w-[92vw] rounded-2xl border border-line bg-sheet p-5 shadow-2xl backdrop-blur-xl',
-          wide ? 'w-[480px] p-6' : 'w-[420px]',
+          'max-h-[calc(100vh-4rem)] max-w-[92vw] overflow-y-auto rounded-2xl border border-line bg-sheet p-5 shadow-2xl backdrop-blur-xl',
+          size === 'xl' ? 'w-[760px] p-6' : size === 'wide' ? 'w-[480px] p-6' : 'w-[420px]',
           closing ? 'animate-modal-out' : 'animate-modal',
         )}
       >
@@ -372,6 +374,7 @@ export function Dialog({
         <div className="mt-2.5 text-[13px] leading-relaxed text-muted">{children}</div>
         <div className="mt-5 flex justify-end gap-2">{actions}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -18,16 +18,18 @@
 import { CX, CY, N } from './dotsGeometry';
 import {
   COLOR_TOKENS,
-  DANCES,
   DOT_IDENTITY,
-  getScene,
   type ColorToken,
   type DotsScene,
   type Frame,
-  type SceneKey,
-} from './dotsScenes';
+} from './dotsTypes';
+import { DANCES, getScene, type SceneKey } from './dotsScenes';
 
 const STROKES = 3;
+const smooth01 = (x: number): number => {
+  const c = x < 0 ? 0 : x > 1 ? 1 : x;
+  return c * c * (3 - 2 * c);
+};
 const PERMS: ReadonlyArray<readonly [number, number, number]> = [
   [0, 1, 2],
   [0, 2, 1],
@@ -38,7 +40,9 @@ const PERMS: ReadonlyArray<readonly [number, number, number]> = [
 ];
 const SUBSTEP = 1 / 120;
 /** spring speed for dancing dots */
-const OMEGA = 14;
+const OMEGA = 15;
+/** once a shape has formed, every point follows it this tightly */
+const OMEGA_HOLD = 22;
 /** spring speed for forming shapes (front of the stroke; the tail is softer) */
 const OMEGA_SHAPE = 10;
 /** top speed of any point (units/s) so big morphs swoosh instead of streaking */
@@ -55,6 +59,10 @@ export class DotsEngine {
   readonly pos = new Float64Array(STROKES * N * 2);
   readonly vel = new Float64Array(STROKES * N * 2);
   readonly width = new Float64Array(STROKES);
+  /** 0..1 per stroke */
+  readonly opacity = new Float64Array(STROKES).fill(1);
+  /** depth per stroke (higher = drawn in front) */
+  readonly z = new Float64Array(STROKES);
   /** colour weights per stroke over COLOR_TOKENS */
   readonly color: Float64Array[] = [0, 1, 2].map(() => new Float64Array(COLOR_TOKENS.length));
 
@@ -147,16 +155,29 @@ export class DotsEngine {
     this.t += tau;
     const frame = this.scaled(this.scene.frame(this.t));
 
-    // springs, sub-stepped for stability
+    // springs, sub-stepped for stability. Shapes form with soft, staggered
+    // springs (the line unrolls), then stiffen so their own motion stays crisp.
     const steps = Math.max(1, Math.ceil(tau / SUBSTEP));
     const h = tau / steps;
+    const hold = this.scene.kind === 'shape' ? smooth01((this.t - 0.7) / 1.1) : 0;
     for (let s = 0; s < STROKES; s++) {
       const slot = this.slotOf[s];
       const target = frame[slot as 0 | 1 | 2];
       const rev = this.reversed[s];
+      // an invisible stroke may jump straight to its target (respawns, portals)
+      const snap = target.teleport === true && (this.width[s] ?? 0) < 0.6;
       for (let k = 0; k < N; k++) {
         const p = target.pts[rev ? N - 1 - k : k] ?? [CX, CY];
-        const w = (this.omega[s * N + k] ?? OMEGA) * this.stiffness;
+        if (snap) {
+          const j = (s * N + k) * 2;
+          this.pos[j] = p[0];
+          this.pos[j + 1] = p[1];
+          this.vel[j] = 0;
+          this.vel[j + 1] = 0;
+          continue;
+        }
+        const w =
+          ((this.omega[s * N + k] ?? OMEGA) * (1 - hold) + OMEGA_HOLD * hold) * this.stiffness;
         const i = (s * N + k) * 2;
         let x = this.pos[i] ?? CX;
         let y = this.pos[i + 1] ?? CY;
@@ -180,12 +201,17 @@ export class DotsEngine {
       }
     }
 
-    // width and colour glide
-    const wRate = 1 - Math.exp(-9 * tau);
+    // width, opacity, depth and colour glide
+    const wRate = 1 - Math.exp(-12 * tau);
+    const oRate = 1 - Math.exp(-10 * tau);
+    const zRate = 1 - Math.exp(-16 * tau);
     const cRate = 1 - Math.exp(-7 * tau);
     for (let s = 0; s < STROKES; s++) {
       const target = frame[this.slotOf[s] as 0 | 1 | 2];
       this.width[s] = (this.width[s] ?? 0) + (target.width - (this.width[s] ?? 0)) * wRate;
+      this.opacity[s] =
+        (this.opacity[s] ?? 1) + ((target.opacity ?? 1) - (this.opacity[s] ?? 1)) * oRate;
+      this.z[s] = (this.z[s] ?? 0) + ((target.z ?? 0) - (this.z[s] ?? 0)) * zRate;
       const token = this.tokenFor(s, target.color);
       const weights = this.color[s];
       if (!weights) continue;
@@ -198,9 +224,9 @@ export class DotsEngine {
 
   // ---------------------------------------------------------------------------
 
-  /** dances keep each dot's own colour; shapes use the colour of their stroke */
+  /** "identity" scenes keep each dot's own colour; "slot" scenes use the frame's colours */
   private tokenFor(stroke: number, slotColor: ColorToken): ColorToken {
-    return this.scene.kind === 'dance'
+    return this.scene.colorBy === 'identity'
       ? (DOT_IDENTITY[stroke as 0 | 1 | 2] ?? slotColor)
       : slotColor;
   }
@@ -281,6 +307,8 @@ export class DotsEngine {
         this.vel[i + 1] = 0;
       }
       this.width[s] = target.width;
+      this.opacity[s] = target.opacity ?? 1;
+      this.z[s] = target.z ?? 0;
       const token = this.tokenFor(s, target.color);
       const weights = this.color[s];
       if (weights)
@@ -303,9 +331,10 @@ export class AutoDirector {
   private onShape = true;
   current: string;
 
-  constructor(sequence: readonly SceneKey[]) {
+  /** `dances: false` goes shape to shape with no dances in between (a Smaran addition). */
+  constructor(sequence: readonly SceneKey[], options: { dances?: boolean } = {}) {
     this.shapes = sequence.length ? sequence : ['s-mark'];
-    this.dances = DANCES.map((d) => d.key);
+    this.dances = options.dances === false ? [] : DANCES.map((d) => d.key);
     this.current = this.shapes[0] ?? 's-mark';
   }
 
@@ -314,6 +343,11 @@ export class AutoDirector {
     this.elapsed += dt;
     if (this.elapsed < getScene(this.current).hold) return null;
     this.elapsed = 0;
+    if (this.onShape && this.dances.length === 0) {
+      this.shapeIndex++;
+      this.current = this.shapes[this.shapeIndex % this.shapes.length] ?? 's-mark';
+      return this.current;
+    }
     if (this.onShape) {
       this.current = this.dances[this.danceIndex % this.dances.length] ?? 'orbit';
       this.danceIndex++;

@@ -98,6 +98,38 @@ export const CORNERS = [
   'top-center',
 ] as const;
 
+const FamiliesSchema = z.array(z.string().min(1).max(60)).max(30);
+
+export const LogoSettingsSchema = z.object({
+  /** Let the title-bar dots move at all. */
+  animate: z.boolean(),
+  /** 'auto': dance and form shapes in turn; 'scene': play one chosen animation. */
+  mode: z.enum(['auto', 'scene']),
+  /** The animation shown in 'scene' mode. */
+  scene: z.string().min(1).max(60),
+  /** Shape families auto mode cycles through; empty = everyday shapes. */
+  families: FamiliesSchema,
+  /** Dance between shapes in auto mode. */
+  dances: z.boolean(),
+  speed: z.number().min(0.1).max(2),
+  /** Liquid merge where dots touch. */
+  liquid: z.boolean(),
+  /** Hover grows, press squeezes, click pops. */
+  interactive: z.boolean(),
+  /** Bell while a reminder shows, check on Done, moon when paused… (title bar and tray). */
+  reactToReminders: z.boolean(),
+  tray: z.object({
+    animate: z.boolean(),
+    /** Shape families the tray icon changes between when nothing is happening. */
+    families: FamiliesSchema,
+    /** Seconds between tray icon changes. */
+    everySec: z.number().int().min(10).max(3600),
+    /** A short dance when the pointer rests on the tray icon. */
+    hoverDance: z.boolean(),
+  }),
+});
+export type LogoSettings = z.infer<typeof LogoSettingsSchema>;
+
 export const SettingsSchema = z.object({
   startAtLogin: z.boolean(),
   theme: z.enum(['system', 'light', 'dark']),
@@ -118,6 +150,8 @@ export const SettingsSchema = z.object({
   /** ISO time; "until resumed" is stored as a far-future date. */
   pausedUntil: z.iso.datetime({ offset: true }).nullable(),
   onboarded: z.boolean(),
+  /** The Smaran dots: title-bar logo and tray icon. */
+  logo: LogoSettingsSchema,
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 

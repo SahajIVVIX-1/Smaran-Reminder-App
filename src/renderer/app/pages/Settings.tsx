@@ -6,6 +6,7 @@ import { cx } from '../cx';
 import { useApp } from '../store';
 import { FontPicker } from '../components/FontPicker';
 import { Select } from '../components/Select';
+import { LogoSettingsCard } from '../components/LogoSettings';
 import { TimeField } from '../components/TimeField';
 import { Button, Card, Row, Segmented, Switch } from '../ui';
 
@@ -122,6 +123,8 @@ export function Settings() {
           />
         </Row>
       </Card>
+
+      <LogoSettingsCard className="animate-enter [animation-delay:45ms]" />
 
       <Card
         title="Notifications"

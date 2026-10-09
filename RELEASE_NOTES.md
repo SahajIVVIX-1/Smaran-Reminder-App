@@ -1,3 +1,24 @@
+# Smaran 2.10.0
+
+- **259 logo animations.** The dots now know 126 dances in 8 families (loaders, choreography,
+  illusions, orbits and space, physics, nature, juggling and sport, mechanics) and 133 shapes in 10
+  families (time, communication, writing and work, status, tech, media, nature and weather,
+  objects, science and symbols, letters and digits), with 3D depth, smears and portals.
+- **Settings → Logo.** Everything from the dots explorer, in the app:
+  - A live preview with Auto, Prev, Next, Random, Replay, Pause and slow motion; try any
+    animation and press Use This Animation to keep it.
+  - What the title bar shows: Auto (dance, then a shape, then the next) or One Animation.
+  - Which shape families auto mode cycles through, and whether it dances in between.
+  - Speed, liquid merge, hover and click effects, and whether the logo reacts to reminders.
+  - Browse All…: every animation as a live tile, with search, Dances / Shapes and families.
+- **Tray icons from Science & symbols.** When nothing is happening the tray icon moves to a new
+  shape (infinity, atom, DNA, yin-yang, target, recycle, globe…) every 30 seconds and holds it
+  still in between. It still rings, checks and sleeps for reminders. Settings → Logo → System Tray
+  picks the families, how often it changes and whether it dances when you point at it.
+- Dialogs now always open in the middle of the window.
+
+---
+
 # Smaran 2.9.2
 
 - **Tidier welcome screen.** Each tip now has its own icon, a short title and a line under it;

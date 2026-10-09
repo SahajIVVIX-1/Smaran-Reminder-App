@@ -8,10 +8,10 @@ import {
   type CSSProperties,
   type ReactElement,
 } from 'react';
-import { mix, readPalette, toCss, watchTheme, type LogoPalette, type Rgba } from './dotsColors';
-import { N } from '@shared/dots/dotsGeometry';
+import { readPalette, watchTheme } from './dotsColors';
+import { renderDots } from './dotsRender';
 import { AutoDirector, DotsEngine } from '@shared/dots/dotsEngine';
-import { COLOR_TOKENS, DEFAULT_SEQUENCE, getScene, type SceneKey } from '@shared/dots/dotsScenes';
+import { DEFAULT_SEQUENCE, getScene, type SceneKey } from '@shared/dots/dotsScenes';
 import { subscribeTick } from './dotsTicker';
 import './dots.css';
 
@@ -23,6 +23,8 @@ export interface SmaranDotsProps {
   scene?: SceneKey;
   /** shapes to cycle through in auto mode (dances are mixed in between) */
   sequence?: readonly SceneKey[];
+  /** dance between shapes in auto mode. Default true */
+  dances?: boolean;
   /** px number or any CSS length. Default 28 */
   size?: number | string;
   /** time multiplier, e.g. 0.1 = slow motion. Default 1 */
@@ -48,50 +50,6 @@ export interface SmaranDotsProps {
   reducedMotion?: 'auto' | 'always' | 'never';
 }
 
-const STROKES = 3;
-
-// attribute writer that skips unchanged values
-const cache = new WeakMap<Element, Map<string, string>>();
-function set(el: Element | undefined, attr: string, value: string): void {
-  if (!el) return;
-  let m = cache.get(el);
-  if (!m) {
-    m = new Map();
-    cache.set(el, m);
-  }
-  if (m.get(attr) === value) return;
-  m.set(attr, value);
-  el.setAttribute(attr, value);
-}
-
-function strokeColor(weights: Float64Array | undefined, pal: LogoPalette): Rgba {
-  let out: Rgba = pal.primary;
-  let total = 0;
-  if (!weights) return out;
-  COLOR_TOKENS.forEach((token, i) => {
-    const w = weights[i] ?? 0;
-    if (w <= 0.001) return;
-    total += w;
-    out = total === w ? pal[token] : mix(out, pal[token], w / total);
-  });
-  return out;
-}
-
-function render(paths: SVGPathElement[], engine: DotsEngine, pal: LogoPalette): void {
-  for (let s = 0; s < STROKES; s++) {
-    const el = paths[s];
-    if (!el) continue;
-    let d = '';
-    for (let k = 0; k < N; k++) {
-      const i = (s * N + k) * 2;
-      d += `${k ? 'L' : 'M'}${(engine.pos[i] ?? 32).toFixed(2)} ${(engine.pos[i + 1] ?? 32).toFixed(2)}`;
-    }
-    set(el, 'd', d);
-    set(el, 'stroke-width', (engine.width[s] ?? 5).toFixed(2));
-    set(el, 'stroke', toCss(strokeColor(engine.color[s], pal)));
-  }
-}
-
 /**
  * Three dots that dance, shuffle and flow together into shapes.
  *   <SmaranDots size={28} />                 auto mode
@@ -100,6 +58,7 @@ function render(paths: SVGPathElement[], engine: DotsEngine, pal: LogoPalette): 
 export function SmaranDots({
   scene,
   sequence = DEFAULT_SEQUENCE,
+  dances = true,
   size = 28,
   speed = 1,
   paused = false,
@@ -116,7 +75,8 @@ export function SmaranDots({
   const gooId = `smaran-goo-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const svgRef = useRef<SVGSVGElement>(null);
   const sequenceKey = sequence.join(',');
-  const director = useMemo(() => new AutoDirector(sequence), [sequenceKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- sequenceKey stands in for sequence
+  const director = useMemo(() => new AutoDirector(sequence, { dances }), [sequenceKey, dances]);
 
   // One engine for the component's life (created on first render).
   const [engine] = useState(() => new DotsEngine(getScene(scene ?? director.current)));
@@ -152,12 +112,16 @@ export function SmaranDots({
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return undefined;
-    const paths = Array.from(svg.querySelectorAll<SVGPathElement>('[data-stroke]'));
+    // indexed by stroke number; DOM order may change later for depth
+    const paths = Array.from(svg.querySelectorAll<SVGPathElement>('[data-stroke]')).sort(
+      (a, b) => Number(a.dataset.stroke) - Number(b.dataset.stroke),
+    );
     let palette = readPalette(svg);
     const stopTheme = watchTheme(() => {
       palette = readPalette(svg);
     });
-    render(paths, engine, palette);
+    const plain = svg.querySelector<SVGGElement>('[data-plain]');
+    renderDots(paths, engine, palette, plain);
 
     const stopTick = subscribeTick((dt) => {
       const l = live.current;
@@ -174,7 +138,7 @@ export function SmaranDots({
         }
       }
       engine.step(dt, l.speed, l.paused);
-      render(paths, engine, palette);
+      renderDots(paths, engine, palette, plain);
     });
     return () => {
       stopTick();
@@ -217,6 +181,7 @@ export function SmaranDots({
           <feComposite in="SourceGraphic" in2="goo" operator="atop" />
         </filter>
       </defs>
+      <g data-plain="" />
       <g filter={liquid ? `url(#${gooId})` : undefined}>
         {[0, 1, 2].map((i) => (
           <path

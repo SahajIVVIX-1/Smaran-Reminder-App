@@ -31,6 +31,18 @@ export const DEFAULT_SETTINGS: Settings = {
   font: DEFAULT_FONT,
   pausedUntil: null,
   onboarded: false,
+  logo: {
+    animate: true,
+    mode: 'auto',
+    scene: 's-mark',
+    families: [],
+    dances: true,
+    speed: 1,
+    liquid: false,
+    interactive: true,
+    reactToReminders: true,
+    tray: { animate: true, families: ['Science & symbols'], everySec: 30, hoverDance: true },
+  },
 };
 
 export function emptyState(): ReminderState {

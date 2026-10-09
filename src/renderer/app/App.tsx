@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { shapesIn } from '@shared/logoSettings';
 import { createReminder } from '@shared/defaults';
 import { fontFaceCss, fontStack } from '@shared/fonts';
 import type { Route } from '@shared/ipc';
@@ -165,7 +166,23 @@ function Logo() {
     void window.smaran.logo.get().then(setState);
     return window.smaran.logo.onState(setState);
   }, []);
-  return <SmaranDots size={24} scene={busy ? 'bounce' : TITLE_SCENES[state]} />;
+  const logo = useApp((s) => s.config?.settings.logo);
+  const sequence = useMemo(() => shapesIn(logo?.families ?? []), [logo?.families]);
+  if (!logo) return <SmaranDots size={24} scene="s-mark" />;
+  const reacting = busy ? 'bounce' : TITLE_SCENES[state];
+  const chosen = logo.mode === 'scene' ? (logo.scene as SceneKey) : undefined;
+  return (
+    <SmaranDots
+      size={24}
+      scene={logo.animate ? ((logo.reactToReminders ? reacting : undefined) ?? chosen) : 's-mark'}
+      sequence={sequence}
+      speed={logo.speed}
+      goo={logo.liquid}
+      interactive={logo.interactive}
+      reducedMotion={logo.animate ? 'auto' : 'always'}
+      dances={logo.dances}
+    />
+  );
 }
 
 function Sidebar() {
@@ -331,7 +348,7 @@ function Welcome({ open }: { open: boolean }) {
     <Dialog
       open={open}
       title="Welcome to Smaran"
-      wide
+      size="wide"
       actions={
         <>
           <Button variant="ghost" onClick={() => finish(true)}>

@@ -52,7 +52,13 @@ async function draw(size: number, shownAt = size): Promise<Uint8Array> {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.imageSmoothingQuality = 'high';
-  for (let s = 0; s < 3; s++) {
+  // Back to front, so 3D scenes overlap correctly; invisible strokes are skipped.
+  const order = [0, 1, 2].sort((a, b) => (engine.z[a] ?? 0) - (engine.z[b] ?? 0));
+  for (const s of order) {
+    const width = engine.width[s] ?? 5;
+    const alpha = Math.min(1, Math.max(0, engine.opacity[s] ?? 1));
+    if (width < 0.05 || alpha < 0.01) continue;
+    ctx.globalAlpha = alpha;
     ctx.beginPath();
     for (let p = 0; p < N; p++) {
       const i = (s * N + p) * 2;
@@ -61,7 +67,7 @@ async function draw(size: number, shownAt = size): Promise<Uint8Array> {
       if (p === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
-    ctx.lineWidth = (engine.width[s] ?? 5) * boost;
+    ctx.lineWidth = width * boost;
     ctx.strokeStyle = strokeColor(engine.color[s], palette);
     ctx.stroke();
   }

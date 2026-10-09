@@ -111,13 +111,14 @@ export class SmaranApp {
     });
     this.notifications.watchCount((showing) => this.logo?.set({ showing }));
     this.tray.watchTaskbar((light) => this.logo?.setLightTaskbar(light));
-    this.logo.start(this.tray.isLightTaskbar);
+    this.logo.start(this.tray.isLightTaskbar, config.settings.logo);
 
     nativeTheme.themeSource = config.settings.theme;
     this.store.onChange((next) => {
       nativeTheme.themeSource = next.settings.theme;
       this.engine.onConfigChanged();
       this.syncSystem(next);
+      this.logo?.configure(next.settings.logo);
       this.refreshTray();
     });
 
