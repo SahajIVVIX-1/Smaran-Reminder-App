@@ -1,19 +1,17 @@
 import type { LogoAnimation } from './logoState';
 
-/** What main asks the hidden logo renderer to draw for the tray and the taskbar button. */
+/** What main asks the hidden logo renderer to draw for the tray icon. */
 export interface LogoPlay extends LogoAnimation {
   /** Light taskbar: dark S. Dark taskbar: light S. */
   lightTaskbar: boolean;
-  /** Pixel sizes to draw (already multiplied by the display scale). */
+  /** Pixel size to draw (already multiplied by the display scale). */
   traySize: number;
-  windowSize: number;
   /** Dance and form a few shapes for a moment before settling (a little hello). */
   flourish?: boolean;
 }
 
 export interface LogoFrame {
   tray: Uint8Array;
-  window: Uint8Array;
   /** The animation has settled; no more frames until the next play. */
   last: boolean;
 }

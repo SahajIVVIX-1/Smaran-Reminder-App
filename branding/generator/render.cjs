@@ -24,7 +24,7 @@ app.whenReady().then(async () => {
     await win.webContents.executeJavaScript('Promise.all([...document.images].map(i=>i.decode().catch(()=>0))).then(()=>document.fonts.ready).then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');
     const img = await win.webContents.capturePage({ x: 0, y: 0, width: j.w, height: j.h });
     const sized = img.getSize().width === j.w ? img : img.resize({ width: j.w, height: j.h, quality: 'best' });
-    fs.writeFileSync(j.out, sized.toPNG());
+    fs.writeFileSync(j.out, j.bmp ? toBmp24(sized) : sized.toPNG());
   }
   app.quit();
 });
@@ -58,4 +58,21 @@ function makeIco(images) {
     offset += e.data.length;
   });
   return Buffer.concat([dir, ...entries.map((e) => e.data)]);
+}
+
+// 24-bit BMP (what the NSIS installer's side panel and header images need).
+function toBmp24(img) {
+  const { width: w, height: h } = img.getSize();
+  const bgra = img.toBitmap();
+  const row = Math.ceil((w * 3) / 4) * 4;
+  const out = Buffer.alloc(54 + row * h);
+  out.write('BM', 0); out.writeUInt32LE(out.length, 2); out.writeUInt32LE(54, 10);
+  out.writeUInt32LE(40, 14); out.writeInt32LE(w, 18); out.writeInt32LE(h, 22);
+  out.writeUInt16LE(1, 26); out.writeUInt16LE(24, 28); out.writeUInt32LE(row * h, 34);
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      const si = (y * w + x) * 4, di = 54 + (h - 1 - y) * row + x * 3;
+      out[di] = bgra[si]; out[di + 1] = bgra[si + 1]; out[di + 2] = bgra[si + 2];
+    }
+  return out;
 }

@@ -32,5 +32,11 @@ nsis:
   license: build/license.txt
   deleteAppDataOnUninstall: false
   include: build/installer.nsh
+  # The app icon (resources/icon.png -> build/icon.ico) on the installer and its screens.
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerSidebar: build/installerSidebar.bmp
+  uninstallerSidebar: build/installerSidebar.bmp
+  installerHeader: build/installerHeader.bmp
 portable:
   artifactName: portable/${productName}-${version}-portable.${ext}

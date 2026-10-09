@@ -1,3 +1,12 @@
+# Smaran 2.11.1
+
+- **The app icon stays put on the taskbar.** The taskbar button always shows Smaran's icon; only the
+  tray icon animates.
+- **The icon on the installer.** The installer and uninstaller use the app icon, and their welcome,
+  finish and other pages show it too (a side panel with the icon and name, and a header).
+
+---
+
 # Smaran 2.11.0
 
 - **Thinner colour bar.** The light that runs round a notification is now 1 px with a softer glow.

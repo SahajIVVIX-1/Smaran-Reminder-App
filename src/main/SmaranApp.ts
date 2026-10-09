@@ -99,11 +99,9 @@ export class SmaranApp {
     );
     this.menu.warm();
 
-    // The animated dots: tray icon and taskbar button, frame by frame.
-    this.logoAnimator = new LogoAnimator((trayImage, windowImage) => {
-      this.tray?.setFrame(trayImage);
-      getAppWindow()?.setIcon(windowImage);
-    });
+    // The animated dots in the tray, frame by frame.
+    // The taskbar button keeps the app icon (resources/icon.png); only the tray animates.
+    this.logoAnimator = new LogoAnimator((trayImage) => this.tray?.setFrame(trayImage));
     this.logoAnimator.registerIpc();
     this.logo = new LogoConductor(this.logoAnimator, (state) => {
       for (const win of BrowserWindow.getAllWindows())

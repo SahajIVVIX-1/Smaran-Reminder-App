@@ -1,6 +1,6 @@
 // Hidden page that animates the Smaran dots for the tray and the taskbar button. It runs the same
 // spring engine as the title-bar logo, draws each frame to small canvases and hands the PNGs to
-// main, which swaps them into the notification-area icon (Shell_NotifyIcon) and the window icon.
+// main, which swaps them into the notification-area icon (Shell_NotifyIcon).
 import { AutoDirector, DotsEngine } from '@shared/dots/dotsEngine';
 import { N } from '@shared/dots/dotsGeometry';
 import { COLOR_TOKENS, DEFAULT_SEQUENCE, getScene } from '@shared/dots/dotsScenes';
@@ -114,12 +114,9 @@ async function tick(): Promise<void> {
     done = (calmSince > 0 && now - calmSince > SETTLE_MS) || now - startedAt > MAX_STILL_MS;
   }
   if (done) stop();
-  const [tray, win] = await Promise.all([
-    draw(current.traySize),
-    draw(current.windowSize, current.windowSize / 2),
-  ]);
+  const tray = await draw(current.traySize);
   // A newer play may have started while this frame was drawing.
-  if (play === current) window.smaranLogo.frame({ tray, window: win, last: done });
+  if (play === current) window.smaranLogo.frame({ tray, last: done });
 }
 
 window.smaranLogo.onPlay((next) => {
