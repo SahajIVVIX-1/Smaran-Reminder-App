@@ -1,3 +1,11 @@
+# Smaran 2.9.2
+
+- **Tidier welcome screen.** Each tip now has its own icon, a short title and a line under it;
+  the example phrases show as small code chips; Start When I Sign In is a proper setting row with
+  its switch on the right; and the import button reads Import Older Reminders….
+
+---
+
 # Smaran 2.9.1
 
 - **Smoother moving logo.** The title-bar dots were drawn through a "liquid" filter that has no

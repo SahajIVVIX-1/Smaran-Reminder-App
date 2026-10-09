@@ -7,7 +7,16 @@ import type { Settings as SettingsT } from '@shared/schema';
 import { ContextMenuHost } from './components/ContextMenu';
 import { ReminderEditor } from './components/ReminderEditor';
 import { cx } from './cx';
-import { BellIcon, ClockIcon, GearIcon, MoonIcon, PlusIcon, SunIcon } from './icons';
+import {
+  ArrowUpIcon,
+  BellIcon,
+  ClockIcon,
+  GearIcon,
+  MoonIcon,
+  PlusIcon,
+  SparkIcon,
+  SunIcon,
+} from './icons';
 import { History } from './pages/History';
 import { Reminders } from './pages/Reminders';
 import { Settings } from './pages/Settings';
@@ -322,10 +331,11 @@ function Welcome({ open }: { open: boolean }) {
     <Dialog
       open={open}
       title="Welcome to Smaran"
+      wide
       actions={
         <>
           <Button variant="ghost" onClick={() => finish(true)}>
-            Bring Reminders from an Older Smaran…
+            Import Older Reminders…
           </Button>
           <Button variant="primary" onClick={() => finish(false)}>
             Get Started
@@ -333,24 +343,65 @@ function Welcome({ open }: { open: boolean }) {
         </>
       }
     >
-      <p>
-        <span className="font-serif text-[15px] italic">Gentle reminders, on your schedule.</span> A
-        few things to know:
+      <p className="-mt-1 font-serif text-[15.5px] text-muted italic">
+        Gentle reminders, on your schedule.
       </p>
-      <ul className="mt-3 space-y-1.5 text-ink">
-        <li>· Type a reminder the way you’d say it: “stretch every 45 min”, “call mom at 6pm”.</li>
-        <li>· Reminders appear in the corner of your screen. Press Done, or Snooze for later.</li>
-        <li>· Smaran keeps running in the tray when you close this window.</li>
+      <ul className="mt-5 space-y-4">
+        <WelcomePoint icon={<SparkIcon size={15} />} title="Type it the way you’d say it">
+          <span className="mt-1.5 flex flex-wrap gap-1.5">
+            <Example>stretch every 45 min</Example>
+            <Example>call mom at 6pm</Example>
+          </span>
+        </WelcomePoint>
+        <WelcomePoint icon={<BellIcon size={15} />} title="Reminders come to you">
+          They slide in on your screen. Press <b className="font-semibold text-ink">Done</b>, or{' '}
+          <b className="font-semibold text-ink">Snooze</b> for later.
+        </WelcomePoint>
+        <WelcomePoint icon={<ArrowUpIcon size={15} />} title="Smaran stays in the tray">
+          Closing this window keeps your reminders running.
+        </WelcomePoint>
       </ul>
-      <label className="mt-5 flex items-center gap-3 text-ink">
+      <div className="mt-5 flex items-center gap-4 border-t border-line pt-4">
+        <div className="min-w-0 flex-1">
+          <div className="text-[13.5px] font-medium text-ink">Start When I Sign In</div>
+          <div className="font-serif text-[13px] text-muted italic">
+            Smaran opens quietly in the tray with Windows.
+          </div>
+        </div>
         <Switch label="Start Smaran when I sign in" checked={login} onChange={setLogin} />
-        Start Smaran when I sign in to Windows
-      </label>
-      <Hint>I added two examples to get you going. Edit or delete them any time.</Hint>
+      </div>
+      <p className="mt-4 font-serif text-[13px] text-faint italic">
+        Two example reminders are ready for you. Edit or delete them any time.
+      </p>
     </Dialog>
   );
 }
 
-const Hint = ({ children }: { children: ReactNode }) => (
-  <p className="mt-3 text-[12.5px] text-faint">{children}</p>
+/** One point on the welcome screen: an icon tile, a short title and a line under it. */
+function WelcomePoint({
+  icon,
+  title,
+  children,
+}: {
+  icon: ReactNode;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <li className="flex gap-3">
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">
+        {icon}
+      </span>
+      <div className="min-w-0 pt-px">
+        <div className="text-[13.5px] font-semibold text-ink">{title}</div>
+        <div className="text-[13px] leading-snug text-muted">{children}</div>
+      </div>
+    </li>
+  );
+}
+
+const Example = ({ children }: { children: ReactNode }) => (
+  <code className="rounded-md border border-line bg-raised px-1.5 py-0.5 font-mono text-[11.5px] text-ink">
+    {children}
+  </code>
 );

@@ -336,12 +336,15 @@ export function Dialog({
   children,
   actions,
   onClose,
+  wide,
 }: {
   open: boolean;
   title: string;
   children: ReactNode;
   actions: ReactNode;
   onClose?: () => void;
+  /** A roomier dialog (welcome). */
+  wide?: boolean;
 }) {
   const { mounted, closing } = useExit(open, 190);
   if (!mounted) return null;
@@ -360,7 +363,8 @@ export function Dialog({
     >
       <div
         className={cx(
-          'w-[420px] max-w-[92vw] rounded-2xl border border-line bg-sheet p-5 shadow-2xl backdrop-blur-xl',
+          'max-w-[92vw] rounded-2xl border border-line bg-sheet p-5 shadow-2xl backdrop-blur-xl',
+          wide ? 'w-[480px] p-6' : 'w-[420px]',
           closing ? 'animate-modal-out' : 'animate-modal',
         )}
       >
