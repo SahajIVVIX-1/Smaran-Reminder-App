@@ -11,7 +11,9 @@ import { Reminders } from './pages/Reminders';
 import { Settings } from './pages/Settings';
 import { Today } from './pages/Today';
 import { defaultRule } from './rules';
-import { useApp } from './store';
+import { selectBusy, useApp } from './store';
+import { Spark } from './components/Spark';
+import { useExit } from './useExit';
 import { Button, Dialog, Switch } from './ui';
 
 const NAV: { route: Route; label: string; icon: ReactNode }[] = [
@@ -105,19 +107,15 @@ export function App() {
 
       <ReminderEditor />
       <ToastView />
-      {config && !config.settings.onboarded && <Welcome />}
+      <Welcome open={!!config && !config.settings.onboarded} />
     </div>
   );
 }
 
+/** The app mark in the title bar; it comes alive while Smaran is busy. */
 function Logo() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden>
-      <rect x="1" y="1" width="22" height="22" rx="7" className="fill-accent" />
-      <circle cx="12" cy="12" r="5.2" fill="none" stroke="white" strokeWidth="2" />
-      <circle cx="12" cy="12" r="1.8" fill="white" />
-    </svg>
-  );
+  const busy = useApp(selectBusy);
+  return <Spark busy={busy} />;
 }
 
 function Sidebar() {
@@ -223,42 +221,50 @@ function NavItem({
 }
 
 function ToastView() {
-  const toast = useApp((s) => s.toast);
+  const current = useApp((s) => s.toast);
   const { dismissToast } = useApp.getState();
+  // The last toast stays on screen while it animates away.
+  const [toast, setToast] = useState(current);
+  if (current && current !== toast) setToast(current);
+  const { mounted, closing } = useExit(current !== null, 180);
   useEffect(() => {
-    if (!toast) return;
-    const t = window.setTimeout(dismissToast, toast.undo ? 7000 : 3200);
+    if (!current) return;
+    const t = window.setTimeout(dismissToast, current.undo ? 7000 : 3200);
     return () => window.clearTimeout(t);
-  }, [toast, dismissToast]);
-  if (!toast) return null;
+  }, [current, dismissToast]);
+  if (!mounted || !toast) return null;
   return (
-    <div
-      key={toast.id}
-      role="status"
-      className={cx(
-        'fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 animate-rise items-center gap-4 rounded-xl border border-line bg-sheet px-4 py-2 text-[12.5px] text-ink shadow-xl backdrop-blur-xl',
-        toast.tone === 'error' && 'text-danger',
-      )}
-    >
-      <span className="max-w-[520px] truncate">{toast.text}</span>
-      {toast.undo && (
-        <button
-          type="button"
-          className="font-medium text-accent hover:underline"
-          onClick={() => {
-            toast.undo?.();
-            dismissToast();
-          }}
-        >
-          Undo
-        </button>
-      )}
+    // Centred by the wrapper, so the slide animation can use transform freely.
+    <div className="pointer-events-none fixed inset-x-0 bottom-5 z-50 flex justify-center">
+      <div
+        key={toast.id}
+        role="status"
+        className={cx(
+          'pointer-events-auto flex items-center gap-4 rounded-xl border border-line bg-sheet px-4 py-2 text-[12.5px] text-ink shadow-xl backdrop-blur-xl',
+          closing ? 'animate-sink' : 'animate-rise',
+          toast.tone === 'error' && 'text-danger',
+        )}
+      >
+        <span className="max-w-[520px] truncate">{toast.text}</span>
+        {toast.undo && (
+          <button
+            type="button"
+            className="font-medium text-accent hover:underline"
+            onClick={() => {
+              toast.undo?.();
+              dismissToast();
+            }}
+          >
+            Undo
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
 /** First run: a short, friendly welcome. */
-function Welcome() {
+function Welcome({ open }: { open: boolean }) {
   const config = useApp((s) => s.config);
   const { setSettings, go } = useApp.getState();
   const [login, setLogin] = useState(config?.settings.startAtLogin ?? true);
@@ -273,6 +279,7 @@ function Welcome() {
 
   return (
     <Dialog
+      open={open}
       title="Welcome to Smaran"
       actions={
         <>

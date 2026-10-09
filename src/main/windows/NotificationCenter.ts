@@ -72,6 +72,12 @@ export class NotificationCenter implements Notifier {
       const card = this.fromSender(event.sender);
       if (card) this.destroy(card);
     });
+    // The window is sized for the expanded card; outside the card, clicks reach the apps below.
+    ipcMain.on(IPC.notifInteractive, (event, on: unknown) => {
+      const card = this.fromSender(event.sender);
+      if (card && !card.win.isDestroyed())
+        card.win.setIgnoreMouseEvents(on !== true, { forward: true });
+    });
     ipcMain.on(IPC.navigate, (event) => {
       if (this.fromSender(event.sender)) this.onOpenApp();
     });
@@ -205,9 +211,15 @@ export class NotificationCenter implements Notifier {
         card.shown = true;
         card.win.setAlwaysOnTop(true, 'screen-saver');
         card.win.setVisibleOnAllWorkspaces(true);
+        card.win.setIgnoreMouseEvents(true, { forward: true });
         card.win.showInactive(); // never takes focus
         card.win.webContents.send(IPC.notifShown, {
           fromBottom: settings.corner.startsWith('bottom'),
+          align: settings.corner.endsWith('left')
+            ? 'left'
+            : settings.corner.endsWith('right')
+              ? 'right'
+              : 'center',
         });
       }
     });

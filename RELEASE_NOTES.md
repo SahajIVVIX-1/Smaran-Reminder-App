@@ -1,3 +1,16 @@
+# Smaran 2.3.0
+
+- **Notifications start as a small pill** showing just the title. Hover to expand it into the full
+  card (app name, time, close, Done/Snooze); move away and it folds back. The empty space around a
+  card no longer blocks clicks on the apps beneath it.
+- **Themed pickers everywhere:** dropdowns, the time picker and the calendar now match the app in
+  light and dark instead of using Windows' system pop-ups. Number fields have − / + steppers.
+- **Everything closes smoothly:** the editor, dialogs, dropdowns and toasts animate out as well as in.
+- **A living app mark:** the spark in the top-left gently turns and breathes while Smaran is saving,
+  loading, backing up or showing a reminder, and settles when it's done.
+
+---
+
 # Smaran 2.2.1
 
 - The reminder editor is now a centred popup instead of a side panel, so it no longer collides with

@@ -95,7 +95,9 @@ export function Today() {
             </Button>
             <Button
               size="sm"
-              onClick={() => void window.smaran.reminders.showNow(next.reminder.id)}
+              onClick={() =>
+                void useApp.getState().track(window.smaran.reminders.showNow(next.reminder.id))
+              }
             >
               Show now
             </Button>

@@ -7,10 +7,10 @@ import {
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
-  type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react';
 import { cx } from './cx';
+import { useExit } from './useExit';
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -71,19 +71,7 @@ export function TextArea({ className, ...rest }: TextareaHTMLAttributes<HTMLText
   );
 }
 
-export function Select({ className, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <select
-      className={cx(
-        field,
-        'h-8 cursor-pointer pr-7',
-        className?.includes('w-') ? className : cx('w-full', className),
-      )}
-      {...rest}
-    />
-  );
-}
-
+/** Number box with themed − / + steppers. */
 export function NumberField({
   value,
   onChange,
@@ -99,20 +87,43 @@ export function NumberField({
   suffix?: string;
   label: string;
 }) {
+  const set = (n: number) => onChange(Math.min(max, Math.max(min, Math.round(n))));
+  const step =
+    'grid h-full w-6 place-items-center text-faint transition-colors hover:bg-hover hover:text-ink disabled:opacity-30';
   return (
     <span className="inline-flex items-center gap-2">
-      <input
-        type="number"
-        aria-label={label}
-        value={value}
-        min={min}
-        max={max}
-        onChange={(e) => {
-          const n = e.currentTarget.valueAsNumber;
-          if (!Number.isNaN(n)) onChange(Math.min(max, Math.max(min, Math.round(n))));
-        }}
-        className={cx(field, 'h-8 w-16 text-center')}
-      />
+      <span className="inline-flex h-8 items-center overflow-hidden rounded-lg border border-line bg-surface transition-[border-color,box-shadow] duration-150 focus-within:border-accent/60 focus-within:ring-3 focus-within:ring-accent-soft">
+        <button
+          type="button"
+          aria-label={`Less ${label.toLowerCase()}`}
+          disabled={value <= min}
+          onClick={() => set(value - 1)}
+          className={step}
+        >
+          −
+        </button>
+        <input
+          type="number"
+          aria-label={label}
+          value={value}
+          min={min}
+          max={max}
+          onChange={(e) => {
+            const n = e.currentTarget.valueAsNumber;
+            if (!Number.isNaN(n)) set(n);
+          }}
+          className="h-full w-10 bg-transparent text-center text-[13px] text-ink tabular-nums outline-none"
+        />
+        <button
+          type="button"
+          aria-label={`More ${label.toLowerCase()}`}
+          disabled={value >= max}
+          onClick={() => set(value + 1)}
+          className={step}
+        >
+          +
+        </button>
+      </span>
       {suffix && <span className="text-[12.5px] text-muted">{suffix}</span>}
     </span>
   );
@@ -316,19 +327,26 @@ export function Pill({
 }
 
 export function Dialog({
+  open,
   title,
   children,
   actions,
   onClose,
 }: {
+  open: boolean;
   title: string;
   children: ReactNode;
   actions: ReactNode;
   onClose?: () => void;
 }) {
+  const { mounted, closing } = useExit(open, 190);
+  if (!mounted) return null;
   return (
     <div
-      className="fixed inset-0 z-50 grid animate-fade place-items-center bg-black/30 backdrop-blur-[2px]"
+      className={cx(
+        'fixed inset-x-0 top-9 bottom-0 z-50 grid place-items-center bg-black/30 backdrop-blur-[2px]',
+        closing ? 'pointer-events-none animate-fade-out' : 'animate-fade',
+      )}
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -336,7 +354,12 @@ export function Dialog({
         if (e.target === e.currentTarget) onClose?.();
       }}
     >
-      <div className="w-[420px] max-w-[92vw] animate-pop rounded-2xl border border-line bg-sheet p-5 shadow-2xl backdrop-blur-xl">
+      <div
+        className={cx(
+          'w-[420px] max-w-[92vw] rounded-2xl border border-line bg-sheet p-5 shadow-2xl backdrop-blur-xl',
+          closing ? 'animate-modal-out' : 'animate-modal',
+        )}
+      >
         <h2 className="font-serif text-[20px] leading-tight">{title}</h2>
         <div className="mt-2.5 text-[13px] leading-relaxed text-muted">{children}</div>
         <div className="mt-5 flex justify-end gap-2">{actions}</div>

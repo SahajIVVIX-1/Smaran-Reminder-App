@@ -24,6 +24,7 @@ export const IPC = {
   notifAction: 'notif:action',
   notifClose: 'notif:close',
   notifDone: 'notif:done',
+  notifInteractive: 'notif:interactive',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];

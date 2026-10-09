@@ -21,6 +21,8 @@ interface AppState {
   toast: Toast | null;
   /** True while a local change waits to be saved. */
   pending: boolean;
+  /** Tasks in flight (loading, backups, showing a reminder now). */
+  tasks: number;
 
   init(config: Config, history: HistoryEntry[]): void;
   external(config: Config): void;
@@ -35,6 +37,8 @@ interface AppState {
   setSettings(change: (s: Settings) => Settings): void;
   toastMsg(text: string, tone?: Toast['tone'], undo?: () => void): void;
   dismissToast(): void;
+  /** Marks the app busy until `work` settles (drives the animated spark). */
+  track<T>(work: Promise<T>): Promise<T>;
 }
 
 const SAVE_DELAY_MS = 350;
@@ -49,6 +53,7 @@ export const useApp = create<AppState>((set, get) => ({
   editing: null,
   toast: null,
   pending: false,
+  tasks: 0,
 
   init(config, history) {
     set({ config, history });
@@ -143,4 +148,17 @@ export const useApp = create<AppState>((set, get) => ({
   dismissToast() {
     set({ toast: null });
   },
+
+  async track(work) {
+    set({ tasks: get().tasks + 1 });
+    try {
+      return await work;
+    } finally {
+      set({ tasks: Math.max(0, get().tasks - 1) });
+    }
+  },
 }));
+
+/** The app is doing something the user is waiting on. */
+export const selectBusy = (s: { pending: boolean; tasks: number; config: unknown }) =>
+  s.pending || s.tasks > 0 || s.config === null;

@@ -96,30 +96,29 @@ export function History() {
         </div>
       )}
 
-      {confirm && (
-        <Dialog
-          title="Clear history?"
-          onClose={() => setConfirm(false)}
-          actions={
-            <>
-              <Button variant="ghost" onClick={() => setConfirm(false)}>
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => {
-                  void window.smaran.history.clear();
-                  setConfirm(false);
-                }}
-              >
-                Clear history
-              </Button>
-            </>
-          }
-        >
-          This removes the record of past reminders. Your reminders themselves stay as they are.
-        </Dialog>
-      )}
+      <Dialog
+        open={confirm}
+        title="Clear history?"
+        onClose={() => setConfirm(false)}
+        actions={
+          <>
+            <Button variant="ghost" onClick={() => setConfirm(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                void window.smaran.history.clear();
+                setConfirm(false);
+              }}
+            >
+              Clear history
+            </Button>
+          </>
+        }
+      >
+        This removes the record of past reminders. Your reminders themselves stay as they are.
+      </Dialog>
     </div>
   );
 }

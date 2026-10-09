@@ -3,7 +3,10 @@ import { MONTH_SHORT, WEEKDAY_SHORT } from '@shared/ruleSummary';
 import type { Rule } from '@shared/schema';
 import { cx } from '../cx';
 import { defaultRule } from '../rules';
-import { AutoHeight, Button, NumberField, Segmented, Select } from '../ui';
+import { AutoHeight, Button, NumberField, Segmented } from '../ui';
+import { DateField } from './DateField';
+import { Select } from './Select';
+import { TimeField } from './TimeField';
 
 const KINDS = [
   { value: 'once', label: 'Once' },
@@ -14,9 +17,6 @@ const KINDS = [
   { value: 'yearly', label: 'Yearly' },
 ] as const;
 
-const timeClass =
-  'h-9 rounded-lg border border-line bg-surface px-2.5 text-[13.5px] text-ink focus:border-accent/60 focus:ring-3 focus:ring-accent-soft focus:outline-none';
-
 function TimeInput({
   value,
   onChange,
@@ -26,15 +26,7 @@ function TimeInput({
   onChange: (v: string) => void;
   label: string;
 }) {
-  return (
-    <input
-      type="time"
-      aria-label={label}
-      value={value}
-      onChange={(e) => e.currentTarget.value && onChange(e.currentTarget.value)}
-      className={timeClass}
-    />
-  );
+  return <TimeField label={label} value={value} onChange={onChange} />;
 }
 
 function Days({ value, onChange }: { value: number[]; onChange: (v: number[]) => void }) {
@@ -97,14 +89,16 @@ function KindFields({ rule, onChange }: { rule: Rule; onChange: (r: Rule) => voi
     case 'once':
       return (
         <Line label="On">
-          <input
-            type="datetime-local"
-            aria-label="Date and time"
-            value={rule.at.slice(0, 16)}
-            onChange={(e) =>
-              e.currentTarget.value && onChange({ ...rule, at: `${e.currentTarget.value}:00` })
-            }
-            className={timeClass}
+          <DateField
+            label="Date"
+            value={rule.at.slice(0, 10)}
+            onChange={(day) => onChange({ ...rule, at: `${day}T${rule.at.slice(11, 16)}:00` })}
+          />
+          <span className="text-muted">at</span>
+          <TimeInput
+            label="Time"
+            value={rule.at.slice(11, 16)}
+            onChange={(time) => onChange({ ...rule, at: `${rule.at.slice(0, 10)}T${time}:00` })}
           />
         </Line>
       );
@@ -125,18 +119,18 @@ function KindFields({ rule, onChange }: { rule: Rule; onChange: (r: Rule) => voi
               aria-label="Unit"
               className="w-28"
               value={hours ? 'h' : 'm'}
-              onChange={(e) => {
-                const toHours = e.currentTarget.value === 'h';
+              options={[
+                { value: 'm', label: 'minutes' },
+                { value: 'h', label: 'hours' },
+              ]}
+              onChange={(unit) => {
                 const n = hours ? minutes / 60 : minutes;
                 onChange({
                   ...rule,
-                  everyMs: (toHours ? Math.max(1, Math.round(n)) * 60 : n) * 60_000,
+                  everyMs: (unit === 'h' ? Math.max(1, Math.round(n)) * 60 : n) * 60_000,
                 });
               }}
-            >
-              <option value="m">minutes</option>
-              <option value="h">hours</option>
-            </Select>
+            />
           </Line>
           <Line label="Between">
             {rule.activeHours ? (
@@ -278,21 +272,17 @@ function KindFields({ rule, onChange }: { rule: Rule; onChange: (r: Rule) => voi
           <Line label="On day">
             <Select
               aria-label="Day of the month"
-              className="w-48"
+              className="w-52"
               value={String(rule.day)}
-              onChange={(e) => {
-                const v = e.currentTarget.value;
-                onChange({ ...rule, day: v === 'last' ? 'last' : Number(v) });
-              }}
-            >
-              {Array.from({ length: 31 }, (_, i) => (
-                <option key={i + 1} value={i + 1}>
-                  {i + 1}
-                  {i + 1 > 28 ? ' (or the last day)' : ''}
-                </option>
-              ))}
-              <option value="last">The last day</option>
-            </Select>
+              options={[
+                ...Array.from({ length: 31 }, (_, i) => ({
+                  value: String(i + 1),
+                  label: `${i + 1}${i + 1 > 28 ? ' (or the last day)' : ''}`,
+                })),
+                { value: 'last', label: 'The last day' },
+              ]}
+              onChange={(v) => onChange({ ...rule, day: v === 'last' ? 'last' : Number(v) })}
+            />
           </Line>
           <Line label="At">
             <TimeInput
@@ -311,26 +301,19 @@ function KindFields({ rule, onChange }: { rule: Rule; onChange: (r: Rule) => voi
               aria-label="Day"
               className="w-20"
               value={rule.day}
-              onChange={(e) => onChange({ ...rule, day: Number(e.currentTarget.value) })}
-            >
-              {Array.from({ length: 31 }, (_, i) => (
-                <option key={i + 1} value={i + 1}>
-                  {i + 1}
-                </option>
-              ))}
-            </Select>
+              options={Array.from({ length: 31 }, (_, i) => ({
+                value: i + 1,
+                label: String(i + 1),
+              }))}
+              onChange={(day) => onChange({ ...rule, day })}
+            />
             <Select
               aria-label="Month"
-              className="w-24"
+              className="w-28"
               value={rule.month}
-              onChange={(e) => onChange({ ...rule, month: Number(e.currentTarget.value) })}
-            >
-              {MONTH_SHORT.map((m, i) => (
-                <option key={m} value={i + 1}>
-                  {m}
-                </option>
-              ))}
-            </Select>
+              options={MONTH_SHORT.map((m, i) => ({ value: i + 1, label: m }))}
+              onChange={(month) => onChange({ ...rule, month })}
+            />
           </Line>
           <Line label="At">
             <TimeInput

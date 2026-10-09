@@ -3,6 +3,7 @@ import { ruleSummary } from '@shared/ruleSummary';
 import { COLORS, ReminderSchema, type Reminder } from '@shared/schema';
 import { COLOR_BG, COLOR_NAME } from '../../colors';
 import { cx } from '../cx';
+import { useExit } from '../useExit';
 import { whenLabel } from '../format';
 import { CopyIcon, SendIcon, TrashIcon, XIcon } from '../icons';
 import { useApp } from '../store';
@@ -58,8 +59,12 @@ export function ReminderEditor() {
     return () => window.removeEventListener('keydown', onKey);
   }, [edit]);
 
-  if (!editing || !form) return null;
-  const isNew = editing.mode === 'new';
+  // Stay mounted briefly after closing so the popup can animate out.
+  const { mounted, closing } = useExit(editing !== null, 190);
+  const [lastMode, setLastMode] = useState<'new' | 'edit'>('edit');
+  if (editing && editing.mode !== lastMode) setLastMode(editing.mode);
+  if (!mounted || !form) return null;
+  const isNew = lastMode === 'new';
   const parsed = ReminderSchema.safeParse(form);
   const errors = parsed.success ? [] : parsed.error.issues.map((i) => i.message);
   const next = nextTimes.find((n) => n.reminderId === form.id)?.at;
@@ -76,17 +81,28 @@ export function ReminderEditor() {
   return (
     <div
       // Below the title bar, so the window's own buttons stay clear.
-      className="fixed inset-x-0 top-9 bottom-0 z-40 grid place-items-center p-6"
+      className={cx(
+        'fixed inset-x-0 top-9 bottom-0 z-40 grid place-items-center p-6',
+        closing && 'pointer-events-none',
+      )}
       role="dialog"
       aria-label={isNew ? 'New reminder' : 'Edit reminder'}
     >
       <button
         type="button"
         aria-label="Close"
-        className="absolute inset-0 animate-fade bg-black/30 backdrop-blur-[2px]"
+        className={cx(
+          'absolute inset-0 bg-black/30 backdrop-blur-[2px]',
+          closing ? 'animate-fade-out' : 'animate-fade',
+        )}
         onClick={() => edit(null)}
       />
-      <aside className="relative flex max-h-full w-[600px] max-w-full animate-modal flex-col overflow-hidden rounded-2xl border border-line bg-sheet shadow-[0_24px_60px_-12px_rgba(0,0,0,0.5)] backdrop-blur-2xl">
+      <aside
+        className={cx(
+          'relative flex max-h-full w-[600px] max-w-full flex-col overflow-hidden rounded-2xl border border-line bg-sheet shadow-[0_24px_60px_-12px_rgba(0,0,0,0.5)] backdrop-blur-2xl',
+          closing ? 'animate-modal-out' : 'animate-modal',
+        )}
+      >
         <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line px-5">
           <span className="font-serif text-[17px]">{isNew ? 'New reminder' : 'Edit reminder'}</span>
           {!isNew && (
@@ -309,7 +325,9 @@ export function ReminderEditor() {
                 variant="ghost"
                 size="sm"
                 title="Show it now"
-                onClick={() => void window.smaran.reminders.showNow(form.id)}
+                onClick={() =>
+                  void useApp.getState().track(window.smaran.reminders.showNow(form.id))
+                }
               >
                 <SendIcon size={15} /> Show now
               </Button>

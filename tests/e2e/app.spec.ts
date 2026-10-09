@@ -108,6 +108,10 @@ test('a reminder card never takes focus; Done is recorded in History', async () 
     )
     .toContainEqual({ focusable: false, focused: false, onTop: true, visible: true });
 
+  // The card shows just the title until the pointer is over it.
+  await expect(card.getByTestId('notification-pill')).toHaveText('Drink some water');
+  await card.getByTestId('notification').hover();
+  await expect(card.getByTestId('notification')).toHaveAttribute('data-expanded', 'true');
   await card.getByRole('button', { name: 'Done' }).click();
   await card.waitForEvent('close');
   await p.getByRole('button', { name: 'History' }).click();
@@ -122,6 +126,7 @@ test('snoozing from the card schedules it again', async () => {
   const pending = nextNotification(h);
   await h.page.evaluate((rid) => window.smaran.reminders.showNow(rid), id);
   const card = await pending;
+  await card.getByTestId('notification').hover();
   await card.getByRole('button', { name: 'Snooze' }).click();
   await card.getByRole('button', { name: '15 min' }).click();
   await expect.poll(() => h.readConfig().state[id]?.snoozedUntil).not.toBeNull();

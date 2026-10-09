@@ -10,7 +10,7 @@ import type { NotificationAction, NotificationLook, NotificationRequest } from '
 import { COLOR_BG } from '../colors';
 import { playChime } from './chime';
 
-/** Card widths: small, like a phone banner. */
+/** Expanded card widths: small, like a phone banner. */
 const WIDTH: Record<NotificationLook['size'], number> = {
   compact: 308,
   comfortable: 340,
@@ -19,10 +19,13 @@ const WIDTH: Record<NotificationLook['size'], number> = {
 /** Room around the card inside its window for the shadow. */
 const PAD_X = 14;
 const PAD_Y = 10;
-/** The actions appear once the card has landed. */
-const ACTIONS_DELAY_MS = 380;
 /** Swipe this far toward the screen edge to dismiss. */
 const SWIPE_DISMISS_PX = 34;
+/** Leaving for a moment (e.g. brushing the edge) doesn't collapse the card. */
+const COLLAPSE_DELAY_MS = 140;
+/** One easing for the whole morph, so size and content move together. */
+const MORPH = 'cubic-bezier(0.2, 0.9, 0.25, 1)';
+const MORPH_MS = 420;
 
 const SNOOZE: { label: string; minutes: number | 'tomorrow' }[] = [
   { label: '5 min', minutes: 5 },
@@ -32,11 +35,17 @@ const SNOOZE: { label: string; minutes: number | 'tomorrow' }[] = [
 ];
 
 type Phase = 'measuring' | 'hidden' | 'in' | 'out';
+type Align = 'left' | 'center' | 'right';
+interface Size {
+  width: number;
+  height: number;
+}
 
 /**
- * A reminder card that behaves like a phone notification: it slides in from the screen edge,
- * then reveals Done and Snooze. Hover pauses its timer; swipe it back toward the edge to dismiss.
- * It never takes keyboard focus.
+ * A reminder that behaves like a phone notification: it slides in from the screen edge as a small
+ * pill showing just the title. Hovering expands it into the full card (app name, time, close,
+ * Done and Snooze); moving away folds it back. Hover pauses its timer; swipe it toward the edge to
+ * dismiss. It never takes keyboard focus.
  */
 export function NotificationCard({
   request,
@@ -46,32 +55,43 @@ export function NotificationCard({
   size: NotificationLook['size'];
 }) {
   const wrapper = useRef<HTMLDivElement>(null);
+  const fullRef = useRef<HTMLDivElement>(null);
+  const pillRef = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<Phase>('measuring');
   const [fromBottom, setFromBottom] = useState(false);
-  const [open, setOpen] = useState(true); // actions shown; true while measuring the full height
+  const [align, setAlign] = useState<Align>('center');
+  const [sizes, setSizes] = useState<{ full: Size; pill: Size } | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const [snoozing, setSnoozing] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [remaining, setRemaining] = useState(1);
   const [drag, setDrag] = useState<{ startY: number; dy: number } | null>(null);
   const acted = useRef(false);
+  const collapseTimer = useRef<number | undefined>(undefined);
   const summary = request.reminderId === null && !request.preview;
+  const width = WIDTH[size];
 
-  // Measure once with the actions open, so the window is tall enough for the expanded card.
+  // Measure both shapes once fonts are ready; the window is sized for the expanded card.
   useLayoutEffect(() => {
     void document.fonts.ready.then(() => {
-      const el = wrapper.current;
-      if (el) window.smaranNotification.measured(el.offsetWidth, el.offsetHeight);
+      const full = fullRef.current;
+      const pill = pillRef.current;
+      if (!full || !pill) return;
+      const measured = {
+        full: { width, height: full.offsetHeight },
+        pill: { width: Math.min(width, pill.offsetWidth), height: pill.offsetHeight },
+      };
+      setSizes(measured);
+      window.smaranNotification.measured(width + PAD_X * 2, measured.full.height + PAD_Y * 2);
     });
-  }, []);
+  }, [width]);
 
   useEffect(() => {
     window.smaranNotification.onShown((info) => {
       setFromBottom(info.fromBottom);
-      setOpen(false);
+      setAlign(info.align);
       setPhase('hidden');
-      // Next frames: slide in. Then reveal the actions.
       requestAnimationFrame(() => requestAnimationFrame(() => setPhase('in')));
-      window.setTimeout(() => setOpen(true), ACTIONS_DELAY_MS);
       if (request.sound) playChime(request.important);
     });
     window.smaranNotification.onClose(() => {
@@ -104,6 +124,24 @@ export function NotificationCard({
     window.smaranNotification.act(action);
   }
 
+  function onEnter() {
+    window.smaranNotification.interactive(true);
+    window.clearTimeout(collapseTimer.current);
+    setHovered(true);
+    setExpanded(true);
+  }
+
+  function onLeave() {
+    window.smaranNotification.interactive(false);
+    setHovered(false);
+    window.clearTimeout(collapseTimer.current);
+    collapseTimer.current = window.setTimeout(() => {
+      setExpanded(false);
+      // Back to Done/Snooze once folded away.
+      window.setTimeout(() => setSnoozing(false), MORPH_MS);
+    }, COLLAPSE_DELAY_MS);
+  }
+
   // ---------- swipe to dismiss ----------
   const towardEdge = (dy: number) => (fromBottom ? Math.max(0, dy) : Math.min(0, dy));
 
@@ -122,20 +160,23 @@ export function NotificationCard({
     if (Math.abs(dy) > SWIPE_DISMISS_PX) act({ kind: 'dismiss' });
   }
 
+  const measuring = phase === 'measuring' || !sizes;
   const offscreen = fromBottom ? 'calc(100% + 24px)' : 'calc(-100% - 24px)';
   // Toward the edge follows the pointer; away from it only stretches a little.
   const dragY = drag ? towardEdge(drag.dy) + (drag.dy - towardEdge(drag.dy)) * 0.15 : 0;
   const transform =
     phase === 'in'
       ? `translateY(${dragY}px)`
-      : phase === 'measuring'
+      : measuring
         ? 'none'
         : `translateY(${offscreen}) scale(0.97)`;
-  const transition = drag
-    ? 'none'
+  const slide = drag
+    ? 'transform 0s'
     : phase === 'out'
       ? 'transform 260ms cubic-bezier(0.4, 0, 1, 1), opacity 220ms ease-in'
       : 'transform 480ms cubic-bezier(0.2, 1.1, 0.3, 1), opacity 260ms ease-out';
+  const shape = sizes ? (expanded ? sizes.full : sizes.pill) : undefined;
+  const radius = expanded || !sizes ? 18 : sizes.pill.height / 2;
 
   return (
     <div
@@ -143,118 +184,152 @@ export function NotificationCard({
       className="flex flex-col"
       style={{
         padding: `${PAD_Y}px ${PAD_X}px`,
-        width: WIDTH[size] + PAD_X * 2,
+        width: width + PAD_X * 2,
         justifyContent: fromBottom ? 'flex-end' : 'flex-start',
-        minHeight: phase === 'measuring' ? undefined : '100vh',
+        alignItems: align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center',
+        minHeight: measuring ? undefined : '100vh',
         boxSizing: 'border-box',
       }}
     >
       <div
         data-testid="notification"
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
+        data-expanded={expanded}
+        onMouseEnter={onEnter}
+        onMouseLeave={onLeave}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         style={{
+          width: shape?.width ?? width,
+          height: shape?.height,
+          borderRadius: radius,
           transform,
-          transition,
           opacity: phase === 'in' ? 1 - Math.min(0.6, Math.abs(dragY) / 120) : 0,
+          transition: `${slide}, width ${MORPH_MS}ms ${MORPH}, height ${MORPH_MS}ms ${MORPH}, border-radius ${MORPH_MS}ms ${MORPH}`,
         }}
-        className="glass-card group relative overflow-hidden rounded-[18px] select-none"
+        className="glass-card relative overflow-hidden select-none"
       >
-        <div className="flex gap-2.5 px-3 pt-3 pb-2.5">
+        {/* Folded: just the title. */}
+        <div
+          ref={pillRef}
+          aria-hidden={expanded}
+          className="absolute top-0 left-0 flex w-max items-center gap-2 py-2.5 pr-4 pl-3.5"
+          style={{
+            maxWidth: width,
+            opacity: expanded && !measuring ? 0 : 1,
+            transform: expanded ? 'scale(0.96)' : 'none',
+            transition: `opacity ${expanded ? 160 : 240}ms ease ${expanded ? 0 : 60}ms, transform ${MORPH_MS}ms ${MORPH}`,
+            visibility: measuring ? 'hidden' : undefined,
+          }}
+        >
+          <span className={`h-2 w-2 shrink-0 rounded-full ${COLOR_BG[request.color]}`} />
           <span
-            className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-[9px] text-white ${COLOR_BG[request.color]}`}
-            aria-hidden
+            className="truncate text-[13px] leading-4 font-semibold text-ink"
+            data-testid="notification-pill"
           >
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.1"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8" />
-              <path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" />
-            </svg>
+            {request.title}
           </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex h-4 items-center gap-1.5 text-[11px] leading-none text-muted">
-              <span className="font-semibold tracking-wide uppercase">Smaran</span>
-              {request.important && (
-                <span className="h-1.5 w-1.5 rounded-full bg-accent" title="Important" />
-              )}
-              <span className="ml-auto truncate">{request.label || 'now'}</span>
-              <button
-                type="button"
-                aria-label="Dismiss"
-                onClick={() => act({ kind: 'dismiss' })}
-                className="-mr-1 grid h-5 w-5 place-items-center rounded-full text-faint opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:bg-hover hover:text-ink"
-              >
-                <svg width="9" height="9" viewBox="0 0 12 12" aria-hidden>
-                  <path
-                    d="M2.5 2.5l7 7M9.5 2.5l-7 7"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </button>
-            </div>
-            <div
-              className="mt-1 line-clamp-2 text-[13.5px] leading-snug font-semibold text-ink"
-              data-testid="notification-title"
-            >
-              {request.title}
-            </div>
-            {request.body && (
-              <div className="mt-0.5 line-clamp-2 text-[12.5px] leading-snug text-muted">
-                {request.body}
-              </div>
-            )}
-          </div>
+          {request.important && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />}
         </div>
 
-        {/* Actions slide open after the card lands. */}
+        {/* Unfolded: the full card. */}
         <div
-          className="grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]"
-          style={{ gridTemplateRows: open ? '1fr' : '0fr', opacity: open ? 1 : 0 }}
+          ref={fullRef}
+          aria-hidden={!expanded && !measuring}
+          className="absolute top-0 left-0"
+          style={{
+            width,
+            opacity: expanded || measuring ? 1 : 0,
+            transform: expanded || measuring ? 'none' : 'translateY(-4px)',
+            transition: `opacity ${expanded ? 260 : 200}ms ease ${expanded ? 60 : 0}ms, transform ${MORPH_MS}ms ${MORPH}`,
+            pointerEvents: expanded ? 'auto' : 'none',
+          }}
         >
-          <div className="overflow-hidden">
-            <div className="flex gap-1.5 px-3 pb-3">
-              {summary ? (
-                <>
-                  <Action primary onClick={() => window.smaranNotification.openApp()}>
-                    Open History
-                  </Action>
-                  <Action onClick={() => act({ kind: 'dismiss' })}>Dismiss</Action>
-                </>
-              ) : snoozing ? (
-                SNOOZE.map((s) => (
-                  <Action key={s.label} onClick={() => act({ kind: 'snooze', minutes: s.minutes })}>
-                    {s.label}
-                  </Action>
-                ))
-              ) : (
-                <>
-                  <Action primary onClick={() => act({ kind: 'done' })}>
-                    Done
-                  </Action>
-                  <Action onClick={() => setSnoozing(true)}>Snooze</Action>
-                </>
+          <div className="flex gap-2.5 px-3 pt-3 pb-2.5">
+            <span
+              className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-[9px] text-white ${COLOR_BG[request.color]}`}
+              aria-hidden
+            >
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.1"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8" />
+                <path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" />
+              </svg>
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex h-4 items-center gap-1.5 text-[11px] leading-none text-muted">
+                <span className="font-semibold tracking-wide uppercase">Smaran</span>
+                {request.important && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent" title="Important" />
+                )}
+                <span className="ml-auto truncate">{request.label || 'now'}</span>
+                <button
+                  type="button"
+                  aria-label="Dismiss"
+                  onClick={() => act({ kind: 'dismiss' })}
+                  className="-mr-1 grid h-5 w-5 place-items-center rounded-full text-faint transition-colors duration-150 hover:bg-hover hover:text-ink"
+                >
+                  <svg width="9" height="9" viewBox="0 0 12 12" aria-hidden>
+                    <path
+                      d="M2.5 2.5l7 7M9.5 2.5l-7 7"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <div
+                className="mt-1 line-clamp-2 text-[13.5px] leading-snug font-semibold text-ink"
+                data-testid="notification-title"
+              >
+                {request.title}
+              </div>
+              {request.body && (
+                <div className="mt-0.5 line-clamp-2 text-[12.5px] leading-snug text-muted">
+                  {request.body}
+                </div>
               )}
             </div>
+          </div>
+
+          <div className="flex gap-1.5 px-3 pb-3">
+            {summary ? (
+              <>
+                <Action primary onClick={() => window.smaranNotification.openApp()}>
+                  Open History
+                </Action>
+                <Action onClick={() => act({ kind: 'dismiss' })}>Dismiss</Action>
+              </>
+            ) : snoozing ? (
+              SNOOZE.map((s) => (
+                <Action key={s.label} onClick={() => act({ kind: 'snooze', minutes: s.minutes })}>
+                  {s.label}
+                </Action>
+              ))
+            ) : (
+              <>
+                <Action primary onClick={() => act({ kind: 'done' })}>
+                  Done
+                </Action>
+                <Action onClick={() => setSnoozing(true)}>Snooze</Action>
+              </>
+            )}
           </div>
         </div>
 
         {request.hideAfterSec !== null && (
           <div
-            className="absolute inset-x-4 bottom-0 h-[2px] overflow-hidden rounded-full"
+            className="absolute inset-x-4 bottom-0 h-[1.5px] overflow-hidden rounded-full"
             aria-hidden
           >
             <div

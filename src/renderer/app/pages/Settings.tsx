@@ -4,7 +4,9 @@ import type { AppInfo, BackupResult } from '@shared/ipc';
 import { CORNERS, type Settings as SettingsT } from '@shared/schema';
 import { cx } from '../cx';
 import { useApp } from '../store';
-import { Button, Card, Row, Segmented, Select, Switch } from '../ui';
+import { Select } from '../components/Select';
+import { TimeField } from '../components/TimeField';
+import { Button, Card, Row, Segmented, Switch } from '../ui';
 
 const CORNER_LABEL: Record<SettingsT['notification']['corner'], string> = {
   'top-right': 'Top right',
@@ -13,9 +15,6 @@ const CORNER_LABEL: Record<SettingsT['notification']['corner'], string> = {
   'bottom-left': 'Bottom left',
   'top-center': 'Top centre',
 };
-
-const timeClass =
-  'h-9 rounded-lg border border-line bg-surface px-2.5 text-[13.5px] text-ink focus:border-accent/60 focus:ring-3 focus:ring-accent-soft focus:outline-none';
 
 /** A little screen with the five places a notification can appear. */
 function CornerPicker({
@@ -76,7 +75,7 @@ export function Settings() {
   const paused = s.pausedUntil && new Date(s.pausedUntil) > new Date();
 
   const runBackup = async (action: () => Promise<BackupResult>) => {
-    const r = await action();
+    const r = await useApp.getState().track(action());
     if (!r.ok) setBackupMsg({ tone: 'error', text: r.error });
     else if (r.detail) setBackupMsg({ tone: 'ok', text: r.detail });
   };
@@ -126,13 +125,14 @@ export function Settings() {
         <Row label="Screen" htmlFor="set-screen">
           <Select
             id="set-screen"
-            className="w-56"
+            className="w-64"
             value={n.screen}
-            onChange={(e) => setN({ screen: e.currentTarget.value as 'primary' | 'cursor' })}
-          >
-            <option value="primary">Main screen</option>
-            <option value="cursor">Screen with the mouse pointer</option>
-          </Select>
+            options={[
+              { value: 'primary', label: 'Main screen' },
+              { value: 'cursor', label: 'Screen with the mouse pointer' },
+            ]}
+            onChange={(screen) => setN({ screen })}
+          />
         </Row>
         <Row label="Size">
           <Segmented
@@ -155,14 +155,14 @@ export function Settings() {
             id="set-hide"
             className="w-36"
             value={n.hideAfterSec}
-            onChange={(e) => setN({ hideAfterSec: Number(e.currentTarget.value) })}
-          >
-            {[5, 8, 12, 20, 30, 60, 120].map((sec) => (
-              <option key={sec} value={sec}>
-                {sec < 60 ? `${sec} seconds` : `${sec / 60} minute${sec === 60 ? '' : 's'}`}
-              </option>
-            ))}
-          </Select>
+            options={[...new Set([5, 8, 12, 20, 30, 60, 120, n.hideAfterSec])]
+              .sort((a, b) => a - b)
+              .map((sec) => ({
+                value: sec,
+                label: sec < 60 ? `${sec} seconds` : `${sec / 60} minute${sec === 60 ? '' : 's'}`,
+              }))}
+            onChange={(hideAfterSec) => setN({ hideAfterSec })}
+          />
         </Row>
         <Row label="Sound" hint="A soft chime when a reminder appears." htmlFor="set-sound">
           <Switch
@@ -204,31 +204,19 @@ export function Settings() {
         >
           {s.quietHours.enabled && (
             <span className="flex items-center gap-2 text-[13px] text-muted">
-              <input
-                type="time"
-                aria-label="Quiet from"
-                className={timeClass}
+              <TimeField
+                label="Quiet from"
                 value={s.quietHours.from}
-                onChange={(e) =>
-                  e.currentTarget.value &&
-                  setSettings((x) => ({
-                    ...x,
-                    quietHours: { ...x.quietHours, from: e.currentTarget.value },
-                  }))
+                onChange={(from) =>
+                  setSettings((x) => ({ ...x, quietHours: { ...x.quietHours, from } }))
                 }
               />
               to
-              <input
-                type="time"
-                aria-label="Quiet until"
-                className={timeClass}
+              <TimeField
+                label="Quiet until"
                 value={s.quietHours.to}
-                onChange={(e) =>
-                  e.currentTarget.value &&
-                  setSettings((x) => ({
-                    ...x,
-                    quietHours: { ...x.quietHours, to: e.currentTarget.value },
-                  }))
+                onChange={(to) =>
+                  setSettings((x) => ({ ...x, quietHours: { ...x.quietHours, to } }))
                 }
               />
             </span>
