@@ -208,136 +208,134 @@ export function NotificationCard({
           opacity: phase === 'in' ? 1 - Math.min(0.6, Math.abs(dragY) / 120) : 0,
           transition: `${slide}, width ${MORPH_MS}ms ${MORPH}, height ${MORPH_MS}ms ${MORPH}, border-radius ${MORPH_MS}ms ${MORPH}`,
         }}
-        className="glass-card relative overflow-hidden select-none"
+        className="relative select-none"
       >
-        {/* Folded: just the title. */}
         <div
-          ref={pillRef}
-          aria-hidden={expanded}
-          className="absolute top-0 left-0 flex w-max items-center gap-2 py-2.5 pr-4 pl-3.5"
-          style={{
-            maxWidth: width,
-            opacity: expanded && !measuring ? 0 : 1,
-            transform: expanded ? 'scale(0.96)' : 'none',
-            transition: `opacity ${expanded ? 160 : 240}ms ease ${expanded ? 0 : 60}ms, transform ${MORPH_MS}ms ${MORPH}`,
-            visibility: measuring ? 'hidden' : undefined,
-          }}
+          className="glass-card absolute inset-0 overflow-hidden"
+          style={{ borderRadius: 'inherit' }}
         >
-          <span className={`h-2 w-2 shrink-0 rounded-full ${COLOR_BG[request.color]}`} />
-          <span
-            className="truncate text-[13px] leading-4 font-semibold text-ink"
-            data-testid="notification-pill"
+          {/* Folded: just the title. */}
+          <div
+            ref={pillRef}
+            aria-hidden={expanded}
+            className="absolute top-0 left-0 flex w-max items-center px-[18px] py-[9px]"
+            style={{
+              maxWidth: width,
+              opacity: expanded && !measuring ? 0 : 1,
+              transform: expanded ? 'scale(0.96)' : 'none',
+              transition: `opacity ${expanded ? 160 : 240}ms ease ${expanded ? 0 : 60}ms, transform ${MORPH_MS}ms ${MORPH}`,
+              visibility: measuring ? 'hidden' : undefined,
+            }}
           >
-            {request.title}
-          </span>
-          {request.important && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />}
-        </div>
-
-        {/* Unfolded: the full card. */}
-        <div
-          ref={fullRef}
-          aria-hidden={!expanded && !measuring}
-          className="absolute top-0 left-0"
-          style={{
-            width,
-            opacity: expanded || measuring ? 1 : 0,
-            transform: expanded || measuring ? 'none' : 'translateY(-4px)',
-            transition: `opacity ${expanded ? 260 : 200}ms ease ${expanded ? 60 : 0}ms, transform ${MORPH_MS}ms ${MORPH}`,
-            pointerEvents: expanded ? 'auto' : 'none',
-          }}
-        >
-          <div className="flex gap-2.5 px-3 pt-3 pb-2.5">
             <span
-              className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-[9px] text-white ${COLOR_BG[request.color]}`}
-              aria-hidden
+              className="truncate text-[15px] leading-[18px] font-semibold tracking-[-0.005em] text-ink"
+              data-testid="notification-pill"
             >
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.1"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8" />
-                <path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" />
-              </svg>
+              {request.title}
             </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex h-4 items-center gap-1.5 text-[11px] leading-none text-muted">
-                <span className="font-semibold tracking-wide uppercase">Smaran</span>
-                {request.important && (
-                  <span className="h-1.5 w-1.5 rounded-full bg-accent" title="Important" />
-                )}
-                <span className="ml-auto truncate">{request.label || 'now'}</span>
-                <button
-                  type="button"
-                  aria-label="Dismiss"
-                  onClick={() => act({ kind: 'dismiss' })}
-                  className="-mr-1 grid h-5 w-5 place-items-center rounded-full text-faint transition-colors duration-150 hover:bg-hover hover:text-ink"
-                >
-                  <svg width="9" height="9" viewBox="0 0 12 12" aria-hidden>
-                    <path
-                      d="M2.5 2.5l7 7M9.5 2.5l-7 7"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </button>
-              </div>
-              <div
-                className="mt-1 line-clamp-2 text-[13.5px] leading-snug font-semibold text-ink"
-                data-testid="notification-title"
+          </div>
+
+          {/* Unfolded: the full card. */}
+          <div
+            ref={fullRef}
+            aria-hidden={!expanded && !measuring}
+            className="absolute top-0 left-0"
+            style={{
+              width,
+              opacity: expanded || measuring ? 1 : 0,
+              transform: expanded || measuring ? 'none' : 'translateY(-4px)',
+              transition: `opacity ${expanded ? 260 : 200}ms ease ${expanded ? 60 : 0}ms, transform ${MORPH_MS}ms ${MORPH}`,
+              pointerEvents: expanded ? 'auto' : 'none',
+            }}
+          >
+            <div className="flex gap-2.5 px-3 pt-3 pb-2.5">
+              <span
+                className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-[9px] text-white ${COLOR_BG[request.color]}`}
+                aria-hidden
               >
-                {request.title}
-              </div>
-              {request.body && (
-                <div className="mt-0.5 line-clamp-2 text-[12.5px] leading-snug text-muted">
-                  {request.body}
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.1"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8" />
+                  <path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" />
+                </svg>
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex h-4 items-center gap-1.5 text-[11px] leading-none text-muted">
+                  <span className="font-semibold tracking-wide uppercase">Smaran</span>
+                  {request.important && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-accent" title="Important" />
+                  )}
+                  <span className="ml-auto truncate">{request.label || 'now'}</span>
+                  <button
+                    type="button"
+                    aria-label="Dismiss"
+                    onClick={() => act({ kind: 'dismiss' })}
+                    className="-mr-1 grid h-5 w-5 place-items-center rounded-full text-faint transition-colors duration-150 hover:bg-hover hover:text-ink"
+                  >
+                    <svg width="9" height="9" viewBox="0 0 12 12" aria-hidden>
+                      <path
+                        d="M2.5 2.5l7 7M9.5 2.5l-7 7"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </button>
                 </div>
+                <div
+                  className="mt-1 line-clamp-2 text-[14.5px] leading-snug font-semibold text-ink"
+                  data-testid="notification-title"
+                >
+                  {request.title}
+                </div>
+                {request.body && (
+                  <div className="mt-0.5 line-clamp-2 text-[12.5px] leading-snug text-muted">
+                    {request.body}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-1.5 px-3 pb-3">
+              {summary ? (
+                <>
+                  <Action primary onClick={() => window.smaranNotification.openApp()}>
+                    Open History
+                  </Action>
+                  <Action onClick={() => act({ kind: 'dismiss' })}>Dismiss</Action>
+                </>
+              ) : snoozing ? (
+                SNOOZE.map((s) => (
+                  <Action key={s.label} onClick={() => act({ kind: 'snooze', minutes: s.minutes })}>
+                    {s.label}
+                  </Action>
+                ))
+              ) : (
+                <>
+                  <Action primary onClick={() => act({ kind: 'done' })}>
+                    Done
+                  </Action>
+                  <Action onClick={() => setSnoozing(true)}>Snooze</Action>
+                </>
               )}
             </div>
           </div>
-
-          <div className="flex gap-1.5 px-3 pb-3">
-            {summary ? (
-              <>
-                <Action primary onClick={() => window.smaranNotification.openApp()}>
-                  Open History
-                </Action>
-                <Action onClick={() => act({ kind: 'dismiss' })}>Dismiss</Action>
-              </>
-            ) : snoozing ? (
-              SNOOZE.map((s) => (
-                <Action key={s.label} onClick={() => act({ kind: 'snooze', minutes: s.minutes })}>
-                  {s.label}
-                </Action>
-              ))
-            ) : (
-              <>
-                <Action primary onClick={() => act({ kind: 'done' })}>
-                  Done
-                </Action>
-                <Action onClick={() => setSnoozing(true)}>Snooze</Action>
-              </>
-            )}
-          </div>
         </div>
 
-        {request.hideAfterSec !== null && (
-          <div
-            className="absolute inset-x-4 bottom-0 h-[1.5px] overflow-hidden rounded-full"
-            aria-hidden
-          >
-            <div
-              className="h-full origin-left bg-accent/60 transition-transform duration-100 ease-linear"
-              style={{ transform: `scaleX(${remaining})` }}
-            />
-          </div>
-        )}
+        {/* Time left runs around the border as a glowing, colourful ring. */}
+        <BorderRing
+          progress={request.hideAfterSec === null ? 1 : remaining}
+          radius={radius}
+          morph={`${MORPH_MS}ms ${MORPH}`}
+        />
       </div>
     </div>
   );
@@ -363,5 +361,69 @@ function Action({
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * A ring drawn on the card's border in Google-style colours. Its length shows the time left before
+ * the card hides itself, the colours drift around it continuously, and a soft blurred copy underneath
+ * gives it a glassy glow. It follows the card as it morphs between pill and full size.
+ */
+function BorderRing({
+  progress,
+  radius,
+  morph,
+}: {
+  progress: number;
+  radius: number;
+  morph: string;
+}) {
+  // Each card has its own window, so one fixed id is enough.
+  const gradient = 'smaran-ring';
+  const shape = {
+    x: 1,
+    y: 1,
+    style: {
+      width: 'calc(100% - 2px)',
+      height: 'calc(100% - 2px)',
+      rx: Math.max(0, radius - 1),
+      ry: Math.max(0, radius - 1),
+      transition: `rx ${morph}, ry ${morph}`,
+    },
+    pathLength: 100,
+    fill: 'none',
+    stroke: `url(#${gradient})`,
+    strokeLinecap: 'round' as const,
+    strokeDasharray: `${(progress * 100).toFixed(2)} 100`,
+  };
+  return (
+    <svg
+      className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+      aria-hidden
+    >
+      <defs>
+        <linearGradient id={gradient} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#4285F4" />
+          <stop offset="0.36" stopColor="#EA4335" />
+          <stop offset="0.66" stopColor="#FBBC05" />
+          <stop offset="1" stopColor="#34A853" />
+          <animateTransform
+            attributeName="gradientTransform"
+            type="rotate"
+            from="0 0.5 0.5"
+            to="360 0.5 0.5"
+            dur="4s"
+            repeatCount="indefinite"
+          />
+        </linearGradient>
+      </defs>
+      <rect
+        {...shape}
+        strokeWidth={4.5}
+        opacity={0.6}
+        style={{ ...shape.style, filter: 'blur(3px)' }}
+      />
+      <rect {...shape} strokeWidth={2.2} />
+    </svg>
   );
 }

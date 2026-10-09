@@ -1,3 +1,12 @@
+# Smaran 2.3.1
+
+- The notification pill shows the title in a larger font, in the same size box, without the colour dot.
+- The countdown bar is gone: the time left now runs around the card's border as a glowing ring in
+  Google-style colours (blue, red, yellow, green) that drift around it. Important reminders, which
+  don't hide themselves, show the full ring.
+
+---
+
 # Smaran 2.3.0
 
 - **Notifications start as a small pill** showing just the title. Hover to expand it into the full
