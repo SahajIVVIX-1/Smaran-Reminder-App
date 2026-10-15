@@ -1,3 +1,23 @@
+# Smaran 2.16.0
+
+- **Setup installs again.** In 2.15.0, on a PC without a license, Setup kept spinning
+  "Installing…" and never asked for the license image: its request arrived before the card was
+  ready to show it. The card now always catches up, and asks for the license as intended.
+- **A Smaran-styled uninstaller.** Uninstalling (Settings › Apps) now shows the same floating
+  card as Setup: confirm, an option to delete your reminders, automations and settings too, and
+  a progress bar. Your license is kept, so reinstalling later doesn't ask for it again.
+- **Setup and the uninstaller stay put.** Their cards can't be dragged around, and right-clicking
+  them does nothing.
+- **Licenses record the IP address they were issued from.** The Register page looks up and shows
+  the address before making a license, and won't make one without it; the License page shows it.
+  Licenses made by 2.15.0 without an IP address aren't accepted any more: issue a new one.
+  Smaran never checks your current IP, so it keeps working offline and when your address changes.
+- **Register with a passphrase.** The Register page unlocks the signing key with a passphrase
+  (`npm run license:seal-key` sets it), so licenses can be made from any browser without the key
+  file. Existing licenses with an IP address stay valid.
+
+---
+
 # Smaran 2.15.0
 
 - **Licenses.** Smaran now needs a license to install and to open. A license is a PNG image with

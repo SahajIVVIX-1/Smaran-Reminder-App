@@ -10,7 +10,8 @@ export interface LicenseDetails {
   issued: string;
   expires: string;
   issuer: string;
-  ip?: string;
+  /** The public IP address the license was issued from. */
+  ip: string;
 }
 
 /** What the License page and the license screen show. */

@@ -58,13 +58,10 @@
             <input id="key" type="file" accept=".json,application/json" />
             <small>Your <code>private-key.json</code>, from <code>%USERPROFILE%\.smaran-license</code>. It stays on this PC.</small>
           </details>
-          <label class="check">
-            <input id="ip" type="checkbox" />
-            <span>
-              Include this computer’s public IP address in the license.
-              <small>If ticked, this page asks <code>api.ipify.org</code> for the address; it is stored inside the license and shown in the app. Off by default.</small>
-            </span>
-          </label>
+          <p class="ip-note" id="ipnote" role="status">
+            Looking up your public IP address…
+            <small>Every license records the public IP address it was made from. This page asks <code>api.ipify.org</code> for it; it is stored inside the license and shown in the app.</small>
+          </p>
           <div class="actions">
             <button class="btn btn-primary" type="submit" id="make">Create License</button>
           </div>

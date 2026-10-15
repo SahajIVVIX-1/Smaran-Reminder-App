@@ -64,6 +64,21 @@
   font: inherit;
   font-size: 15px;
 }
+.ip-note {
+  margin: 4px 0 18px;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+}
+.ip-note small {
+  display: block;
+  margin-top: 2px;
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.ip-note.error {
+  color: var(--danger);
+}
 .alt-key summary {
   cursor: pointer;
   color: var(--muted);

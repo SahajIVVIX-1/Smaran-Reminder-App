@@ -1,12 +1,16 @@
 // No imports here: the sandboxed setup preload bundles this file.
 
-/** What the setup window shows. Sent from main as the install runs. */
-/** 'license': waiting for a license image before installing. */
-export type SetupPhase = 'license' | 'preparing' | 'copying' | 'finishing' | 'done' | 'error';
+/**
+ * What the setup window shows. Sent from main as the install (or uninstall) runs.
+ * Install: 'license' (waiting for a license image) → 'preparing' → 'copying' → 'finishing' →
+ * 'done'. Uninstall: 'confirm' → 'removing' → 'done'. Either can end in 'error'.
+ */
+export type SetupPhase =
+  'license' | 'preparing' | 'copying' | 'finishing' | 'confirm' | 'removing' | 'done' | 'error';
 
 export interface SetupProgress {
   phase: SetupPhase;
-  /** 0..1 across the whole install. */
+  /** 0..1 across the whole install or uninstall. */
   progress: number;
   /** Plain-English problem: in the 'error' phase, or why a license image was refused. */
   error?: string;
@@ -15,8 +19,9 @@ export interface SetupProgress {
 }
 
 export interface SetupInit {
+  mode: 'install' | 'uninstall';
   version: string;
   dark: boolean;
-  /** Where Smaran is being installed, shown in small print. */
+  /** Where Smaran is (being) installed, shown in small print. */
   target: string;
 }

@@ -37,16 +37,29 @@ const pick = (not: number) => {
   return i;
 };
 
+/** What the uninstaller says while it works. */
+const UNINSTALL_STEPS = ['Closing Smaran', 'Removing shortcuts', 'Tidying up', 'Packing away dots'];
+
+const primary =
+  'h-[30px] flex-1 rounded-[10px] bg-accent text-[12.5px] font-medium text-on-accent hover:bg-accent-hover';
+const secondary = 'glass-button h-[30px] flex-1 rounded-[10px] text-[12.5px] font-medium text-ink';
+
 /**
- * The installer: a floating Smaran card with the travelling colour light round its border,
- * liquid dots, a Claude-style spinner with rotating verbs, and a progress bar.
+ * The installer and the uninstaller: a floating Smaran card with the travelling colour light
+ * round its border, liquid dots, a Claude-style spinner with rotating verbs, and a progress bar.
+ * It stays where it opens and has no right-click menu.
  */
 export function SetupCard({ init }: { init: SetupInit }) {
-  const [state, setState] = useState<SetupProgress>({ phase: 'preparing', progress: 0 });
+  const uninstalling = init.mode === 'uninstall';
+  const [state, setState] = useState<SetupProgress>({
+    phase: uninstalling ? 'confirm' : 'preparing',
+    progress: 0,
+  });
   const [glyph, setGlyph] = useState(0);
   const [verb, setVerb] = useState(() => pick(-1));
   const [seconds, setSeconds] = useState(0);
-  const working = state.phase !== 'done' && state.phase !== 'error' && state.phase !== 'license';
+  const [deleteData, setDeleteData] = useState(false);
+  const working = !['done', 'error', 'license', 'confirm'].includes(state.phase);
 
   // The licensee's name stays once known, as the install goes on.
   useEffect(
@@ -70,18 +83,32 @@ export function SetupCard({ init }: { init: SetupInit }) {
   }, [working]);
 
   const percent = Math.round(state.progress * 100);
-  const status =
-    state.phase === 'done'
+  const status = uninstalling
+    ? state.phase === 'done'
+      ? 'Smaran was removed'
+      : (UNINSTALL_STEPS[Math.min(3, Math.floor(state.progress * 4))] ?? 'Tidying up')
+    : state.phase === 'done'
       ? 'Opening Smaran'
       : state.phase === 'error'
         ? 'Setup stopped'
         : state.phase === 'finishing'
           ? 'Adding shortcuts'
           : VERBS[verb];
+  const title = uninstalling
+    ? state.phase === 'done'
+      ? 'Goodbye for now'
+      : state.phase === 'confirm'
+        ? 'Uninstall Smaran?'
+        : 'Uninstalling Smaran'
+    : state.phase === 'done'
+      ? 'Smaran is ready'
+      : state.phase === 'license'
+        ? 'Your License, Please'
+        : 'Installing Smaran';
 
   return (
     <div className="grid h-screen place-items-center p-[22px] select-none">
-      <div className="drag relative w-full animate-modal rounded-[22px]" data-testid="setup">
+      <div className="relative w-full animate-modal rounded-[22px]" data-testid="setup">
         <div className="glass-card absolute inset-0" style={{ borderRadius: 'inherit' }} />
 
         <div className="relative px-6 pt-5 pb-5">
@@ -98,11 +125,7 @@ export function SetupCard({ init }: { init: SetupInit }) {
             </span>
             <div className="min-w-0">
               <div className="font-serif text-[23px] leading-tight font-semibold text-ink">
-                {state.phase === 'done'
-                  ? 'Smaran is ready'
-                  : state.phase === 'license'
-                    ? 'Your License, Please'
-                    : 'Installing Smaran'}
+                {title}
               </div>
               <div className="mt-0.5 text-[12px] text-muted">
                 Version {init.version} ·{' '}
@@ -113,7 +136,38 @@ export function SetupCard({ init }: { init: SetupInit }) {
             </div>
           </div>
 
-          {state.phase === 'license' ? (
+          {state.phase === 'confirm' ? (
+            <div className="mt-4">
+              <p className="text-[12.5px] leading-snug text-muted">
+                Smaran will be removed from this PC: the app, its shortcuts and start-at-login.
+              </p>
+              <label className="mt-2.5 flex cursor-pointer items-center gap-2 text-[12.5px] text-ink">
+                <input
+                  type="checkbox"
+                  checked={deleteData}
+                  onChange={(e) => setDeleteData(e.currentTarget.checked)}
+                  className="h-3.5 w-3.5 accent-[var(--accent)]"
+                />
+                Also delete my reminders, automations and settings
+              </label>
+              <div className="relative z-10 mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.smaranSetup.uninstall(deleteData)}
+                  className={primary}
+                >
+                  Uninstall
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.smaranSetup.close()}
+                  className={secondary}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : state.phase === 'license' ? (
             <div className="mt-4">
               <p
                 className={`text-[12.5px] leading-snug ${state.error ? 'text-danger' : 'text-muted'}`}

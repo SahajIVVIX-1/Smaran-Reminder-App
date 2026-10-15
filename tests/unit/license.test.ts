@@ -18,6 +18,7 @@ import {
   encodePng,
   extractBits,
   fromBase64,
+  isIp,
   isJpeg,
   isPng,
   jpegLicense,
@@ -32,6 +33,7 @@ import {
 import { LICENSE_FILE, LicenseStore } from '../../src/main/license/LicenseStore';
 
 const NOW = new Date('2026-10-15T12:00:00Z');
+const IP = '203.0.113.7';
 const inflate = (d: Uint8Array) => new Uint8Array(inflateSync(d));
 const deflate = (d: Uint8Array) => new Uint8Array(deflateSync(d));
 
@@ -41,7 +43,7 @@ const other = generateKeyPairSync('ed25519');
 
 function payload(patch: Partial<LicensePayload> = {}): LicensePayload {
   return {
-    ...buildPayload({ name: 'Asha Rao', years: 2, id: 'id-1', now: NOW, issuer: 'test' }),
+    ...buildPayload({ name: 'Asha Rao', years: 2, id: 'id-1', now: NOW, issuer: 'test', ip: IP }),
     ...patch,
   };
 }
@@ -61,12 +63,19 @@ function licensePng(c: Uint8Array = container(), width = 64, height = 64): Uint8
 }
 
 describe('license payload', () => {
-  it('builds a payload with the product, dates and only an IP when given', () => {
-    const p = buildPayload({ name: '  Asha   Rao ', years: 3, id: 'x', now: NOW, issuer: 't' });
+  it('builds a payload with the product, dates and the IP address', () => {
+    const p = buildPayload({
+      name: '  Asha   Rao ',
+      years: 3,
+      id: 'x',
+      now: NOW,
+      issuer: 't',
+      ip: IP,
+    });
     expect(p).toMatchObject({ v: 1, product: PRODUCT_ID, name: 'Asha Rao', years: 3 });
     expect(p.issued).toBe(NOW.toISOString());
     expect(p.expires).toBe('2029-10-15T12:00:00.000Z');
-    expect('ip' in p).toBe(false);
+    expect(p.ip).toBe(IP);
     const withIp = buildPayload({
       name: 'A',
       years: 1,
@@ -79,18 +88,31 @@ describe('license payload', () => {
   });
 
   it('rejects bad names and durations', () => {
-    expect(() => buildPayload({ name: ' ', years: 1, id: 'x', now: NOW, issuer: 't' })).toThrow(
-      LicenseError,
-    );
-    expect(() => buildPayload({ name: 'A', years: 0, id: 'x', now: NOW, issuer: 't' })).toThrow(
-      LicenseError,
-    );
-    expect(() => buildPayload({ name: 'A', years: 1.5, id: 'x', now: NOW, issuer: 't' })).toThrow(
-      LicenseError,
-    );
     expect(() =>
-      buildPayload({ name: 'A'.repeat(121), years: 1, id: 'x', now: NOW, issuer: 't' }),
+      buildPayload({ name: ' ', years: 1, id: 'x', now: NOW, issuer: 't', ip: IP }),
     ).toThrow(LicenseError);
+    expect(() =>
+      buildPayload({ name: 'A', years: 0, id: 'x', now: NOW, issuer: 't', ip: IP }),
+    ).toThrow(LicenseError);
+    expect(() =>
+      buildPayload({ name: 'A', years: 1.5, id: 'x', now: NOW, issuer: 't', ip: IP }),
+    ).toThrow(LicenseError);
+    expect(() =>
+      buildPayload({ name: 'A'.repeat(121), years: 1, id: 'x', now: NOW, issuer: 't', ip: IP }),
+    ).toThrow(LicenseError);
+  });
+
+  it('requires the IP address, and refuses older licenses without one', () => {
+    expect(() =>
+      buildPayload({ name: 'A', years: 1, id: 'x', now: NOW, issuer: 't', ip: '' }),
+    ).toThrow(/IP address/);
+    expect(() =>
+      buildPayload({ name: 'A', years: 1, id: 'x', now: NOW, issuer: 't', ip: 'not an ip' }),
+    ).toThrow(/IP address/);
+    expect(isIp('2001:db8::1')).toBe(true);
+    expect(isIp('256.1.1.1')).toBe(false);
+    const { ip: _ip, ...old } = payload();
+    expect(() => parsePayload(old)).toThrow(/older version/);
   });
 
   it('adds years keeping the day, and 29 Feb falls back to 28 Feb', () => {
@@ -244,6 +266,7 @@ describe('LicenseStore', () => {
 
   it('imports a genuine license, keeps it, and re-verifies it on every start', () => {
     const info = store().importFile(write('a.png', licensePng()));
+    expect(info.license?.ip).toBe(IP);
     expect(info).toMatchObject({
       status: 'valid',
       license: { name: 'Asha Rao', years: 2, id: 'id-1' },

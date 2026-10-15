@@ -88,7 +88,9 @@ export function License() {
             <Field label="License ID" mono>
               {l.id}
             </Field>
-            {l.ip && <Field label="Issued from IP">{l.ip}</Field>}
+            <Field label="Issued from IP" mono>
+              {l.ip}
+            </Field>
             {info.importedAt && <Field label="Imported">{date(info.importedAt)}</Field>}
           </>
         )}

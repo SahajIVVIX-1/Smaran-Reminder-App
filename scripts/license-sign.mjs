@@ -2,6 +2,7 @@
 //
 //   node scripts/license-sign.mjs --name "Asha Rao" --years 2 [--out license.png] [--ip 203.0.113.7]
 //
+// Without --ip, the public IP address is looked up (api.ipify.org) and stored in the license.
 // Writes a PNG with the signed license hidden in its pixels. The /Register page makes the same
 // license with a designed card; this is the offline fallback. Run `npm run license:keygen` first.
 
@@ -39,13 +40,28 @@ if (!fs.existsSync(keyFile)) {
 }
 const key = createPrivateKey({ key: JSON.parse(fs.readFileSync(keyFile, 'utf8')), format: 'jwk' });
 
+// Every license records the public IP address it was issued from: given, or looked up now.
+let ip = arg('ip');
+if (!ip) {
+  try {
+    const res = await fetch('https://api.ipify.org?format=json', { cache: 'no-store' });
+    ip = (await res.json()).ip;
+  } catch {
+    console.error(
+      'Couldn’t look up this PC’s public IP address. Connect to the internet or pass --ip.',
+    );
+    process.exit(1);
+  }
+}
+console.log(`IP address stored in the license: ${ip}`);
+
 const payload = buildPayload({
   name,
   years,
   id: randomUUID(),
   now: new Date(),
   issuer: 'license-sign',
-  ip: arg('ip'),
+  ip,
 });
 const bytes = payloadBytes(payload);
 const container = encodeContainer(bytes, new Uint8Array(sign(null, bytes, key)));

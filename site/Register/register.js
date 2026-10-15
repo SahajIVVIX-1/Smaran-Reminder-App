@@ -111,6 +111,29 @@ async function publicIp() {
   return typeof ip === 'string' && ip.length <= 64 ? ip : undefined;
 }
 
+/** The public IP every license records; looked up when the page opens, shown as a disclosure. */
+let pageIp = null;
+
+async function lookUpIp() {
+  const note = $('ipnote');
+  const detail = note.querySelector('small')?.outerHTML ?? '';
+  try {
+    pageIp = (await publicIp()) ?? null;
+  } catch {
+    pageIp = null;
+  }
+  note.classList.toggle('error', !pageIp);
+  note.innerHTML = '';
+  note.append(
+    pageIp
+      ? `Your IP ${pageIp} will be stored in this license.`
+      : 'Couldn’t look up your public IP address. Licenses can’t be made without it; check the connection, then try again.',
+  );
+  note.insertAdjacentHTML('beforeend', detail);
+  return pageIp;
+}
+void lookUpIp();
+
 const longDate = (iso) =>
   new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
 
@@ -226,23 +249,25 @@ form.addEventListener('submit', async (event) => {
     const name = $('name').value;
     const years = Number($('years').value);
     // Check the name and years before the (deliberately slow) unlock.
-    buildPayload({ name, years, id: 'check', now: new Date(), issuer: 'Smaran Register' });
+    buildPayload({
+      name,
+      years,
+      id: 'check',
+      now: new Date(),
+      issuer: 'Smaran Register',
+      ip: '0.0.0.0',
+    });
     const file = $('key').files?.[0];
     const pass = $('pass').value;
     if (!file && !pass) throw new Error('Enter the passphrase.');
     say('Unlocking the signing key…');
     const keys = await importKeys(file ? await jwkFromFile(file) : await jwkFromPassphrase(pass));
     say('Signing…');
-    let ip;
-    if ($('ip').checked) {
-      try {
-        ip = await publicIp();
-      } catch {
-        throw new Error(
-          'Couldn’t look up the IP address. Untick the box to make the license without it.',
-        );
-      }
-    }
+    const ip = pageIp ?? (await lookUpIp());
+    if (!ip)
+      throw new Error(
+        'Couldn’t look up your public IP address, and every license needs it. Check the connection and try again.',
+      );
     const payload = buildPayload({
       name,
       years,

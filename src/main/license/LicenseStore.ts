@@ -41,7 +41,7 @@ const inflate = (d: Uint8Array) => new Uint8Array(inflateSync(d));
 
 function details(c: Container): LicenseDetails {
   const { id, name, years, issued, expires, issuer, ip } = c.payload;
-  return { id, name, years, issued, expires, issuer, ...(ip ? { ip } : {}) };
+  return { id, name, years, issued, expires, issuer, ip };
 }
 
 const fmt = (iso: string) =>

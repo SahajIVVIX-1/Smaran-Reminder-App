@@ -49,6 +49,7 @@ export const IPC = {
   licenseChanged: 'license:changed',
   licenseQuit: 'license:quit',
   setupLicense: 'setup:license',
+  setupUninstall: 'setup:uninstall',
   setupInit: 'setup:init',
   setupProgress: 'setup:progress',
   setupRetry: 'setup:retry',
