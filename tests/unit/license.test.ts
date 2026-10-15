@@ -128,6 +128,8 @@ describe('license payload', () => {
     expect(checkPayload(payload(), NOW)).toBe('valid');
     expect(checkPayload(payload(), new Date('2029-01-01T00:00:00Z'))).toBe('expired');
     expect(checkPayload(payload(), new Date('2026-10-10T00:00:00Z'))).toBe('not-yet-valid');
+    expect(PRODUCT_ID).toBe('smaran.sahaj.si');
+    expect(checkPayload(payload({ product: 'com.sahaj.smaran' }), NOW)).toBe('valid');
     expect(() => checkPayload(payload({ product: 'com.other.app' }), NOW)).toThrow(
       /different product/,
     );

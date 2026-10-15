@@ -1,3 +1,11 @@
+# Smaran 2.16.1
+
+- **New license product identity: `smaran.sahaj.si`.** Licenses now name Smaran by its website
+  instead of `com.sahaj.smaran`. The Register page and the signing script make the new kind;
+  licenses already issued with the old identity keep working.
+
+---
+
 # Smaran 2.16.0
 
 - **Setup installs again.** In 2.15.0, on a PC without a license, Setup kept spinning

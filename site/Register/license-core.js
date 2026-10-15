@@ -1,7 +1,8 @@
 // Generated from src/shared/license/core.ts by scripts/build-license-core.mjs.
 
 // src/shared/license/core.ts
-var PRODUCT_ID = "com.sahaj.smaran";
+var PRODUCT_ID = "smaran.sahaj.si";
+var EARLIER_PRODUCT_IDS = ["com.sahaj.smaran"];
 var PRODUCT_NAME = "Smaran";
 var FORMAT_VERSION = 1;
 var MAGIC = "SMRNLIC";
@@ -69,7 +70,7 @@ function parsePayload(value) {
   return p;
 }
 function checkPayload(payload, now) {
-  if (payload.product !== PRODUCT_ID)
+  if (payload.product !== PRODUCT_ID && !EARLIER_PRODUCT_IDS.includes(payload.product))
     throw new LicenseError("wrong-product", "This license is for a different product.");
   const day = 864e5;
   if (now.getTime() < Date.parse(payload.issued) - day) return "not-yet-valid";
@@ -374,6 +375,7 @@ function fromBase64(text) {
   return out;
 }
 export {
+  EARLIER_PRODUCT_IDS,
   FORMAT_VERSION,
   LicenseError,
   MAX_NAME,

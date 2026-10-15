@@ -15,7 +15,9 @@
  * This deters copying and editing; like any offline check it can't be made impossible to bypass.
  */
 
-export const PRODUCT_ID = 'com.sahaj.smaran';
+export const PRODUCT_ID = 'smaran.sahaj.si';
+/** Product ids of licenses issued before the current one; still accepted. */
+export const EARLIER_PRODUCT_IDS: readonly string[] = ['com.sahaj.smaran'];
 export const PRODUCT_NAME = 'Smaran';
 export const FORMAT_VERSION = 1;
 const MAGIC = 'SMRNLIC';
@@ -160,7 +162,7 @@ export type LicenseState = 'valid' | 'expired' | 'not-yet-valid';
 
 /** Product and dates, for a payload whose signature is already verified. */
 export function checkPayload(payload: LicensePayload, now: Date): LicenseState {
-  if (payload.product !== PRODUCT_ID)
+  if (payload.product !== PRODUCT_ID && !EARLIER_PRODUCT_IDS.includes(payload.product))
     throw new LicenseError('wrong-product', 'This license is for a different product.');
   // A day's grace either side for clocks and time zones.
   const day = 86_400_000;

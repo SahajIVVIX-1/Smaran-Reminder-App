@@ -27,7 +27,7 @@ if (fs.existsSync(keyFile)) {
   console.log(`Using the existing key in ${keyFile} (it is never replaced).`);
 } else {
   const { privateKey } = generateKeyPairSync('ed25519');
-  jwk = { ...privateKey.export({ format: 'jwk' }), use: 'sig', product: 'com.sahaj.smaran' };
+  jwk = { ...privateKey.export({ format: 'jwk' }), use: 'sig', product: 'smaran.sahaj.si' };
   fs.mkdirSync(KEY_DIR, { recursive: true });
   fs.writeFileSync(keyFile, `${JSON.stringify(jwk, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
   console.log(`New private key: ${keyFile}`);
