@@ -54,6 +54,23 @@
   border-color: color-mix(in srgb, var(--accent) 60%, transparent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
+.field input[type='password'] {
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+}
+.alt-key summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.alt-key[open] summary {
+  margin-bottom: 6px;
+}
 .field small,
 .check small {
   display: block;

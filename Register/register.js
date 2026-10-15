@@ -1,5 +1,6 @@
-// Makes a Smaran license image in the browser: payload → Ed25519 signature (WebCrypto, with the
-// private key file the user picks; nothing is uploaded) → hidden in a PNG's pixels.
+// Makes a Smaran license image in the browser: payload → Ed25519 signature (WebCrypto) → hidden in
+// a PNG's pixels. The signing key comes from key.enc.json, unlocked here with the passphrase, or
+// from a private key file the user picks. Nothing is uploaded.
 import {
   buildPayload,
   embedBits,
@@ -22,13 +23,56 @@ function say(text, tone = '') {
   message.className = `message ${tone}`;
 }
 
-async function readKey(file) {
-  let jwk;
+class WrongPassphrase extends Error {}
+
+/** The signing key from key.enc.json, unlocked with the passphrase (made by license:seal-key). */
+async function jwkFromPassphrase(pass) {
+  if (!crypto.subtle)
+    throw new Error('This page needs a secure (https) connection to unlock the key.');
+  const res = await fetch('key.enc.json', { cache: 'no-store' });
+  if (!res.ok)
+    throw new Error('Signing isn’t set up on this site yet. Run npm run license:seal-key first.');
+  const sealed = await res.json();
+  if (sealed.v !== 1 || sealed.kdf !== 'PBKDF2-SHA256')
+    throw new Error('The locked key on this site is in an unknown format.');
+  const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+  const base = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(pass.normalize('NFC')),
+    'PBKDF2',
+    false,
+    ['deriveKey'],
+  );
+  const aes = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', hash: 'SHA-256', salt: b64(sealed.salt), iterations: sealed.iter },
+    base,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['decrypt'],
+  );
+  let plain;
   try {
-    jwk = JSON.parse(await file.text());
+    plain = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: b64(sealed.iv) },
+      aes,
+      b64(sealed.ct),
+    );
+  } catch {
+    // AES-GCM checks its tag: any other passphrase fails here, and nothing is produced.
+    throw new WrongPassphrase('Wrong passphrase');
+  }
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+
+async function jwkFromFile(file) {
+  try {
+    return JSON.parse(await file.text());
   } catch {
     throw new Error('That key file isn’t valid JSON. Choose private-key.json.');
   }
+}
+
+async function importKeys(jwk) {
   if (jwk.kty !== 'OKP' || jwk.crv !== 'Ed25519' || !jwk.d || !jwk.x)
     throw new Error('That file isn’t a Smaran signing key (Ed25519 private key).');
   if (jwk.x !== APP_PUBLIC_KEY)
@@ -175,13 +219,20 @@ form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const button = $('make');
   button.disabled = true;
-  say('Signing…');
+  // A failed attempt never leaves an earlier license on screen.
+  $('result').hidden = true;
+  say('Checking…');
   try {
     const name = $('name').value;
     const years = Number($('years').value);
+    // Check the name and years before the (deliberately slow) unlock.
+    buildPayload({ name, years, id: 'check', now: new Date(), issuer: 'Smaran Register' });
     const file = $('key').files?.[0];
-    if (!file) throw new Error('Choose your private-key.json signing key.');
-    const keys = await readKey(file);
+    const pass = $('pass').value;
+    if (!file && !pass) throw new Error('Enter the passphrase.');
+    say('Unlocking the signing key…');
+    const keys = await importKeys(file ? await jwkFromFile(file) : await jwkFromPassphrase(pass));
+    say('Signing…');
     let ip;
     if ($('ip').checked) {
       try {
@@ -259,6 +310,10 @@ form.addEventListener('submit', async (event) => {
     $('result').hidden = false;
     say('License created and checked. Download the PNG.', 'ok');
   } catch (error) {
+    if (error instanceof WrongPassphrase) {
+      $('pass').value = '';
+      $('pass').focus();
+    }
     say(error instanceof Error ? error.message : String(error), 'error');
   } finally {
     button.disabled = false;

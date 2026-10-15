@@ -32,8 +32,8 @@
         <h1>Register a <em>license</em></h1>
         <p class="intro">
           Enter who the license is for and for how long. This page makes a PNG with the signed
-          license hidden in its pixels. Signing happens in this browser with the private key file
-          you choose; the key is never uploaded anywhere.
+          license hidden in its pixels. Signing happens in this browser: the passphrase unlocks
+          the signing key here, and neither is ever sent anywhere.
         </p>
 
         <form id="form" class="panel" novalidate>
@@ -49,10 +49,15 @@
             </span>
           </label>
           <label class="field">
-            <span>Signing key</span>
-            <input id="key" type="file" accept=".json,application/json" required />
-            <small>Your <code>private-key.json</code>, from <code>%USERPROFILE%\.smaran-license</code>. It stays on this PC.</small>
+            <span>Passphrase</span>
+            <input id="pass" type="password" autocomplete="current-password" spellcheck="false" />
+            <small>Unlocks the signing key in this browser. The passphrase is never sent anywhere.</small>
           </label>
+          <details class="field alt-key">
+            <summary>Use a key file instead</summary>
+            <input id="key" type="file" accept=".json,application/json" />
+            <small>Your <code>private-key.json</code>, from <code>%USERPROFILE%\.smaran-license</code>. It stays on this PC.</small>
+          </details>
           <label class="check">
             <input id="ip" type="checkbox" />
             <span>
