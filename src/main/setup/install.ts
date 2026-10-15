@@ -5,7 +5,8 @@ import { pipeline } from 'node:stream/promises';
 import { app } from 'electron';
 import type { SetupProgress } from '@shared/setup';
 import {
-  closeRunningFrom,
+  appEnv,
+  closeOtherSmarans,
   deleteKey,
   EXE_NAME,
   existingInstallDir,
@@ -69,7 +70,8 @@ export async function install(target: string, report: (p: SetupProgress) => void
     throw new Error(`${target} already has other files in it, so Smaran will not overwrite it.`);
 
   report({ phase: 'preparing', progress: 0.01 });
-  await closeRunningFrom(target, QUIT_ARG);
+  // Whatever Smaran is running (an older install, a portable copy) is closed and replaced.
+  await closeOtherSmarans(QUIT_ARG);
 
   // Copy app.asar as a plain file, not as the folder Electron normally pretends it is.
   const noAsar = process.noAsar;
@@ -109,5 +111,10 @@ export async function install(target: string, report: (p: SetupProgress) => void
 }
 
 export function launchInstalled(target: string): void {
-  spawn(join(target, EXE_NAME), [], { cwd: target, detached: true, stdio: 'ignore' }).unref();
+  spawn(join(target, EXE_NAME), [], {
+    cwd: target,
+    env: appEnv(),
+    detached: true,
+    stdio: 'ignore',
+  }).unref();
 }

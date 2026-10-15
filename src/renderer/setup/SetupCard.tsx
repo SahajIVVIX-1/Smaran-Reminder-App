@@ -75,7 +75,7 @@ export function SetupCard({ init }: { init: SetupInit }) {
   return (
     <div className="grid h-screen place-items-center p-[22px] select-none">
       <div
-        className="relative w-full animate-modal rounded-[22px] [-webkit-app-region:drag]"
+        className="drag relative w-full animate-modal rounded-[22px]"
         data-testid="setup"
       >
         <div className="glass-card absolute inset-0" style={{ borderRadius: 'inherit' }} />
@@ -103,7 +103,8 @@ export function SetupCard({ init }: { init: SetupInit }) {
           {state.phase === 'error' ? (
             <div className="mt-4">
               <p className="text-[12.5px] leading-snug text-danger">{state.error}</p>
-              <div className="mt-3 flex gap-2 [-webkit-app-region:no-drag]">
+              {/* Buttons sit outside the drag area, or Windows swallows their clicks. */}
+              <div className="no-drag relative z-10 mt-3 flex gap-2">
                 <button
                   type="button"
                   onClick={() => window.smaranSetup.retry()}

@@ -9,7 +9,7 @@ import { loadRenderer, preloadPath } from '../windows/loadRenderer';
 import { chooseTarget, install, launchInstalled, QUIT_ARG } from './install';
 import {
   APP_ID,
-  closeRunningFrom,
+  closeOtherSmarans,
   deleteKey,
   EXE_NAME,
   removeLoginItem,
@@ -150,7 +150,7 @@ export function runUninstall(): void {
       return;
     }
 
-    await closeRunningFrom(dir, QUIT_ARG);
+    await closeOtherSmarans(QUIT_ARG);
     await removeLoginItem();
     for (const lnk of shortcutPaths()) fs.rmSync(lnk, { force: true });
     await deleteKey(UNINSTALL_KEY);

@@ -26,30 +26,46 @@ function powershell(command: string): Promise<string> {
   return run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command]);
 }
 
-const psString = (s: string) => `'${s.replace(/'/g, "''")}'`;
+/**
+ * The environment for Smaran processes this one starts. Without the portable launcher's
+ * variables, so a Smaran started from Setup runs as the app, not as Setup again.
+ */
+export function appEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  for (const key of Object.keys(env)) if (key.startsWith('PORTABLE_EXECUTABLE_')) delete env[key];
+  return env;
+}
 
-/** PowerShell pipeline selecting Smaran processes started from `dir`, other than this one. */
-const fromDir = (dir: string) =>
-  `Get-Process -Name Smaran -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne ${process.pid} -and $_.Path -and $_.Path.StartsWith(${psString(dir)}, [System.StringComparison]::OrdinalIgnoreCase) }`;
+/** PowerShell selecting every other Smaran process (not this one or its own helper processes). */
+const others = () =>
+  `Get-CimInstance Win32_Process -Filter "Name='${EXE_NAME}'" | Where-Object { $_.ProcessId -ne ${process.pid} -and $_.ParentProcessId -ne ${process.pid} }`;
 
-export async function countRunningFrom(dir: string): Promise<number> {
-  const out = await powershell(`@(${fromDir(dir)}).Count`).catch(() => '0');
+export async function countOtherSmarans(): Promise<number> {
+  const out = await powershell(`@(${others()}).Count`).catch(() => '0');
   return Number.parseInt(out.trim(), 10) || 0;
 }
 
 /**
- * Closes a Smaran running from `dir`: first politely (so it saves its history), then by force.
- * A copy that predates the --quit switch just opens its window, and is then closed by force.
+ * Closes any running Smaran (installed or portable, wherever it is): first politely, so it
+ * saves its history, then by force. A version that predates --quit just opens its window,
+ * and is then closed by force.
  */
-export async function closeRunningFrom(dir: string, quitArg: string): Promise<void> {
-  if ((await countRunningFrom(dir)) === 0) return;
-  await quietly(run(join(dir, EXE_NAME), [quitArg]));
+export async function closeOtherSmarans(quitArg: string): Promise<void> {
+  if ((await countOtherSmarans()) === 0) return;
+  // A second Smaran started with --quit tells the running one to quit, then exits itself.
+  await new Promise<void>((resolve) =>
+    execFile(process.execPath, [quitArg], { env: appEnv(), windowsHide: true }, () => resolve()),
+  );
   for (let i = 0; i < 12; i++) {
     await new Promise((r) => setTimeout(r, 300));
-    if ((await countRunningFrom(dir)) === 0) return;
+    if ((await countOtherSmarans()) === 0) return;
   }
-  await quietly(powershell(`${fromDir(dir)} | Stop-Process -Force`));
-  await new Promise((r) => setTimeout(r, 700));
+  await quietly(
+    powershell(
+      `${others()} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`,
+    ),
+  );
+  await new Promise((r) => setTimeout(r, 800));
 }
 
 // ---------- registry ----------
