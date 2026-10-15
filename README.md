@@ -78,8 +78,11 @@ folder.
 | `npm run license:sign -- --name "Asha Rao" --years 2` | Issue a license PNG from the command line                          |
 | `npm run license:core`                               | Re-bundle the format for the Register page and the signing script after changing `core.ts` |
 
-The private key never goes in this repository or on the website: the unlisted
-`/Register/` page signs in the browser with the key file you pick. Back the key up; whoever has
+The plain private key never goes in this repository or on the website. `npm run
+license:seal-key` locks it with a passphrase (PBKDF2-SHA256, 600,000 iterations, then
+AES-256-GCM) into `site/Register/key.enc.json`; the unlisted `/Register/` page unlocks it in the
+browser with that passphrase and signs there. The locked file is public, so use a long passphrase
+and re-seal with a new one if someone who knew it shouldn't issue licenses any more. Back the key up; whoever has
 it can issue licenses. Development runs may skip the check with `SMARAN_LICENSE_CHECK=off`;
 packaged builds never can. Offline licensing deters copying but can't make it impossible.
 
