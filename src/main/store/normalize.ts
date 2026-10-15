@@ -29,6 +29,8 @@ const REMINDER_DEFAULTS = {
   animation: 'auto',
 };
 
+const AUTOMATION_DEFAULTS = { enabled: true, warnSec: 30, respectPause: false };
+
 /**
  * Fills fields an older or hand-edited file left out, before validation.
  * Only adds missing keys; values that are present but wrong still fail validation.
@@ -40,6 +42,9 @@ export function fillDefaults(raw: unknown): unknown {
     settings: withDefaults(DEFAULT_SETTINGS, raw['settings']),
     reminders: (Array.isArray(raw['reminders']) ? raw['reminders'] : []).map((r) =>
       withDefaults(REMINDER_DEFAULTS, r),
+    ),
+    automations: (Array.isArray(raw['automations']) ? raw['automations'] : []).map((a) =>
+      withDefaults(AUTOMATION_DEFAULTS, a),
     ),
     state: isObject(raw['state'])
       ? Object.fromEntries(

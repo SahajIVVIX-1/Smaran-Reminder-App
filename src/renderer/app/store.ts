@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import type { FontCatalog } from '@shared/fonts';
-import type { NextFire, Route } from '@shared/ipc';
+import type { AutomationNext, AutomationRun, NextFire, Route } from '@shared/ipc';
 import { plainRich } from '@shared/richText';
-import type { Config, HistoryEntry, Id, Reminder, Settings } from '@shared/schema';
+import type { Automation, Config, HistoryEntry, Id, Reminder, Settings } from '@shared/schema';
 
 export interface Toast {
   id: number;
@@ -14,12 +14,20 @@ export interface Toast {
 /** Which reminder the side panel shows: an existing one, or a new one not saved yet. */
 export type Editing = { mode: 'edit'; id: Id } | { mode: 'new'; draft: Reminder } | null;
 
+/** Which automation the editor shows. */
+export type EditingAutomation =
+  { mode: 'edit'; id: Id } | { mode: 'new'; draft: Automation } | null;
+
 interface AppState {
   config: Config | null;
   history: HistoryEntry[];
   nextTimes: NextFire[];
+  automationNext: AutomationNext[];
+  /** Automations running now (waiting between steps or showing their Cancel card). */
+  running: AutomationRun[];
   route: Route;
   editing: Editing;
+  editingAutomation: EditingAutomation;
   toast: Toast | null;
   /** True while a local change waits to be saved. */
   pending: boolean;
@@ -35,6 +43,10 @@ interface AppState {
   refreshNext(): Promise<void>;
   go(route: Route): void;
   edit(editing: Editing): void;
+  editAutomation(editing: EditingAutomation): void;
+  setRunning(running: AutomationRun[]): void;
+  upsertAutomation(automation: Automation): void;
+  removeAutomation(id: Id): void;
   /** Changes reminders or settings; saved shortly after (changes in a burst are combined). */
   update(change: (config: Config) => Config): void;
   upsertReminder(reminder: Reminder): void;
@@ -54,8 +66,11 @@ export const useApp = create<AppState>((set, get) => ({
   config: null,
   history: [],
   nextTimes: [],
+  automationNext: [],
+  running: [],
   route: 'today',
   editing: null,
+  editingAutomation: null,
   toast: null,
   pending: false,
   tasks: 0,
@@ -78,6 +93,7 @@ export const useApp = create<AppState>((set, get) => ({
         config: {
           ...config,
           reminders: local.reminders,
+          automations: local.automations,
           settings: { ...local.settings, pausedUntil: config.settings.pausedUntil },
         },
       });
@@ -92,7 +108,11 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   async refreshNext() {
-    set({ nextTimes: await window.smaran.reminders.nextTimes() });
+    const [nextTimes, automationNext] = await Promise.all([
+      window.smaran.reminders.nextTimes(),
+      window.smaran.automations.nextTimes(),
+    ]);
+    set({ nextTimes, automationNext });
   },
 
   go(route) {
@@ -101,6 +121,44 @@ export const useApp = create<AppState>((set, get) => ({
 
   edit(editing) {
     set({ editing });
+  },
+
+  editAutomation(editingAutomation) {
+    set({ editingAutomation });
+  },
+
+  setRunning(running) {
+    set({ running });
+  },
+
+  upsertAutomation(automation) {
+    get().update((c) => {
+      const exists = c.automations.some((a) => a.id === automation.id);
+      return {
+        ...c,
+        automations: exists
+          ? c.automations.map((a) => (a.id === automation.id ? automation : a))
+          : [...c.automations, automation],
+      };
+    });
+  },
+
+  removeAutomation(id) {
+    const { config, update, toastMsg, editingAutomation } = get();
+    if (!config) return;
+    const index = config.automations.findIndex((a) => a.id === id);
+    const removed = config.automations[index];
+    if (!removed) return;
+    update((c) => ({ ...c, automations: c.automations.filter((a) => a.id !== id) }));
+    if (editingAutomation?.mode === 'edit' && editingAutomation.id === id)
+      set({ editingAutomation: null });
+    toastMsg(`Deleted “${removed.name}”`, 'info', () =>
+      update((c) => {
+        const automations = [...c.automations];
+        automations.splice(Math.min(index, automations.length), 0, removed);
+        return { ...c, automations };
+      }),
+    );
   },
 
   update(change) {

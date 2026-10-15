@@ -1,3 +1,24 @@
+# Smaran 2.14.0
+
+- **Automations.** A new page in the sidebar runs tasks for you, like a friendly Task Scheduler.
+  - **When:** at a date and time or on a repeat (the same choices as reminders: once, every N
+    minutes, daily, weekly, monthly, yearly); when the computer starts, when you sign in or when
+    Smaran opens (with an optional wait); or on a Windows event: lock, unlock, sleep, wake, charger
+    plugged in or unplugged, away for N minutes, or back after being away.
+  - **Do:** lock, sign out, sleep, hibernate, shut down or restart; open an app (with arguments);
+    open any file (PDF, document, folder…); run a script (.bat, .cmd, .ps1, optionally without a
+    window); open a link in your default browser or one you pick (Chrome, Edge, Firefox… found
+    automatically, with a private-window option). Chain up to 20 steps, with a wait before each.
+  - **Safe by default:** before signing out, sleeping, hibernating, shutting down or restarting, a
+    Smaran card counts down 30 seconds (you can change or turn this off) with **Cancel** and
+    **Run Now**. Times missed while the PC was asleep or off are skipped, never run late.
+  - Each run shows in History as Ran, Failed (with the reason), Cancelled or Skipped, under a new
+    **Automations** filter. **Run Now** tries one at once; ideas on the page get you started.
+  - Automations run while Smaran is running, so keep “Start When I Sign In” on. They are included
+    in backups.
+
+---
+
 # Smaran 2.13.0
 
 - **Anthropic Serif everywhere.** The whole app now uses Anthropic Serif as its default text font.

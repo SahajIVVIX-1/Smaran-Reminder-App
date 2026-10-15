@@ -2,11 +2,15 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import { IPC } from '@shared/channels';
 import type {
   AppInfo,
+  AutomationNext,
+  AutomationRun,
   BackupResult,
+  Browser,
   EditCommand,
   FontsAddResult,
   NextFire,
   NotifyTestRequest,
+  PickWhat,
   Route,
   SaveResult,
 } from '@shared/ipc';
@@ -40,6 +44,19 @@ const api = {
     showNow: (reminderId: Id): Promise<boolean> => ipcRenderer.invoke(IPC.showNow, { reminderId }),
     test: (request: NotifyTestRequest): Promise<void> =>
       ipcRenderer.invoke(IPC.notifyTest, request),
+  },
+  automations: {
+    nextTimes: (): Promise<AutomationNext[]> => ipcRenderer.invoke(IPC.automationsNext),
+    /** Runs it now, whatever its trigger. */
+    run: (id: Id): Promise<boolean> => ipcRenderer.invoke(IPC.automationsRun, { id }),
+    cancel: (id: Id): Promise<void> => ipcRenderer.invoke(IPC.automationsCancel, { id }),
+    running: (): Promise<AutomationRun[]> => ipcRenderer.invoke(IPC.automationsRuns),
+    onRunning: (listener: (runs: AutomationRun[]) => void): (() => void) =>
+      subscribe(IPC.automationsRunsChanged, listener),
+    browsers: (): Promise<Browser[]> => ipcRenderer.invoke(IPC.automationsBrowsers),
+    /** A file picker; resolves to the chosen path, or null. */
+    pick: (what: PickWhat): Promise<string | null> =>
+      ipcRenderer.invoke(IPC.automationsPick, { what }),
   },
   app: {
     pause: (minutes?: number): Promise<void> => ipcRenderer.invoke(IPC.appPause, { minutes }),

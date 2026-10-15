@@ -3,9 +3,9 @@ import { z } from 'zod';
 /**
  * Config format version. 1 = Smaran 2.0 (messages/styles/schedules), 2 = 2.1 (reminders),
  * 3 = 2.2 (per-reminder sound, new defaults), 4 = 2.8 (Anthropic Sans as the default text font),
- * 5 = 2.13 (Anthropic Serif as the default text font).
+ * 5 = 2.13 (Anthropic Serif as the default text font), 6 = 2.14 (automations).
  */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 /** Ids are crypto.randomUUID() strings. Nothing is keyed by display text or array index. */
 export const IdSchema = z.string().min(1);
@@ -158,6 +158,101 @@ export const SettingsSchema = z.object({
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 
+// ---------- Automation ----------
+
+/** What Smaran can notice while it runs. 'idle' and 'active' use the trigger's idleMin. */
+export const WINDOWS_EVENTS = [
+  'lock',
+  'unlock',
+  'sleep',
+  'wake',
+  'pluggedIn',
+  'onBattery',
+  'idle',
+  'active',
+] as const;
+export type WindowsEvent = (typeof WINDOWS_EVENTS)[number];
+
+export const TriggerSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('start'),
+    /** 'boot': first sign-in after the PC starts; 'signIn': any sign-in; 'smaran': Smaran opens. */
+    when: z.enum(['boot', 'signIn', 'smaran']),
+    delaySec: z.number().int().min(0).max(3600),
+  }),
+  z.object({ kind: z.literal('schedule'), rule: RuleSchema }),
+  z.object({
+    kind: z.literal('event'),
+    event: z.enum(WINDOWS_EVENTS),
+    idleMin: z.number().int().min(1).max(240),
+  }),
+]);
+export type Trigger = z.infer<typeof TriggerSchema>;
+
+export const POWER_ACTIONS = [
+  'lock',
+  'signOut',
+  'sleep',
+  'hibernate',
+  'shutdown',
+  'restart',
+] as const;
+export type PowerAction = (typeof POWER_ACTIONS)[number];
+
+export const ActionSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('power'), power: z.enum(POWER_ACTIONS) }),
+  z.object({
+    kind: z.literal('open'),
+    /** What the user picked it as; only changes the file picker and the wording. */
+    what: z.enum(['app', 'file', 'script']),
+    path: z.string().trim().min(1, 'Choose a file or app to open').max(1000),
+    /** Command-line arguments for apps and scripts. */
+    args: z.string().max(2000),
+    /** Scripts: run without a console window. */
+    hidden: z.boolean(),
+  }),
+  z.object({
+    kind: z.literal('link'),
+    url: z
+      .string()
+      .trim()
+      .max(2000)
+      .regex(/^https?:\/\/\S+$/i, 'Use a link that starts with http:// or https://'),
+    /** Browser exe; empty = the default browser. */
+    browser: z.string().max(1000),
+    /** A private (incognito) window, where the browser supports it. */
+    private: z.boolean(),
+  }),
+]);
+export type Action = z.infer<typeof ActionSchema>;
+
+export const StepSchema = z.object({
+  action: ActionSchema,
+  /** Seconds to wait before this step. */
+  waitSec: z.number().int().min(0).max(3600),
+});
+export type Step = z.infer<typeof StepSchema>;
+
+export const AutomationSchema = z.object({
+  id: IdSchema,
+  name: z.string().trim().min(1, 'Give the automation a name').max(200),
+  enabled: z.boolean(),
+  trigger: TriggerSchema,
+  steps: z.array(StepSchema).min(1, 'Add at least one action').max(20),
+  /** Seconds a Cancel card shows before sign out, sleep, hibernate, shut down or restart; 0 = none. */
+  warnSec: z.number().int().min(0).max(600),
+  /** Skip while reminders are paused or during quiet hours. */
+  respectPause: z.boolean(),
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
+});
+export type Automation = z.infer<typeof AutomationSchema>;
+
+/** Power actions that end what you're doing, so they get the Cancel card. */
+export function isDisruptive(action: Action): boolean {
+  return action.kind === 'power' && action.power !== 'lock';
+}
+
 // ---------- Runtime state (written by the engine, never by the UI) ----------
 
 export const ReminderStateSchema = z.object({
@@ -180,28 +275,39 @@ export const ConfigSchema = z
     settings: SettingsSchema,
     reminders: z.array(ReminderSchema),
     state: z.record(IdSchema, ReminderStateSchema),
+    automations: z.array(AutomationSchema),
   })
   .superRefine((config, ctx) => {
+    // Reminders and automations share History, so their ids must not collide either.
     const seen = new Set<string>();
-    config.reminders.forEach((r, i) => {
-      if (seen.has(r.id)) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['reminders', i, 'id'],
-          message: `Id ${r.id} is used twice`,
-        });
+    const check = (list: 'reminders' | 'automations', id: string, i: number) => {
+      if (seen.has(id)) {
+        ctx.addIssue({ code: 'custom', path: [list, i, 'id'], message: `Id ${id} is used twice` });
       }
-      seen.add(r.id);
-    });
+      seen.add(id);
+    };
+    config.reminders.forEach((r, i) => check('reminders', r.id, i));
+    config.automations.forEach((a, i) => check('automations', a.id, i));
   });
 export type Config = z.infer<typeof ConfigSchema>;
 
 // ---------- History (separate file, written by the engine) ----------
 
-export const OUTCOMES = ['done', 'snoozed', 'dismissed', 'missed', 'skipped'] as const;
+export const OUTCOMES = [
+  'done',
+  'snoozed',
+  'dismissed',
+  'missed',
+  'skipped',
+  // Automations:
+  'ran',
+  'failed',
+  'cancelled',
+] as const;
 
 export const HistoryEntrySchema = z.object({
   id: IdSchema,
+  /** The reminder, or the automation for 'ran', 'failed' and 'cancelled' (and its 'skipped'). */
   reminderId: IdSchema,
   title: z.string(),
   /** When it was due. */

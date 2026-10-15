@@ -74,7 +74,9 @@ export function NotificationCard({
   const [drag, setDrag] = useState<{ startY: number; dy: number } | null>(null);
   const acted = useRef(false);
   const collapseTimer = useRef<number | undefined>(undefined);
-  const summary = request.reminderId === null && !request.preview;
+  // An automation about to sign out, sleep, shut down…: Run Now / Cancel, counting down.
+  const countdown = request.countdown === true;
+  const summary = request.reminderId === null && !request.preview && !countdown;
   const width = WIDTH[size];
 
   // Measure both shapes once fonts are ready; the window is sized for the expanded card.
@@ -106,10 +108,11 @@ export function NotificationCard({
     });
   }, [request.sound, request.important]);
 
-  // Auto-hide countdown; hovering, dragging or choosing a snooze pauses it.
+  // Auto-hide countdown; hovering, dragging or choosing a snooze pauses it (but not an
+  // automation's countdown, which main keeps the time for anyway).
+  const holding = !countdown && (hovered || snoozing || !!drag || menuOpen);
   useEffect(() => {
-    if (phase !== 'in' || request.hideAfterSec === null || hovered || snoozing || drag || menuOpen)
-      return;
+    if (phase !== 'in' || request.hideAfterSec === null || holding) return;
     const total = request.hideAfterSec * 1000;
     let last = performance.now();
     const timer = window.setInterval(() => {
@@ -119,7 +122,9 @@ export function NotificationCard({
       setRemaining((r) => Math.max(0, r - step));
     }, 80);
     return () => window.clearInterval(timer);
-  }, [phase, hovered, snoozing, drag, menuOpen, request.hideAfterSec]);
+  }, [phase, holding, request.hideAfterSec]);
+  const secondsLeft =
+    countdown && request.hideAfterSec !== null ? Math.ceil(remaining * request.hideAfterSec) : 0;
 
   useEffect(() => {
     if (remaining === 0) act({ kind: 'expired' });
@@ -163,15 +168,28 @@ export function NotificationCard({
     if (menuRef.current) return;
     menuRef.current = true;
     setMenuOpen(true);
-    const id = await window.smaranNotification.menu([
-      { kind: 'item', id: 'done', label: 'Done' },
-      separator,
-      { kind: 'heading', label: 'Snooze' },
-      ...SNOOZE.map((s, i) => ({ kind: 'item' as const, id: `snooze-${i}`, label: s.label })),
-      separator,
-      { kind: 'item', id: 'open', label: 'Open Smaran' },
-      { kind: 'item', id: 'dismiss', label: 'Dismiss', danger: true },
-    ]);
+    const id = await window.smaranNotification.menu(
+      countdown
+        ? [
+            { kind: 'item', id: 'done', label: 'Run Now' },
+            { kind: 'item', id: 'open', label: 'Open Smaran' },
+            separator,
+            { kind: 'item', id: 'dismiss', label: 'Cancel', danger: true },
+          ]
+        : [
+            { kind: 'item', id: 'done', label: 'Done' },
+            separator,
+            { kind: 'heading', label: 'Snooze' },
+            ...SNOOZE.map((s, i) => ({
+              kind: 'item' as const,
+              id: `snooze-${i}`,
+              label: s.label,
+            })),
+            separator,
+            { kind: 'item', id: 'open', label: 'Open Smaran' },
+            { kind: 'item', id: 'dismiss', label: 'Dismiss', danger: true },
+          ],
+    );
     menuRef.current = false;
     setMenuOpen(false);
     if (id === 'done') act({ kind: 'done' });
@@ -276,6 +294,11 @@ export function NotificationCard({
             >
               <RichText text={request.title} />
             </span>
+            {countdown && (
+              <span className="ml-2 shrink-0 text-[13px] font-medium text-accent tabular-nums">
+                {secondsLeft} s
+              </span>
+            )}
           </div>
 
           {/* Unfolded: the full card. */}
@@ -310,7 +333,9 @@ export function NotificationCard({
                   {request.important && (
                     <span className="h-1.5 w-1.5 rounded-full bg-accent" title="Important" />
                   )}
-                  <span className="ml-auto truncate">{request.label || 'now'}</span>
+                  <span className="ml-auto truncate">
+                    {countdown ? `in ${secondsLeft} s` : request.label || 'now'}
+                  </span>
                   <button
                     type="button"
                     aria-label="Dismiss"
@@ -342,7 +367,14 @@ export function NotificationCard({
             </div>
 
             <div className="flex gap-1.5 px-3 pb-3">
-              {summary ? (
+              {countdown ? (
+                <>
+                  <Action primary onClick={() => act({ kind: 'dismiss' })}>
+                    Cancel
+                  </Action>
+                  <Action onClick={() => act({ kind: 'done' })}>Run Now</Action>
+                </>
+              ) : summary ? (
                 <>
                   <Action primary onClick={() => window.smaranNotification.openApp()}>
                     Open History

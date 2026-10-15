@@ -25,6 +25,11 @@ export interface NotificationRequest {
   animation?: string;
   /** A sample from Settings: shows Done/Snooze, records nothing. */
   preview?: boolean;
+  /**
+   * An automation about to sign out, sleep, shut down…: counts down hideAfterSec without pausing
+   * on hover and shows Run Now / Cancel. 'done' runs it now, 'dismiss' cancels it.
+   */
+  countdown?: boolean;
 }
 
 /** What the card tells main. 'expired' = it hid itself without an answer. */
@@ -105,4 +110,31 @@ export interface AppInfo {
 export type FontsAddResult =
   { ok: true; added: string[]; skipped: string[] } | { ok: false; error: string };
 
-export type Route = 'today' | 'reminders' | 'history' | 'settings';
+export type Route = 'today' | 'reminders' | 'automations' | 'history' | 'settings';
+
+// ---------- automations ----------
+
+export const AutomationIdSchema = z.object({ id: IdSchema });
+
+/** Which file picker to show for an automation step. */
+export const PickSchema = z.object({ what: z.enum(['app', 'file', 'script', 'browser']) });
+export type PickWhat = z.infer<typeof PickSchema>['what'];
+
+export interface AutomationNext {
+  automationId: Id;
+  /** ISO time of its next scheduled run, or null if it has no time (events, sign-in). */
+  at: string | null;
+}
+
+/** An automation that is running now: waiting between steps, or showing its Cancel card. */
+export interface AutomationRun {
+  automationId: Id;
+  state: 'running' | 'waiting' | 'countdown';
+  /** ISO time the wait or countdown ends. */
+  until: string | null;
+}
+
+export interface Browser {
+  name: string;
+  path: string;
+}

@@ -5,12 +5,14 @@ import { createReminder } from '@shared/defaults';
 import { fontFaceCss, fontStack } from '@shared/fonts';
 import type { Route } from '@shared/ipc';
 import type { Settings as SettingsT } from '@shared/schema';
+import { AutomationEditor } from './components/AutomationEditor';
 import { ContextMenuHost } from './components/ContextMenu';
 import { ReminderEditor } from './components/ReminderEditor';
 import { cx } from './cx';
 import {
   ArrowUpIcon,
   BellIcon,
+  BoltIcon,
   ClockIcon,
   GearIcon,
   MoonIcon,
@@ -18,6 +20,7 @@ import {
   SparkIcon,
   SunIcon,
 } from './icons';
+import { Automations } from './pages/Automations';
 import { History } from './pages/History';
 import { Reminders } from './pages/Reminders';
 import { Settings } from './pages/Settings';
@@ -33,6 +36,7 @@ import { Button, Dialog, Switch } from './ui';
 const NAV: { route: Route; label: string; icon: ReactNode }[] = [
   { route: 'today', label: 'Today', icon: <SunIcon size={16} /> },
   { route: 'reminders', label: 'Reminders', icon: <BellIcon size={16} /> },
+  { route: 'automations', label: 'Automations', icon: <BoltIcon size={16} /> },
   { route: 'history', label: 'History', icon: <ClockIcon size={16} /> },
 ];
 
@@ -55,7 +59,7 @@ function useTheme(theme: SettingsT['theme'] | undefined) {
 export function App() {
   const config = useApp((s) => s.config);
   const route = useApp((s) => s.route);
-  const { init, external, setHistory, go, edit, refreshNext } = useApp.getState();
+  const { init, external, setHistory, go, edit, refreshNext, setRunning } = useApp.getState();
 
   useTheme(config?.settings.theme);
 
@@ -89,8 +93,10 @@ export function App() {
     void Promise.all([window.smaran.config.get(), window.smaran.history.get()]).then(([c, h]) =>
       init(c, h),
     );
+    void window.smaran.automations.running().then(setRunning);
     const offs = [
       window.smaran.config.onChanged(external),
+      window.smaran.automations.onRunning(setRunning),
       window.smaran.history.onChanged(setHistory),
       window.smaran.app.onNavigate(go),
     ];
@@ -99,7 +105,7 @@ export function App() {
       offs.forEach((off) => off());
       window.clearInterval(timer);
     };
-  }, [init, external, setHistory, go, refreshNext]);
+  }, [init, external, setHistory, go, refreshNext, setRunning]);
 
   // Ctrl+N: new reminder from anywhere.
   useEffect(() => {
@@ -129,6 +135,8 @@ export function App() {
               <Today />
             ) : route === 'reminders' ? (
               <Reminders />
+            ) : route === 'automations' ? (
+              <Automations />
             ) : route === 'history' ? (
               <History />
             ) : (
@@ -139,6 +147,7 @@ export function App() {
       </div>
 
       <ReminderEditor />
+      <AutomationEditor />
       <ToastView />
       <ContextMenuHost />
       <Welcome open={!!config && !config.settings.onboarded} />

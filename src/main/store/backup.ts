@@ -53,9 +53,12 @@ export function parseBackupJson(text: string, opts: ParseOptions): ParseResult {
   };
 }
 
-/** Adds the reminders of an imported config to the current one. Colliding ids get new ones. */
+/**
+ * Adds the reminders and automations of an imported config to the current one.
+ * Colliding ids get new ones.
+ */
 export function mergeReminders(current: Config, imported: Config, newId: NewId): Config {
-  const taken = new Set(current.reminders.map((r) => r.id));
+  const taken = new Set([...current.reminders, ...current.automations].map((x) => x.id));
   const state = { ...current.state };
   const added = imported.reminders.map((r) => {
     const id = taken.has(r.id) ? newId() : r.id;
@@ -64,5 +67,15 @@ export function mergeReminders(current: Config, imported: Config, newId: NewId):
     if (old) state[id] = old;
     return { ...r, id };
   });
-  return reconcileState({ ...current, reminders: [...current.reminders, ...added], state });
+  const automations = imported.automations.map((a) => {
+    const id = taken.has(a.id) ? newId() : a.id;
+    taken.add(id);
+    return { ...a, id };
+  });
+  return reconcileState({
+    ...current,
+    reminders: [...current.reminders, ...added],
+    automations: [...current.automations, ...automations],
+    state,
+  });
 }

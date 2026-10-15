@@ -1,11 +1,14 @@
 import {
   SCHEMA_VERSION,
+  type Action,
+  type Automation,
   type Config,
   type Id,
   type Reminder,
   type ReminderState,
   type Rule,
   type Settings,
+  type Trigger,
 } from './schema';
 import { DEFAULT_FONT } from './fonts';
 
@@ -124,5 +127,37 @@ export function createDefaultConfig(newId: NewId = randomId, now: Date = new Dat
     settings: structuredClone(DEFAULT_SETTINGS),
     reminders: [water, stretch],
     state: { [water.id]: emptyState(), [stretch.id]: emptyState() },
+    automations: [],
+  };
+}
+
+/** A sensible starting action when the user picks a kind. */
+export function defaultAction(kind: 'power' | 'app' | 'file' | 'script' | 'link'): Action {
+  switch (kind) {
+    case 'power':
+      return { kind: 'power', power: 'lock' };
+    case 'link':
+      return { kind: 'link', url: 'https://', browser: '', private: false };
+    default:
+      return { kind: 'open', what: kind, path: '', args: '', hidden: false };
+  }
+}
+
+export function createAutomation(
+  input: { name: string; trigger: Trigger; actions: Action[] },
+  newId: NewId = randomId,
+  now: Date = new Date(),
+): Automation {
+  const stamp = now.toISOString();
+  return {
+    id: newId(),
+    name: input.name,
+    enabled: true,
+    trigger: input.trigger,
+    steps: input.actions.map((action) => ({ action, waitSec: 0 })),
+    warnSec: 30,
+    respectPause: false,
+    createdAt: stamp,
+    updatedAt: stamp,
   };
 }

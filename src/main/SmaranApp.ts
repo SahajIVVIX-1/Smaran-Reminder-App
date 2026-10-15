@@ -1,3 +1,4 @@
+import { uptime } from 'node:os';
 import { join } from 'node:path';
 import {
   app,
@@ -14,6 +15,8 @@ import type { LogoState } from '@shared/logoState';
 import { plainRich } from '@shared/richText';
 import { inWindow } from '@shared/time';
 import type { Config } from '@shared/schema';
+import { runAction } from './automations/actions';
+import { AutomationEngine, CARD_PREFIX } from './automations/AutomationEngine';
 import { Engine, isPaused } from './engine/Engine';
 import { LogoAnimator } from './logo/LogoAnimator';
 import { LogoConductor } from './logo/LogoConductor';
@@ -21,13 +24,15 @@ import { ConfigStore } from './store/ConfigStore';
 import { HistoryStore } from './store/HistoryStore';
 import { windowsIsBusy } from './system/focusAssist';
 import { FontLibrary } from './system/fonts';
-import { applyLoginItem } from './system/loginItem';
+import { applyLoginItem, launchedHidden } from './system/loginItem';
 import { AppTray, iconPath } from './tray/Tray';
 import { GLASS, getAppWindow, showAppWindow } from './windows/AppWindow';
 import { MenuWindow } from './windows/MenuWindow';
 import { NotificationCenter } from './windows/NotificationCenter';
 
 const TRAY_REFRESH_MS = 30_000;
+/** Smaran started at sign-in this soon after Windows started counts as the computer starting. */
+const BOOT_WINDOW_SEC = 15 * 60;
 
 /** Wires the main-process pieces together: store → engine → notification cards, plus the tray. */
 export class SmaranApp {
@@ -35,6 +40,7 @@ export class SmaranApp {
   readonly history: HistoryStore;
   readonly notifications: NotificationCenter;
   readonly engine: Engine;
+  readonly automations: AutomationEngine;
   readonly fonts: FontLibrary;
   readonly menu: MenuWindow;
   private tray: AppTray | null = null;
@@ -66,6 +72,13 @@ export class SmaranApp {
       notifier: this.notifications,
       isBusy: windowsIsBusy,
     });
+    this.automations = new AutomationEngine({
+      store: this.store,
+      history: this.history,
+      notifier: this.notifications,
+      run: runAction,
+      idleSeconds: () => powerMonitor.getSystemIdleTime(),
+    });
   }
 
   /** Loads data and starts everything. Returns a notice to show the user, if any. */
@@ -78,6 +91,10 @@ export class SmaranApp {
     this.menu.registerIpc();
     this.notifications.handleActions(
       (key, action) => {
+        if (key.startsWith(CARD_PREFIX)) {
+          this.automations.handleCard(key, action);
+          return;
+        }
         this.engine.handleAction(key, action);
         if (action.kind === 'done') this.logo?.flash('done');
         else if (action.kind === 'snooze') this.logo?.flash('snoozed');
@@ -116,6 +133,7 @@ export class SmaranApp {
     this.store.onChange((next) => {
       nativeTheme.themeSource = next.settings.theme;
       this.engine.onConfigChanged();
+      this.automations.onConfigChanged();
       this.syncSystem(next);
       this.logo?.configure(next.settings.logo);
       this.refreshTray();
@@ -125,7 +143,17 @@ export class SmaranApp {
     powerMonitor.on('resume', () => this.engine.onResume());
     powerMonitor.on('unlock-screen', () => this.engine.onResume());
 
+    // Windows events for automations.
+    powerMonitor.on('lock-screen', () => this.automations.onEvent('lock'));
+    powerMonitor.on('unlock-screen', () => this.automations.onEvent('unlock'));
+    powerMonitor.on('suspend', () => this.automations.onEvent('sleep'));
+    powerMonitor.on('resume', () => this.automations.onEvent('wake'));
+    powerMonitor.on('on-ac', () => this.automations.onEvent('pluggedIn'));
+    powerMonitor.on('on-battery', () => this.automations.onEvent('onBattery'));
+
     this.engine.start();
+    const signIn = launchedHidden();
+    this.automations.start({ signIn, boot: signIn && uptime() < BOOT_WINDOW_SEC });
     this.syncSystem(config);
     this.refreshTray();
     this.trayTimer = setInterval(() => {
@@ -137,6 +165,7 @@ export class SmaranApp {
 
   stop(): void {
     this.engine.stop();
+    this.automations.stop();
     this.notifications.closeAll();
     this.menu.destroy();
     this.logo?.stop();

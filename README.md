@@ -2,6 +2,8 @@
 
 Gentle reminders for Windows: type what to remember and when, and Smaran shows it as a calm
 notification card at the right time. Lives in the tray.
+Automations can also lock, sleep, sign out or shut down the PC, and open apps, files, scripts
+and links: at a time, at startup or sign-in, or on Windows events such as lock, unlock and wake.
 Electron + React + TypeScript. `docs/DESIGN.md` explains how reminders behave and why; `RELEASE_NOTES.md` lists what changed.
 The original build plan (`Smaran Reminder v2 — Electron Build Plan.md`) describes 2.0 and is kept for history.
 
@@ -43,7 +45,7 @@ installer window (`src/main/setup`) and installs itself to `%LOCALAPPDATA%\Progr
 
 ## Where data lives
 
-- Installed: `%APPDATA%\Smaran\config.json` (reminders and settings; 5 rolling backups in `backups\`)
+- Installed: `%APPDATA%\Smaran\config.json` (reminders, automations and settings; 5 rolling backups in `backups\`)
   and `history.json` (the last 1,000 events).
 - Portable: `SmaranData\` next to the exe when that folder is writable, otherwise `%APPDATA%\Smaran`.
 - Uninstalling removes the start-at-login entry and asks whether to delete the data folder.
@@ -53,11 +55,12 @@ installer window (`src/main/setup`) and installs itself to `%LOCALAPPDATA%\Progr
 ```text
 src/shared/    schema (zod), defaults, nextFireAt, time windows, quickParse, ruleSummary, IPC types
 src/shared/legacy/  the 2.0 schema, kept only to upgrade old files
-src/main/      SmaranApp (wiring), engine/Engine (what to show and when), store/ (ConfigStore,
+src/main/      SmaranApp (wiring), engine/Engine (what to show and when), automations/
+               (AutomationEngine, actions, browser detection), store/ (ConfigStore,
                HistoryStore, migrations, backup), windows/ (AppWindow, NotificationCenter, placement),
                tray/, system/, ipc/
 src/preload/   app.ts and notification.ts: the only bridge (sandboxed, contextIsolation on)
-src/renderer/  app/ (Today, Reminders, History, Settings), notification/ (the card), theme.css
+src/renderer/  app/ (Today, Reminders, Automations, History, Settings), notification/ (the card), theme.css
 tests/         unit/ (Vitest), e2e/ (Playwright + Electron), smoke/ (packaged build), fixtures/
 ```
 

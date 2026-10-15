@@ -109,5 +109,6 @@ export function v1ToV2(old: V1Config, newId: NewId, now: Date): Config {
     },
     reminders,
     state,
+    automations: [],
   };
 }

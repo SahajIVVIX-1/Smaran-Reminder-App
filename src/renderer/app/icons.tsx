@@ -113,3 +113,49 @@ export const SparkIcon = (p: IconProps) => (
     <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.3 6.3l2.5 2.5M15.2 15.2l2.5 2.5M6.3 17.7l2.5-2.5M15.2 8.8l2.5-2.5" />
   </Icon>
 );
+export const BoltIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M13 2L4 14h7l-1 8 9-12h-7z" />
+  </Icon>
+);
+export const PowerIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 3v9" />
+    <path d="M6.3 6.3a8 8 0 1 0 11.4 0" />
+  </Icon>
+);
+export const LockIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="5" y="11" width="14" height="10" rx="2" />
+    <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+  </Icon>
+);
+export const AppIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="3" />
+    <path d="M3 9h18M7 6.5h.01M10 6.5h.01" />
+  </Icon>
+);
+export const FileIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+    <path d="M14 3v5h5" />
+  </Icon>
+);
+export const TerminalIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="3" />
+    <path d="M7 9l3 3-3 3M12 15h5" />
+  </Icon>
+);
+export const LinkIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" />
+    <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+  </Icon>
+);
+export const ArrowDownIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 5v14M19 12l-7 7-7-7" />
+  </Icon>
+);

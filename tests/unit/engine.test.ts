@@ -31,6 +31,7 @@ function setup(reminders: Reminder[], change: (c: Config) => void = () => undefi
     settings: structuredClone(DEFAULT_SETTINGS),
     reminders,
     state: Object.fromEntries(reminders.map((r) => [r.id, emptyState()])),
+    automations: [],
   };
   change(config);
   const shown: NotificationRequest[] = [];

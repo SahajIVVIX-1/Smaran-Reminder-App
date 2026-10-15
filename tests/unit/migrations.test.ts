@@ -6,7 +6,7 @@ import { createDefaultConfig as createV1Config } from '@shared/legacy/defaultsV1
 import { ConfigSchema as V1Schema, type Config as V1Config } from '@shared/legacy/schemaV1';
 import { ConfigSchema } from '@shared/schema';
 import { exportJson, mergeReminders, parseBackupJson } from '../../src/main/store/backup';
-import { migrate, v1ToV2 } from '../../src/main/store/migrations';
+import { migrate, v1ToV2, v5ToV6 } from '../../src/main/store/migrations';
 
 const NOW = new Date('2026-10-08T09:00:00Z');
 let n = 0;
@@ -193,7 +193,7 @@ describe('Smaran 2.1 → 2.2', () => {
       result.kind === 'migrated'
         ? (result.raw as { settings: Record<string, unknown>; version: number })
         : null;
-    expect(raw?.version).toBe(5);
+    expect(raw?.version).toBe(6);
     expect(raw?.settings['theme']).toBe('dark');
     expect(raw?.settings['notification']).toMatchObject({ corner: 'top-center', hideAfterSec: 8 });
   });
@@ -205,7 +205,7 @@ describe('Smaran 2.1 → 2.2', () => {
     expect(
       result.kind === 'migrated' && (result.raw as { settings: { theme: string } }).settings.theme,
     ).toBe('light');
-    expect(migrate({ version: 2 }, opts())).toMatchObject({ raw: { version: 5 } });
+    expect(migrate({ version: 2 }, opts())).toMatchObject({ raw: { version: 6 } });
   });
 });
 
@@ -220,14 +220,14 @@ describe('2.7 → 2.8', () => {
 
   it('moves the old default text font on to the current default, quietly', () => {
     const result = migrate(v3('Anthropic Serif'), opts());
-    expect(result).toMatchObject({ kind: 'migrated', quiet: true, raw: { version: 5 } });
+    expect(result).toMatchObject({ kind: 'migrated', quiet: true, raw: { version: 6 } });
     expect(fontOf(result)).toBe('Anthropic Serif');
     expect(fontOf(migrate(v3(undefined), opts()))).toBe('Anthropic Serif');
   });
 
   it('keeps a font the user chose', () => {
     expect(fontOf(migrate(v3('Georgia'), opts()))).toBe('Georgia');
-    expect(migrate({ version: 3 }, opts())).toMatchObject({ raw: { version: 5 } });
+    expect(migrate({ version: 3 }, opts())).toMatchObject({ raw: { version: 6 } });
   });
 });
 
@@ -246,7 +246,7 @@ describe('2.12 → 2.13', () => {
       kind: 'migrated',
       from: 'Smaran 2.12',
       quiet: true,
-      raw: { version: 5 },
+      raw: { version: 6 },
     });
     expect(fontOf(result)).toBe('Anthropic Serif');
     expect(fontOf(migrate(v4(undefined), opts()))).toBe('Anthropic Serif');
@@ -254,6 +254,30 @@ describe('2.12 → 2.13', () => {
 
   it('keeps a font the user chose', () => {
     expect(fontOf(migrate(v4('Georgia'), opts()))).toBe('Georgia');
-    expect(migrate({ version: 4 }, opts())).toMatchObject({ raw: { version: 5 } });
+    expect(migrate({ version: 4 }, opts())).toMatchObject({ raw: { version: 6 } });
+  });
+});
+
+describe('2.13 → 2.14', () => {
+  it('adds an empty automations list, quietly', () => {
+    const old = { ...createDefaultConfig(), version: 5 } as Record<string, unknown>;
+    delete old['automations'];
+    const result = migrate(old, opts());
+    expect(result).toMatchObject({
+      kind: 'migrated',
+      from: 'Smaran 2.13',
+      quiet: true,
+      raw: { version: 6, automations: [] },
+    });
+    expect(ConfigSchema.safeParse(result.kind === 'migrated' ? result.raw : null).success).toBe(
+      true,
+    );
+  });
+
+  it('keeps automations a file already has', () => {
+    expect(v5ToV6({ version: 5, automations: [{ id: 'a' }] })).toEqual({
+      version: 6,
+      automations: [{ id: 'a' }],
+    });
   });
 });

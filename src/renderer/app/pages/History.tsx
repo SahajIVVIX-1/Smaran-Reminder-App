@@ -1,28 +1,37 @@
 import { useMemo, useState } from 'react';
 import type { HistoryEntry } from '@shared/schema';
-import { OUTCOME_LABEL, OUTCOME_TONE } from '../outcomes';
+import { AUTOMATION_OUTCOMES, OUTCOME_LABEL, OUTCOME_TONE } from '../outcomes';
 import { RichText } from '../../RichText';
 import { dayLabel, timeOf } from '../format';
 import { useApp } from '../store';
 import { Button, Dialog, Pill, Segmented } from '../ui';
 
-type Filter = 'all' | 'done' | 'missed' | 'snoozed';
+type Filter = 'all' | 'done' | 'missed' | 'snoozed' | 'automations';
 
 export function History() {
   const history = useApp((s) => s.history);
+  const automationIds = useApp((s) => s.config?.automations.map((a) => a.id).join(',') ?? '');
   const [filter, setFilter] = useState<Filter>('all');
   const [confirm, setConfirm] = useState(false);
   const [openedAt] = useState(() => Date.now());
 
   const groups = useMemo(() => {
-    const shown = filter === 'all' ? history : history.filter((h) => h.outcome === filter);
+    const ids = new Set(automationIds.split(','));
+    const isAutomation = (h: HistoryEntry) =>
+      AUTOMATION_OUTCOMES.includes(h.outcome) || ids.has(h.reminderId);
+    const shown =
+      filter === 'all'
+        ? history
+        : filter === 'automations'
+          ? history.filter(isAutomation)
+          : history.filter((h) => h.outcome === filter && !isAutomation(h));
     const map = new Map<string, HistoryEntry[]>();
     for (const entry of shown) {
       const label = dayLabel(new Date(entry.at));
       map.set(label, [...(map.get(label) ?? []), entry]);
     }
     return [...map.entries()];
-  }, [history, filter]);
+  }, [history, filter, automationIds]);
 
   const counts = useMemo(() => {
     const week = openedAt - 7 * 86_400_000;
@@ -62,6 +71,7 @@ export function History() {
             { value: 'done', label: 'Done' },
             { value: 'missed', label: 'Missed' },
             { value: 'snoozed', label: 'Snoozed' },
+            { value: 'automations', label: 'Automations' },
           ]}
         />
       </div>
