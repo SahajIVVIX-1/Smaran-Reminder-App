@@ -7,6 +7,7 @@ import { importV1, isV1Settings, type V1ImportOptions } from './v0_to_v1';
 import { v1ToV2 } from './v1_to_v2';
 import { v2ToV3 } from './v2_to_v3';
 import { v3ToV4 } from './v3_to_v4';
+import { v4ToV5 } from './v4_to_v5';
 
 export interface MigrateOptions extends V1ImportOptions {
   newId: NewId;
@@ -21,7 +22,7 @@ export type MigrateResult =
 
 /**
  * Brings raw file content up to SCHEMA_VERSION:
- *   Smaran v1 (Python) settings → 2.0 config → reminders (2.1) → 2.2 → 2.8.
+ *   Smaran v1 (Python) settings → 2.0 config → reminders (2.1) → 2.2 → 2.8 → 2.13.
  * A 'current' or 'migrated' result still has to pass the current ConfigSchema.
  */
 export function migrate(raw: unknown, opts: MigrateOptions): MigrateResult {
@@ -49,7 +50,7 @@ export function migrate(raw: unknown, opts: MigrateOptions): MigrateResult {
   if (version === 2) {
     return {
       kind: 'migrated',
-      raw: v3ToV4(v2ToV3(raw as Record<string, unknown>)),
+      raw: v4ToV5(v3ToV4(v2ToV3(raw as Record<string, unknown>))),
       from: 'Smaran 2.1',
       quiet: true,
     };
@@ -57,13 +58,21 @@ export function migrate(raw: unknown, opts: MigrateOptions): MigrateResult {
   if (version === 3) {
     return {
       kind: 'migrated',
-      raw: v3ToV4(raw as Record<string, unknown>),
+      raw: v4ToV5(v3ToV4(raw as Record<string, unknown>)),
       from: 'Smaran 2.7',
+      quiet: true,
+    };
+  }
+  if (version === 4) {
+    return {
+      kind: 'migrated',
+      raw: v4ToV5(raw as Record<string, unknown>),
+      from: 'Smaran 2.12',
       quiet: true,
     };
   }
   return { kind: 'current', raw };
 }
 
-export { importV1, isV1Settings, v1ToV2, v2ToV3, v3ToV4 };
+export { importV1, isV1Settings, v1ToV2, v2ToV3, v3ToV4, v4ToV5 };
 export type { V1ImportOptions };

@@ -1,5 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { hasRich, RICH_MARKERS, type RichMark } from '@shared/richText';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from 'react';
+import { hasRich, plainRich, RICH_MARKERS, type RichMark } from '@shared/richText';
 import { ruleSummary } from '@shared/ruleSummary';
 import { COLORS, ReminderSchema, type Reminder } from '@shared/schema';
 import { COLOR_BG, COLOR_NAME } from '../../colors';
@@ -57,6 +63,8 @@ export function ReminderEditor() {
   }
   const title = useRef<HTMLInputElement>(null);
   const noteRef = useRef<HTMLTextAreaElement>(null);
+  // The B / I / U / S buttons style whichever of title or note was used last.
+  const lastField = useRef<'title' | 'note'>('note');
   useEffect(() => {
     if (editing?.mode === 'new') title.current?.focus();
   }, [editing?.mode, formFor]);
@@ -87,26 +95,48 @@ export function ReminderEditor() {
     }
   };
 
-  /** Wraps the selected note text in a style's markers, or unwraps it if already styled. */
-  const wrapNote = (mark: RichMark) => {
-    const el = noteRef.current;
+  /** Wraps the selected title or note text in a style's markers, or unwraps it if already styled. */
+  const wrap = (mark: RichMark) => {
+    const field = lastField.current;
+    const el = field === 'title' ? title.current : noteRef.current;
     if (!el) return;
     const marker = RICH_MARKERS[mark];
-    const { selectionStart: s, selectionEnd: e, value } = el;
+    const { value } = el;
+    const s = el.selectionStart ?? value.length;
+    const e = el.selectionEnd ?? s;
     const wrapped =
       value.slice(Math.max(0, s - marker.length), s) === marker &&
       value.slice(e, e + marker.length) === marker &&
       // Inside **bold**, a single * either side is bold's, not italic's.
       !(mark === 'italic' && (value[s - 2] === '*' || value[e + 1] === '*'));
-    const note = wrapped
+    const text = wrapped
       ? value.slice(0, s - marker.length) + value.slice(s, e) + value.slice(e + marker.length)
       : value.slice(0, s) + marker + value.slice(s, e) + marker + value.slice(e);
     const shift = wrapped ? -marker.length : marker.length;
-    change({ note });
+    change(field === 'title' ? { title: text } : { note: text });
     requestAnimationFrame(() => {
       el.focus();
       el.setSelectionRange(s + shift, e + shift);
     });
+  };
+
+  /** Ctrl+B / I / U and Ctrl+Shift+X style the selection in the title or the note. */
+  const formatKeys = (e: ReactKeyboardEvent<HTMLElement>) => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    const key = e.key.toLowerCase();
+    const mark: RichMark | null =
+      key === 'b'
+        ? 'bold'
+        : key === 'i'
+          ? 'italic'
+          : key === 'u'
+            ? 'underline'
+            : key === 'x' && e.shiftKey
+              ? 'strike'
+              : null;
+    if (!mark) return;
+    e.preventDefault();
+    wrap(mark);
   };
 
   return (
@@ -159,8 +189,18 @@ export function ReminderEditor() {
               className="h-10 text-[14px] font-medium"
               value={form.title}
               onChange={(e) => change({ title: e.currentTarget.value })}
+              onFocus={() => (lastField.current = 'title')}
+              onKeyDown={formatKeys}
             />
-            <FormatBar onFormat={(mark) => wrapNote(mark)} />
+            {hasRich(form.title) && (
+              <p className="px-1 text-[14px] font-medium">
+                <span className="mr-1.5 text-[11px] font-normal tracking-wide text-faint uppercase">
+                  Title
+                </span>
+                <RichText text={form.title} />
+              </p>
+            )}
+            <FormatBar onFormat={(mark) => wrap(mark)} />
             <TextArea
               ref={noteRef}
               aria-label="Note"
@@ -168,23 +208,8 @@ export function ReminderEditor() {
               className="min-h-16 font-serif text-[14px]"
               value={form.note}
               onChange={(e) => change({ note: e.currentTarget.value })}
-              onKeyDown={(e) => {
-                if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
-                const key = e.key.toLowerCase();
-                const mark: RichMark | null =
-                  key === 'b'
-                    ? 'bold'
-                    : key === 'i'
-                      ? 'italic'
-                      : key === 'u'
-                        ? 'underline'
-                        : key === 'x' && e.shiftKey
-                          ? 'strike'
-                          : null;
-                if (!mark) return;
-                e.preventDefault();
-                wrapNote(mark);
-              }}
+              onFocus={() => (lastField.current = 'note')}
+              onKeyDown={formatKeys}
             />
             {hasRich(form.note) && (
               <p className="px-1 font-serif text-[13px] leading-snug text-muted">
@@ -403,7 +428,7 @@ export function ReminderEditor() {
                   if (!parsed.success) return;
                   upsertReminder(parsed.data);
                   edit(null);
-                  toastMsg(`Added “${parsed.data.title}”`);
+                  toastMsg(`Added “${plainRich(parsed.data.title)}”`);
                 }}
               >
                 Create Reminder
@@ -526,10 +551,10 @@ const FORMATS: { mark: RichMark; label: string; title: string; className: string
   { mark: 'strike', label: 'S', title: 'Strikethrough (Ctrl+Shift+X)', className: 'line-through' },
 ];
 
-/** B / I / U / S buttons above the note. They wrap the selection in **, *, __ or ~~. */
+/** B / I / U / S buttons. They wrap the title or note selection in **, *, __ or ~~. */
 function FormatBar({ onFormat }: { onFormat: (mark: RichMark) => void }) {
   return (
-    <div className="flex items-center gap-1" role="toolbar" aria-label="Note formatting">
+    <div className="flex items-center gap-1" role="toolbar" aria-label="Text formatting">
       {FORMATS.map((f) => (
         <button
           key={f.mark}
@@ -547,7 +572,9 @@ function FormatBar({ onFormat }: { onFormat: (mark: RichMark) => void }) {
           {f.label}
         </button>
       ))}
-      <span className="ml-1.5 text-[11.5px] text-faint">Select text in the note to style it</span>
+      <span className="ml-1.5 text-[11.5px] text-faint">
+        Select text in the title or note to style it
+      </span>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { HistoryEntry } from '@shared/schema';
 import { OUTCOME_LABEL, OUTCOME_TONE } from '../outcomes';
+import { RichText } from '../../RichText';
 import { dayLabel, timeOf } from '../format';
 import { useApp } from '../store';
 import { Button, Dialog, Pill, Segmented } from '../ui';
@@ -84,7 +85,9 @@ export function History() {
                       {timeOf(new Date(h.dueAt))}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13.5px]">{h.title}</span>
+                      <span className="block truncate text-[13.5px]">
+                        <RichText text={h.title} />
+                      </span>
                       {h.detail && (
                         <span className="block truncate text-[12px] text-faint">{h.detail}</span>
                       )}

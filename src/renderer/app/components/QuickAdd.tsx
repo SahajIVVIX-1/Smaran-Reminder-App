@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { createReminder } from '@shared/defaults';
 import { quickParse } from '@shared/quickParse';
+import { plainRich } from '@shared/richText';
 import { ruleSummary } from '@shared/ruleSummary';
 import { cx } from '../cx';
 import { ArrowUpIcon, SparkIcon } from '../icons';
@@ -35,7 +36,7 @@ export function QuickAdd() {
       edit({ mode: 'new', draft: reminder });
     } else {
       upsertReminder(reminder);
-      toastMsg(`Added “${reminder.title}” · ${ruleSummary(reminder.rule)}`);
+      toastMsg(`Added “${plainRich(reminder.title)}” · ${ruleSummary(reminder.rule)}`);
     }
     setText('');
   };

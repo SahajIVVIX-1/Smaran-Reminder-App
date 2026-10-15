@@ -227,7 +227,7 @@ test('a Smaran 2.0 config is upgraded to reminders on first start', async () => 
   const list = h.page.getByRole('list', { name: 'Reminders' });
   await expect(list.getByText('Every hour', { exact: true })).toBeVisible(); // two messages → rotating lines
   await expect(list.getByText('Drink a glass of water')).toBeVisible();
-  expect(h.readConfig().version).toBe(4);
+  expect(h.readConfig().version).toBe(5);
   await h.close();
 });
 

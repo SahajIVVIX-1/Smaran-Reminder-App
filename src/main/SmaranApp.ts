@@ -11,6 +11,7 @@ import {
 import { PAUSED_FOREVER } from '@shared/defaults';
 import { IPC, type AppInfo, type Route } from '@shared/ipc';
 import type { LogoState } from '@shared/logoState';
+import { plainRich } from '@shared/richText';
 import { inWindow } from '@shared/time';
 import type { Config } from '@shared/schema';
 import { Engine, isPaused } from './engine/Engine';
@@ -231,7 +232,7 @@ export class SmaranApp {
     });
     this.tray?.update({
       pausedUntil: config.settings.pausedUntil,
-      next: next ? { name: next.reminder.title, at: next.at } : null,
+      next: next ? { name: plainRich(next.reminder.title), at: next.at } : null,
     });
   }
 }

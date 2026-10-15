@@ -4,8 +4,8 @@ import { DEFAULT_FONT, fontFaceCss, fontLabel, fontStack } from '@shared/fonts';
 import { familyFromFileName, readFontInfo } from '../../src/main/system/fontFile';
 
 describe('font stacks', () => {
-  it('defaults to Anthropic Sans, with the bundled stand-ins behind each Anthropic font', () => {
-    expect(DEFAULT_FONT).toBe('Anthropic Sans');
+  it('defaults to Anthropic Serif, with the bundled stand-ins behind each Anthropic font', () => {
+    expect(DEFAULT_FONT).toBe('Anthropic Serif');
     expect(fontStack('Anthropic Serif')).toBe(
       "'Anthropic Serif', 'Source Serif 4 Variable', serif",
     );

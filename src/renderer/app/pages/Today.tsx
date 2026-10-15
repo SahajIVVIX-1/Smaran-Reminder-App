@@ -9,6 +9,7 @@ import { greeting, timeOf, whenLabel } from '../format';
 import { useApp } from '../store';
 import { Button, Pill } from '../ui';
 import { OUTCOME_LABEL, OUTCOME_TONE } from '../outcomes';
+import { RichText } from '../../RichText';
 
 /** Re-render every 30 s so "in 5 min" stays true. */
 function useNow(): Date {
@@ -83,7 +84,9 @@ export function Today() {
               )}
             />
             <div className="min-w-0 flex-1">
-              <div className="text-[15px] font-medium">{next.reminder.title}</div>
+              <div className="text-[15px] font-medium">
+                <RichText text={next.reminder.title} />
+              </div>
               <div className="mt-0.5 text-[13px] text-muted">
                 {whenLabel(next.at, now)} ·{' '}
                 <span className="font-mono text-[12.5px]">{timeOf(next.at)}</span>
@@ -138,7 +141,9 @@ export function Today() {
                   <span className="w-12 shrink-0 font-mono text-[12px] text-muted tabular-nums">
                     {timeOf(slot.at)}
                   </span>
-                  <span className="truncate text-[13.5px]">{slot.reminder.title}</span>
+                  <span className="truncate text-[13.5px]">
+                    <RichText text={slot.reminder.title} />
+                  </span>
                 </button>
               </li>
             ))}
@@ -158,7 +163,9 @@ export function Today() {
                   className="flex items-center gap-3 rounded-lg px-2 py-1.5 text-[13.5px]"
                 >
                   <span className={cx('h-2 w-2 rounded-full', COLOR_BG[r.color])} />
-                  <span className="flex-1 truncate">{r.title}</span>
+                  <span className="flex-1 truncate">
+                    <RichText text={r.title} />
+                  </span>
                   <span className="text-[12.5px] text-muted">{whenLabel(until, now)}</span>
                 </li>
               );
@@ -187,7 +194,9 @@ function HistoryLine({ entry }: { entry: HistoryEntry }) {
       <span className="w-12 shrink-0 font-mono text-[12px] text-muted tabular-nums">
         {timeOf(new Date(entry.dueAt))}
       </span>
-      <span className="flex-1 truncate text-muted">{entry.title}</span>
+      <span className="flex-1 truncate text-muted">
+        <RichText text={entry.title} />
+      </span>
       <Pill tone={OUTCOME_TONE[entry.outcome]}>{OUTCOME_LABEL[entry.outcome]}</Pill>
     </li>
   );

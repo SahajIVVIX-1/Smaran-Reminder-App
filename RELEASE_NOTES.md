@@ -1,3 +1,15 @@
+# Smaran 2.13.0
+
+- **Anthropic Serif everywhere.** The whole app now uses Anthropic Serif as its default text font.
+  If you were on the old default, you move over automatically; a font you picked yourself is kept.
+- **A softer label on notifications.** The card now says *Smaran* in italic Anthropic Serif
+  instead of "SMARAN".
+- **Bold, italic, underline and strikethrough in titles.** Select words in a reminder's title and
+  click B, I, U or S (or press Ctrl+B, Ctrl+I, Ctrl+U, Ctrl+Shift+X), just like the note. Styled
+  titles show on the notification, Today, Reminders and History.
+
+---
+
 # Smaran 2.12.0
 
 - **A new installer.** Smaran Setup is now a floating Smaran card that stays on top, with the

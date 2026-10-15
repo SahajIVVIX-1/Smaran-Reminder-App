@@ -274,7 +274,7 @@ export function NotificationCard({
               className="truncate font-serif text-[16px] leading-[18px] font-semibold tracking-[-0.005em] text-ink"
               data-testid="notification-pill"
             >
-              {request.title}
+              <RichText text={request.title} />
             </span>
           </div>
 
@@ -306,7 +306,7 @@ export function NotificationCard({
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex h-4 items-center gap-1.5 text-[11px] leading-none text-muted">
-                  <span className="font-semibold tracking-wide uppercase">Smaran</span>
+                  <span className="font-serif text-[12.5px] italic">Smaran</span>
                   {request.important && (
                     <span className="h-1.5 w-1.5 rounded-full bg-accent" title="Important" />
                   )}
@@ -331,7 +331,7 @@ export function NotificationCard({
                   className="mt-1 line-clamp-2 font-serif text-[15.5px] leading-snug font-semibold text-ink"
                   data-testid="notification-title"
                 >
-                  {request.title}
+                  <RichText text={request.title} />
                 </div>
                 {request.body && (
                   <div className="mt-0.5 line-clamp-2 font-serif text-[13px] leading-snug text-muted">

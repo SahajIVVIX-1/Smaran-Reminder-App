@@ -286,8 +286,8 @@ body,
 }
 
 body {
-  /* The text font chosen in Settings (set on <html> by the app); Anthropic Sans until then. */
-  font-family: var(--font-app, var(--font-sans));
+  /* The text font chosen in Settings (set on <html> by the app); Anthropic Serif until then. */
+  font-family: var(--font-app, var(--font-serif));
   font-size: 13px;
   color: var(--ink);
   -webkit-font-smoothing: antialiased;

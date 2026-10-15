@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { FontCatalog } from '@shared/fonts';
 import type { NextFire, Route } from '@shared/ipc';
+import { plainRich } from '@shared/richText';
 import type { Config, HistoryEntry, Id, Reminder, Settings } from '@shared/schema';
 
 export interface Toast {
@@ -137,7 +138,7 @@ export const useApp = create<AppState>((set, get) => ({
     if (!removed) return;
     update((c) => ({ ...c, reminders: c.reminders.filter((r) => r.id !== id) }));
     if (editing?.mode === 'edit' && editing.id === id) set({ editing: null });
-    toastMsg(`Deleted “${removed.title}”`, 'info', () =>
+    toastMsg(`Deleted “${plainRich(removed.title)}”`, 'info', () =>
       update((c) => {
         const reminders = [...c.reminders];
         reminders.splice(Math.min(index, reminders.length), 0, removed);

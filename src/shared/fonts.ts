@@ -1,10 +1,10 @@
 /**
- * Fonts. The UI mixes Anthropic's typefaces: Serif for titles, Sans for text (the font setting,
- * default Anthropic Sans) and Mono for times and numbers. Anthropic's typefaces are their own and can't be
+ * Fonts. The UI mixes Anthropic's typefaces: Serif for titles and, by default, for text too (the
+ * font setting) and Mono for times and numbers. Anthropic's typefaces are their own and can't be
  * shipped inside the app, so each one has an open-licence stand-in that Smaran bundles; the moment
  * the real font is installed on the PC (or added under Settings) it is used instead.
  */
-export const DEFAULT_FONT = 'Anthropic Sans';
+export const DEFAULT_FONT = 'Anthropic Serif';
 
 /** Open-licence fonts bundled with the app (CSS family names from @fontsource-variable). */
 export const BUNDLED = [

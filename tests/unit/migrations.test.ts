@@ -193,7 +193,7 @@ describe('Smaran 2.1 → 2.2', () => {
       result.kind === 'migrated'
         ? (result.raw as { settings: Record<string, unknown>; version: number })
         : null;
-    expect(raw?.version).toBe(4);
+    expect(raw?.version).toBe(5);
     expect(raw?.settings['theme']).toBe('dark');
     expect(raw?.settings['notification']).toMatchObject({ corner: 'top-center', hideAfterSec: 8 });
   });
@@ -205,7 +205,7 @@ describe('Smaran 2.1 → 2.2', () => {
     expect(
       result.kind === 'migrated' && (result.raw as { settings: { theme: string } }).settings.theme,
     ).toBe('light');
-    expect(migrate({ version: 2 }, opts())).toMatchObject({ raw: { version: 4 } });
+    expect(migrate({ version: 2 }, opts())).toMatchObject({ raw: { version: 5 } });
   });
 });
 
@@ -218,15 +218,42 @@ describe('2.7 → 2.8', () => {
   const fontOf = (r: ReturnType<typeof migrate>) =>
     r.kind === 'migrated' ? (r.raw as { settings: { font: string } }).settings.font : null;
 
-  it('moves the old default text font to Anthropic Sans, quietly', () => {
+  it('moves the old default text font on to the current default, quietly', () => {
     const result = migrate(v3('Anthropic Serif'), opts());
-    expect(result).toMatchObject({ kind: 'migrated', quiet: true, raw: { version: 4 } });
-    expect(fontOf(result)).toBe('Anthropic Sans');
-    expect(fontOf(migrate(v3(undefined), opts()))).toBe('Anthropic Sans');
+    expect(result).toMatchObject({ kind: 'migrated', quiet: true, raw: { version: 5 } });
+    expect(fontOf(result)).toBe('Anthropic Serif');
+    expect(fontOf(migrate(v3(undefined), opts()))).toBe('Anthropic Serif');
   });
 
   it('keeps a font the user chose', () => {
     expect(fontOf(migrate(v3('Georgia'), opts()))).toBe('Georgia');
-    expect(migrate({ version: 3 }, opts())).toMatchObject({ raw: { version: 4 } });
+    expect(migrate({ version: 3 }, opts())).toMatchObject({ raw: { version: 5 } });
+  });
+});
+
+describe('2.12 → 2.13', () => {
+  const v4 = (font?: string) => {
+    const old = { ...createDefaultConfig(), version: 4 } as Record<string, unknown>;
+    (old['settings'] as Record<string, unknown>)['font'] = font;
+    return old;
+  };
+  const fontOf = (r: ReturnType<typeof migrate>) =>
+    r.kind === 'migrated' ? (r.raw as { settings: { font: string } }).settings.font : null;
+
+  it('moves the old default text font to Anthropic Serif, quietly', () => {
+    const result = migrate(v4('Anthropic Sans'), opts());
+    expect(result).toMatchObject({
+      kind: 'migrated',
+      from: 'Smaran 2.12',
+      quiet: true,
+      raw: { version: 5 },
+    });
+    expect(fontOf(result)).toBe('Anthropic Serif');
+    expect(fontOf(migrate(v4(undefined), opts()))).toBe('Anthropic Serif');
+  });
+
+  it('keeps a font the user chose', () => {
+    expect(fontOf(migrate(v4('Georgia'), opts()))).toBe('Georgia');
+    expect(migrate({ version: 4 }, opts())).toMatchObject({ raw: { version: 5 } });
   });
 });

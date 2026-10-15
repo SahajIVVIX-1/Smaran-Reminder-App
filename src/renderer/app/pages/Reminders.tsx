@@ -1,6 +1,8 @@
 import { useMemo, useState, type MouseEvent } from 'react';
 import { createReminder } from '@shared/defaults';
 import { separator } from '@shared/menu';
+import { plainRich } from '@shared/richText';
+import { RichText } from '../../RichText';
 import type { Reminder } from '@shared/schema';
 import { openContextMenu } from '../contextMenu';
 import { ruleSummary } from '@shared/ruleSummary';
@@ -149,7 +151,9 @@ export function Reminders() {
                   />
                   <div className={cx('min-w-0 flex-1', !r.enabled && 'opacity-55')}>
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-[13.5px] font-medium">{r.title}</span>
+                      <span className="truncate text-[13.5px] font-medium">
+                        <RichText text={r.title} />
+                      </span>
                       {r.priority === 'important' && <Pill tone="accent">Important</Pill>}
                       {r.lines.length > 0 && <Pill>{r.lines.length} lines</Pill>}
                     </div>
@@ -160,7 +164,7 @@ export function Reminders() {
                     </div>
                   </div>
                   <Switch
-                    label={`${r.enabled ? 'Turn Off' : 'Turn On'} ${r.title}`}
+                    label={`${r.enabled ? 'Turn Off' : 'Turn On'} ${plainRich(r.title)}`}
                     checked={r.enabled}
                     onChange={(enabled) =>
                       upsertReminder({ ...r, enabled, updatedAt: new Date().toISOString() })
