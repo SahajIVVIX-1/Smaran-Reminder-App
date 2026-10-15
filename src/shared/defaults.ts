@@ -1,4 +1,5 @@
 import {
+  CARD_RADIUS_DEFAULT,
   SCHEMA_VERSION,
   type Action,
   type Automation,
@@ -28,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
     size: 'comfortable',
     sound: true,
     hideAfterSec: 8,
+    card: { width: null, height: null, radius: CARD_RADIUS_DEFAULT },
   },
   quietHours: { enabled: false, from: '22:00', to: '07:00' },
   holdWhenBusy: true,

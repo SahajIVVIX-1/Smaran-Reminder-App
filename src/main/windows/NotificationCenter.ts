@@ -10,7 +10,7 @@ import {
   type NotificationRequest,
 } from '@shared/ipc';
 import type { CustomFont } from '@shared/fonts';
-import type { Settings } from '@shared/schema';
+import { CARD_WIDTH, type Settings } from '@shared/schema';
 import type { Notifier } from '../engine/Engine';
 import { loadRenderer, preloadPath } from './loadRenderer';
 import { pickDisplay, stackWindows, type Size } from './placement';
@@ -109,10 +109,18 @@ export class NotificationCenter implements Notifier {
             : 'light'
           : settings.theme,
       size: settings.notification.size,
+      card: {
+        width: settings.notification.card.width ?? CARD_WIDTH[settings.notification.size],
+        height: settings.notification.card.height,
+        radius: settings.notification.card.radius,
+      },
       font: settings.font,
       faces: this.faces(),
     };
-    const width = WINDOW_WIDTH[look.size];
+    // First guess; the card reports its real size (card + shadow room).
+    const width = settings.notification.card.width
+      ? look.card.width + WINDOW_WIDTH.comfortable - CARD_WIDTH.comfortable
+      : WINDOW_WIDTH[look.size];
     const win = new BrowserWindow({
       width,
       height: 160,

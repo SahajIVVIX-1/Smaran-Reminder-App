@@ -4,6 +4,7 @@ import type { AppInfo, BackupResult } from '@shared/ipc';
 import { CORNERS, type Settings as SettingsT } from '@shared/schema';
 import { cx } from '../cx';
 import { useApp } from '../store';
+import { CardShape } from '../components/CardShape';
 import { FontPicker } from '../components/FontPicker';
 import { Select } from '../components/Select';
 import { LogoSettingsCard } from '../components/LogoSettings';
@@ -158,6 +159,7 @@ export function Settings() {
             ]}
           />
         </Row>
+        <CardShape n={n} onChange={(card) => setN({ card })} />
         <Row
           label="Stay on screen for"
           hint="Normal reminders. Important ones stay until you act."

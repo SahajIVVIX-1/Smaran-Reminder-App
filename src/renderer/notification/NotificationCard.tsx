@@ -14,12 +14,6 @@ import { SmaranDots } from '../dots';
 import { RichText } from '../RichText';
 import { playChime } from './chime';
 
-/** Expanded card widths: small, like a phone banner. */
-const WIDTH: Record<NotificationLook['size'], number> = {
-  compact: 308,
-  comfortable: 340,
-  large: 384,
-};
 /** Room around the card inside its window for the shadow. */
 const PAD_X = 14;
 const PAD_Y = 10;
@@ -53,10 +47,11 @@ interface Size {
  */
 export function NotificationCard({
   request,
-  size,
+  card,
 }: {
   request: NotificationRequest;
-  size: NotificationLook['size'];
+  /** Width, height (null = fit the content) and corner radius, from Settings. */
+  card: NotificationLook['card'];
 }) {
   const wrapper = useRef<HTMLDivElement>(null);
   const fullRef = useRef<HTMLDivElement>(null);
@@ -77,7 +72,7 @@ export function NotificationCard({
   // An automation about to sign out, sleep, shut down…: Run Now / Cancel, counting down.
   const countdown = request.countdown === true;
   const summary = request.reminderId === null && !request.preview && !countdown;
-  const width = WIDTH[size];
+  const width = card.width;
 
   // Measure both shapes once fonts are ready; the window is sized for the expanded card.
   useLayoutEffect(() => {
@@ -92,7 +87,7 @@ export function NotificationCard({
       setSizes(measured);
       window.smaranNotification.measured(width + PAD_X * 2, measured.full.height + PAD_Y * 2);
     });
-  }, [width]);
+  }, [width, card.height]);
 
   useEffect(() => {
     window.smaranNotification.onShown((info) => {
@@ -236,7 +231,8 @@ export function NotificationCard({
       ? 'transform 260ms cubic-bezier(0.4, 0, 1, 1), opacity 220ms ease-in'
       : 'transform 480ms cubic-bezier(0.2, 1.1, 0.3, 1), opacity 260ms ease-out';
   const shape = sizes ? (expanded ? sizes.full : sizes.pill) : undefined;
-  const radius = expanded || !sizes ? 18 : sizes.pill.height / 2;
+  // The folded pill is round-ended unless a smaller corner radius is chosen.
+  const radius = expanded || !sizes ? card.radius : Math.min(sizes.pill.height / 2, card.radius);
 
   return (
     <div
@@ -305,16 +301,18 @@ export function NotificationCard({
           <div
             ref={fullRef}
             aria-hidden={!expanded && !measuring}
-            className="absolute top-0 left-0"
+            className="absolute top-0 left-0 flex flex-col"
             style={{
               width,
+              // A custom height: text that doesn't fit is cut off; the buttons stay at the bottom.
+              height: card.height ?? undefined,
               opacity: expanded || measuring ? 1 : 0,
               transform: expanded || measuring ? 'none' : 'translateY(-4px)',
               transition: `opacity ${expanded ? 260 : 200}ms ease ${expanded ? 60 : 0}ms, transform ${MORPH_MS}ms ${MORPH}`,
               pointerEvents: expanded ? 'auto' : 'none',
             }}
           >
-            <div className="flex gap-2.5 px-3 pt-3 pb-2.5">
+            <div className="flex min-h-0 flex-1 gap-2.5 overflow-hidden px-3 pt-3 pb-2.5">
               {/* The Smaran dots: this reminder's animation, or auto mode. */}
               <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center" aria-hidden>
                 <SmaranDots
@@ -366,7 +364,7 @@ export function NotificationCard({
               </div>
             </div>
 
-            <div className="flex gap-1.5 px-3 pb-3">
+            <div className="flex shrink-0 gap-1.5 px-3 pb-3">
               {countdown ? (
                 <>
                   <Action primary onClick={() => act({ kind: 'dismiss' })}>

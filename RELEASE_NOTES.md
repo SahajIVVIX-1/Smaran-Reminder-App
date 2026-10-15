@@ -1,5 +1,9 @@
 # Smaran 2.16.1
 
+- **Shape your notifications.** Settings › Notifications has sliders for the card's width,
+  height and corner roundness, with a live preview and Reset to Default. They apply to every
+  card: reminders, snoozed ones, automation countdowns and test notifications. Height fits the
+  text unless you choose your own (longer text is then cut off).
 - **Licenses** have a new product identity, and their messages are simpler. Licenses you already
   have keep working.
 

@@ -134,6 +134,50 @@ export function NumberField({
   );
 }
 
+/** A themed range slider with its value shown beside it. */
+export function Slider({
+  value,
+  onChange,
+  min,
+  max,
+  step = 1,
+  label,
+  suffix = '',
+  className,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  min: number;
+  max: number;
+  step?: number;
+  label: string;
+  suffix?: string;
+  className?: string;
+}) {
+  const percent = ((value - min) / (max - min)) * 100;
+  return (
+    <span className={cx('inline-flex items-center gap-3', className)}>
+      <input
+        type="range"
+        aria-label={label}
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.currentTarget.value))}
+        className="h-1.5 w-44 cursor-pointer appearance-none rounded-full accent-[var(--accent)]"
+        style={{
+          background: `linear-gradient(to right, var(--accent) ${percent}%, var(--line) ${percent}%)`,
+        }}
+      />
+      <span className="w-14 text-right font-mono text-[12px] text-muted tabular-nums">
+        {value}
+        {suffix}
+      </span>
+    </span>
+  );
+}
+
 export function Switch({
   checked,
   onChange,

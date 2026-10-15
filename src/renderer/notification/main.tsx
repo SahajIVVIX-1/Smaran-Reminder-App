@@ -21,7 +21,7 @@ window.smaranNotification.onInit((init: NotificationInit) => {
   document.head.appendChild(faces);
   createRoot(root).render(
     <StrictMode>
-      <NotificationCard request={init.request} size={init.look.size} />
+      <NotificationCard request={init.request} card={init.look.card} />
     </StrictMode>,
   );
 });

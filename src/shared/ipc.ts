@@ -53,6 +53,8 @@ export const NotificationActionSchema = z.discriminatedUnion('kind', [
 export interface NotificationLook {
   theme: 'light' | 'dark';
   size: 'compact' | 'comfortable' | 'large';
+  /** The card's shape from Settings: width (px), height (px, null = fit the content), radius. */
+  card: { width: number; height: number | null; radius: number };
   /** Font family chosen in Settings, and any font files the user added. */
   font: string;
   faces: CustomFont[];
