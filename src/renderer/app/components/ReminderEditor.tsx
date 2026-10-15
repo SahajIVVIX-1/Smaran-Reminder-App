@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { hasRich, RICH_MARKERS, type RichMark } from '@shared/richText';
 import { ruleSummary } from '@shared/ruleSummary';
 import { COLORS, ReminderSchema, type Reminder } from '@shared/schema';
 import { COLOR_BG, COLOR_NAME } from '../../colors';
@@ -10,6 +11,7 @@ import { useApp } from '../store';
 import { Button, IconButton, Input, NumberField, Segmented, Switch, TextArea } from '../ui';
 import { getScene, type SceneKey } from '@shared/dots/dotsScenes';
 import { SmaranDots } from '../../dots';
+import { RichText } from '../../RichText';
 import { AnimationBrowser } from './LogoSettings';
 import { ScheduleEditor } from './ScheduleEditor';
 
@@ -54,6 +56,7 @@ export function ReminderEditor() {
     setForm(source);
   }
   const title = useRef<HTMLInputElement>(null);
+  const noteRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     if (editing?.mode === 'new') title.current?.focus();
   }, [editing?.mode, formFor]);
@@ -82,6 +85,28 @@ export function ReminderEditor() {
       const valid = ReminderSchema.safeParse(updated);
       if (valid.success) upsertReminder(valid.data);
     }
+  };
+
+  /** Wraps the selected note text in a style's markers, or unwraps it if already styled. */
+  const wrapNote = (mark: RichMark) => {
+    const el = noteRef.current;
+    if (!el) return;
+    const marker = RICH_MARKERS[mark];
+    const { selectionStart: s, selectionEnd: e, value } = el;
+    const wrapped =
+      value.slice(Math.max(0, s - marker.length), s) === marker &&
+      value.slice(e, e + marker.length) === marker &&
+      // Inside **bold**, a single * either side is bold's, not italic's.
+      !(mark === 'italic' && (value[s - 2] === '*' || value[e + 1] === '*'));
+    const note = wrapped
+      ? value.slice(0, s - marker.length) + value.slice(s, e) + value.slice(e + marker.length)
+      : value.slice(0, s) + marker + value.slice(s, e) + marker + value.slice(e);
+    const shift = wrapped ? -marker.length : marker.length;
+    change({ note });
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(s + shift, e + shift);
+    });
   };
 
   return (
@@ -135,13 +160,40 @@ export function ReminderEditor() {
               value={form.title}
               onChange={(e) => change({ title: e.currentTarget.value })}
             />
+            <FormatBar onFormat={(mark) => wrapNote(mark)} />
             <TextArea
+              ref={noteRef}
               aria-label="Note"
-              placeholder="Add a note (optional)"
-              className="min-h-16 font-serif text-[14px] italic"
+              placeholder="Add a note (optional). Select words, then B, I, U or S to style them."
+              className="min-h-16 font-serif text-[14px]"
               value={form.note}
               onChange={(e) => change({ note: e.currentTarget.value })}
+              onKeyDown={(e) => {
+                if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+                const key = e.key.toLowerCase();
+                const mark: RichMark | null =
+                  key === 'b'
+                    ? 'bold'
+                    : key === 'i'
+                      ? 'italic'
+                      : key === 'u'
+                        ? 'underline'
+                        : key === 'x' && e.shiftKey
+                          ? 'strike'
+                          : null;
+                if (!mark) return;
+                e.preventDefault();
+                wrapNote(mark);
+              }}
             />
+            {hasRich(form.note) && (
+              <p className="px-1 font-serif text-[13px] leading-snug text-muted">
+                <span className="mr-1.5 font-sans text-[11px] tracking-wide text-faint uppercase">
+                  Preview
+                </span>
+                <RichText text={form.note} />
+              </p>
+            )}
           </div>
 
           <Section title="When" hint={ruleSummary(form.rule)}>
@@ -463,6 +515,39 @@ function LinesEditor({
           Add
         </Button>
       </div>
+    </div>
+  );
+}
+
+const FORMATS: { mark: RichMark; label: string; title: string; className: string }[] = [
+  { mark: 'bold', label: 'B', title: 'Bold (Ctrl+B)', className: 'font-bold' },
+  { mark: 'italic', label: 'I', title: 'Italic (Ctrl+I)', className: 'font-serif italic' },
+  { mark: 'underline', label: 'U', title: 'Underline (Ctrl+U)', className: 'underline' },
+  { mark: 'strike', label: 'S', title: 'Strikethrough (Ctrl+Shift+X)', className: 'line-through' },
+];
+
+/** B / I / U / S buttons above the note. They wrap the selection in **, *, __ or ~~. */
+function FormatBar({ onFormat }: { onFormat: (mark: RichMark) => void }) {
+  return (
+    <div className="flex items-center gap-1" role="toolbar" aria-label="Note formatting">
+      {FORMATS.map((f) => (
+        <button
+          key={f.mark}
+          type="button"
+          title={f.title}
+          aria-label={f.title}
+          // Keep the note's selection while clicking.
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onFormat(f.mark)}
+          className={cx(
+            'grid h-7 w-7 place-items-center rounded-md text-[13.5px] text-muted transition-colors duration-150 hover:bg-hover hover:text-ink',
+            f.className,
+          )}
+        >
+          {f.label}
+        </button>
+      ))}
+      <span className="ml-1.5 text-[11.5px] text-faint">Select text in the note to style it</span>
     </div>
   );
 }

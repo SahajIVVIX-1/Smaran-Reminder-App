@@ -1,7 +1,7 @@
 {
   "name": "smaran",
   "productName": "Smaran",
-  "version": "2.11.3",
+  "version": "2.12.0",
   "description": "Styled, always-on-top reminder popups shown in bursts on schedules.",
   "author": "SahajS",
   "license": "UNLICENSED",
@@ -22,7 +22,7 @@
     "test:e2e": "npm run build && playwright test",
     "test:smoke": "playwright test -c playwright.smoke.config.ts",
     "build": "npm run typecheck && electron-vite build",
-    "build:win": "npm run build && node scripts/prepare-release-dirs.mjs && electron-builder --win --x64",
+    "build:win": "npm run build && node scripts/prepare-release-dirs.mjs && electron-builder --win --x64 && node scripts/make-setup.mjs",
     "build:unpack": "npm run build && electron-builder --win --x64 --dir",
     "icon": "node scripts/make-icon.mjs"
   },

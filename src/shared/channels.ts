@@ -37,6 +37,10 @@ export const IPC = {
   logoFrame: 'logo:frame',
   logoState: 'logo:state',
   logoGet: 'logo:get',
+  setupInit: 'setup:init',
+  setupProgress: 'setup:progress',
+  setupRetry: 'setup:retry',
+  setupClose: 'setup:close',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];

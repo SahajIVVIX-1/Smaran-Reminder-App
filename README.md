@@ -36,6 +36,11 @@ release/<version>/
 
 The version comes from `package.json`. Bump it before a new release build.
 
+The installer and the portable exe are the same file: `scripts/make-setup.mjs` copies the portable
+exe to the Setup name, and when Smaran starts under a name containing "Setup" it shows its own
+installer window (`src/main/setup`) and installs itself to `%LOCALAPPDATA%\Programs\smaran`
+(or over an earlier install). Settings › Apps runs `Smaran.exe --uninstall`.
+
 ## Where data lives
 
 - Installed: `%APPDATA%\Smaran\config.json` (reminders and settings; 5 rolling backups in `backups\`)

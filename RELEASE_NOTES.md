@@ -1,3 +1,18 @@
+# Smaran 2.12.0
+
+- **A new installer.** Smaran Setup is now a floating Smaran card that stays on top, with the
+  colour light running round its border, liquid dots, a progress bar and a twinkling spinner with
+  rotating words. It starts installing as soon as you open it (no wizard pages) and opens Smaran
+  when it is done. Updating over an earlier version keeps your reminders and settings.
+- **Uninstall** from Settings › Apps as before: it removes the shortcuts and start-at-login entry
+  and asks whether to delete your messages and settings.
+- **Bold, italic, underline and strikethrough in notes.** Select words in a reminder's note and
+  click B, I, U or S (or press Ctrl+B, Ctrl+I, Ctrl+U, Ctrl+Shift+X). The note shows the style on
+  the notification card. Rotating lines accept the same marks: `**bold**`, `*italic*`,
+  `__underline__`, `~~strike~~`.
+
+---
+
 # Smaran 2.11.3
 
 - **Liquid merge, smooth for real.** With Liquid Merge on, the dots are drawn at twice the size on

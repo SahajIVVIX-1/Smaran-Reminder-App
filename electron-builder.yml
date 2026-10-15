@@ -2,6 +2,10 @@
 #   release/<version>/installer/Smaran-Setup-<version>.exe
 #   release/<version>/portable/Smaran-<version>-portable.exe
 #   release/<version>/win-unpacked/   (unpacked app, useful for quick testing)
+#
+# Only the portable exe is built here. scripts/make-setup.mjs copies it to the Setup name;
+# run under that name, the app installs itself with its own animated window (src/main/setup)
+# instead of the old NSIS wizard.
 appId: com.sahaj.smaran
 productName: Smaran
 directories:
@@ -16,27 +20,7 @@ extraResources:
 win:
   icon: build/icon.ico
   target:
-    - target: nsis
-      arch: [x64]
     - target: portable
       arch: [x64]
-nsis:
-  artifactName: installer/${productName}-Setup-${version}.${ext}
-  oneClick: false
-  perMachine: false
-  allowToChangeInstallationDirectory: true
-  createDesktopShortcut: true
-  createStartMenuShortcut: true
-  shortcutName: Smaran
-  runAfterFinish: true
-  license: build/license.txt
-  deleteAppDataOnUninstall: false
-  include: build/installer.nsh
-  # The app icon (resources/icon.png -> build/icon.ico) on the installer and its screens.
-  installerIcon: build/icon.ico
-  uninstallerIcon: build/icon.ico
-  installerSidebar: build/installerSidebar.bmp
-  uninstallerSidebar: build/installerSidebar.bmp
-  installerHeader: build/installerHeader.bmp
 portable:
   artifactName: portable/${productName}-${version}-portable.${ext}

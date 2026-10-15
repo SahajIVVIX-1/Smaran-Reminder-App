@@ -318,3 +318,21 @@ body {
 .no-drag {
   -webkit-app-region: no-drag;
 }
+
+/* Installer progress bar: the border light's colours, flowing along the fill. */
+.setup-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #4285f4, #ea4335, #fbbc05, #34a853, #4285f4) 0 0 / 200% 100%;
+  transition: width 320ms linear;
+  animation: setup-flow 1.6s linear infinite;
+}
+.setup-bar--done {
+  background: var(--ok);
+  animation: none;
+}
+@keyframes setup-flow {
+  to {
+    background-position: -200% 0;
+  }
+}

@@ -63,14 +63,18 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
   },
 );
 
-export function TextArea({ className, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export const TextArea = forwardRef<
+  HTMLTextAreaElement,
+  TextareaHTMLAttributes<HTMLTextAreaElement>
+>(function TextArea({ className, ...rest }, ref) {
   return (
     <textarea
+      ref={ref}
       className={cx(field, 'min-h-20 w-full resize-y py-2 leading-relaxed', className)}
       {...rest}
     />
   );
-}
+});
 
 /** Number box with themed − / + steppers. */
 export function NumberField({

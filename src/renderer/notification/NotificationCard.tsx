@@ -11,6 +11,7 @@ import type { NotificationAction, NotificationLook, NotificationRequest } from '
 import { separator } from '@shared/menu';
 import type { SceneKey } from '@shared/dots/dotsScenes';
 import { SmaranDots } from '../dots';
+import { RichText } from '../RichText';
 import { playChime } from './chime';
 
 /** Expanded card widths: small, like a phone banner. */
@@ -333,8 +334,8 @@ export function NotificationCard({
                   {request.title}
                 </div>
                 {request.body && (
-                  <div className="mt-0.5 line-clamp-2 font-serif text-[13px] leading-snug text-muted italic">
-                    {request.body}
+                  <div className="mt-0.5 line-clamp-2 font-serif text-[13px] leading-snug text-muted">
+                    <RichText text={request.body} />
                   </div>
                 )}
               </div>

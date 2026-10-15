@@ -1,5 +1,6 @@
 import { app, dialog } from 'electron';
 import { registerIpcHandlers } from './ipc/handlers';
+import { isSetupRun, isUninstallRun, QUIT_ARG, runSetup, runUninstall } from './setup';
 import { SmaranApp } from './SmaranApp';
 import { chooseDataFolder } from './system/dataFolder';
 import { registerFontScheme } from './system/fonts';
@@ -7,20 +8,29 @@ import { launchedHidden } from './system/loginItem';
 
 const APP_ID = 'com.sahaj.smaran';
 
-// Portable build: keep data beside the exe when that folder is writable. Must run before 'ready'.
-const data = chooseDataFolder(process.env['PORTABLE_EXECUTABLE_DIR'], app.getPath('userData'));
-if (data.dir !== app.getPath('userData')) app.setPath('userData', data.dir);
+// The same exe also installs (as Smaran-Setup-<version>.exe) and uninstalls (--uninstall).
+if (isSetupRun()) runSetup();
+else if (isUninstallRun()) runUninstall();
+else runApp();
 
-registerFontScheme();
+function runApp(): void {
+  // Portable build: keep data beside the exe when that folder is writable. Must run before 'ready'.
+  const data = chooseDataFolder(process.env['PORTABLE_EXECUTABLE_DIR'], app.getPath('userData'));
+  if (data.dir !== app.getPath('userData')) app.setPath('userData', data.dir);
 
-// Only one Smaran may run. A second launch opens the first one's window and exits.
-if (!app.requestSingleInstanceLock()) {
-  app.quit();
-} else {
+  registerFontScheme();
+
+  // Only one Smaran may run. A second launch opens the first one's window and exits.
+  // Setup and uninstall launch it with --quit to close the running one before replacing it.
+  if (!app.requestSingleInstanceLock() || process.argv.includes(QUIT_ARG)) {
+    app.quit();
+    return;
+  }
   let smaran: SmaranApp | null = null;
 
-  app.on('second-instance', () => {
-    smaran?.openApp();
+  app.on('second-instance', (_event, argv) => {
+    if (argv.includes(QUIT_ARG)) app.quit();
+    else smaran?.openApp();
   });
 
   app.whenReady().then(() => {
