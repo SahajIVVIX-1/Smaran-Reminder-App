@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Smaran: Register a License</title>
+    <link rel="icon" type="image/png" href="../icon.png" />
+    <link rel="stylesheet" href="../style.css" />
+    <link rel="stylesheet" href="register.css" />
+    <script>
+      try {
+        const saved = localStorage.getItem('smaran-theme');
+        if (saved === 'light' || saved === 'dark') document.documentElement.dataset.theme = saved;
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <header class="top">
+      <div class="wrap">
+        <a class="brand" href="../" aria-label="Smaran home">
+          <svg data-dots="smark,dance" data-hold="4" width="30" height="30"></svg>
+          <em>Smaran</em>
+        </a>
+        <span class="crumb">Register</span>
+      </div>
+    </header>
+
+    <main class="wrap reg">
+      <section>
+        <p class="eyebrow">Licenses</p>
+        <h1>Register a <em>license</em></h1>
+        <p class="intro">
+          Enter who the license is for and for how long. This page makes a PNG with the signed
+          license hidden in its pixels. Signing happens in this browser with the private key file
+          you choose; the key is never uploaded anywhere.
+        </p>
+
+        <form id="form" class="panel" novalidate>
+          <label class="field">
+            <span>Name</span>
+            <input id="name" name="name" type="text" maxlength="120" autocomplete="off" required placeholder="Full name" />
+          </label>
+          <label class="field">
+            <span>Duration</span>
+            <span class="years">
+              <input id="years" name="years" type="number" min="1" max="100" value="1" required />
+              <span>year(s)</span>
+            </span>
+          </label>
+          <label class="field">
+            <span>Signing key</span>
+            <input id="key" type="file" accept=".json,application/json" required />
+            <small>Your <code>private-key.json</code>, from <code>%USERPROFILE%\.smaran-license</code>. It stays on this PC.</small>
+          </label>
+          <label class="check">
+            <input id="ip" type="checkbox" />
+            <span>
+              Include this computer’s public IP address in the license.
+              <small>If ticked, this page asks <code>api.ipify.org</code> for the address; it is stored inside the license and shown in the app. Off by default.</small>
+            </span>
+          </label>
+          <div class="actions">
+            <button class="btn btn-primary" type="submit" id="make">Create License</button>
+          </div>
+          <p id="message" class="message" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <section id="result" class="panel result" hidden>
+        <img id="preview" alt="The license image" />
+        <dl id="details"></dl>
+        <div class="actions">
+          <a class="btn btn-primary" id="png" download>Download PNG (use this)</a>
+          <a class="btn btn-secondary" id="jpg" download>Download JPG</a>
+        </div>
+        <p class="note">
+          Give the licensee the <strong>PNG</strong>. In Smaran they import it under License, or
+          when Setup asks for it. The JPG copy carries the license in a hidden comment instead of
+          its pixels; editing or re-saving either file usually destroys the license.
+        </p>
+      </section>
+    </main>
+
+    <canvas id="canvas" width="1200" height="750" hidden></canvas>
+    <script src="../dots.js"></script>
+    <script type="module" src="register.js"></script>
+  </body>
+</html>
