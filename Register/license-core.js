@@ -10,6 +10,11 @@ var SIGNATURE_BYTES = 64;
 var MAX_PAYLOAD = 16 * 1024;
 var MAX_YEARS = 100;
 var MAX_NAME = 120;
+function isIp(value) {
+  if (typeof value !== "string" || value.length > 45) return false;
+  const v4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+  return v4.test(value) || /^[0-9a-f:.]+$/i.test(value) && value.includes(":");
+}
 var LicenseError = class extends Error {
   constructor(code, message) {
     super(message);
@@ -33,6 +38,8 @@ function cleanName(name) {
 }
 function buildPayload(input) {
   const name = cleanName(input.name);
+  if (!isIp(input.ip))
+    throw new LicenseError("damaged", "The IP address used to make the license is missing.");
   if (!name) throw new LicenseError("damaged", "Enter the licensee\u2019s name.");
   if (name.length > MAX_NAME) throw new LicenseError("damaged", "The name is too long.");
   if (!Number.isInteger(input.years) || input.years < 1 || input.years > MAX_YEARS)
@@ -46,14 +53,19 @@ function buildPayload(input) {
     issued: input.now.toISOString(),
     expires: addYears(input.now, input.years).toISOString(),
     issuer: input.issuer,
-    ...input.ip ? { ip: input.ip } : {}
+    ip: input.ip
   };
 }
 var isIso = (s) => typeof s === "string" && !Number.isNaN(Date.parse(s));
 function parsePayload(value) {
   const p = value;
-  const ok = typeof p === "object" && p !== null && p.v === FORMAT_VERSION && typeof p.product === "string" && typeof p.id === "string" && p.id.length > 0 && p.id.length <= 64 && typeof p.name === "string" && p.name.length > 0 && p.name.length <= MAX_NAME && typeof p.years === "number" && Number.isInteger(p.years) && p.years >= 1 && p.years <= MAX_YEARS && isIso(p.issued) && isIso(p.expires) && typeof p.issuer === "string" && (p.ip === void 0 || typeof p.ip === "string" && p.ip.length <= 64);
+  const ok = typeof p === "object" && p !== null && p.v === FORMAT_VERSION && typeof p.product === "string" && typeof p.id === "string" && p.id.length > 0 && p.id.length <= 64 && typeof p.name === "string" && p.name.length > 0 && p.name.length <= MAX_NAME && typeof p.years === "number" && Number.isInteger(p.years) && p.years >= 1 && p.years <= MAX_YEARS && isIso(p.issued) && isIso(p.expires) && typeof p.issuer === "string";
   if (!ok) throw new LicenseError("damaged", "The license data inside this image is damaged.");
+  if (!isIp(p.ip))
+    throw new LicenseError(
+      "damaged",
+      "This license is from an older version and doesn\u2019t include the IP address it was issued from. Ask for a new license."
+    );
   return p;
 }
 function checkPayload(payload, now) {
@@ -383,6 +395,7 @@ export {
   encodePng,
   extractBits,
   fromBase64,
+  isIp,
   isJpeg,
   isPng,
   jpegLicense,
