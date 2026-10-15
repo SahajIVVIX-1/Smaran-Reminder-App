@@ -110,7 +110,7 @@ export interface AppInfo {
 export type FontsAddResult =
   { ok: true; added: string[]; skipped: string[] } | { ok: false; error: string };
 
-export type Route = 'today' | 'reminders' | 'automations' | 'history' | 'settings';
+export type Route = 'today' | 'reminders' | 'automations' | 'history' | 'license' | 'settings';
 
 // ---------- automations ----------
 

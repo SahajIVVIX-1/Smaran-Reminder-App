@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /Smaran-Reminder-App/Register/
+Disallow: /Smaran-Reminder-App/register/
+Disallow: /Register/
+Disallow: /register/

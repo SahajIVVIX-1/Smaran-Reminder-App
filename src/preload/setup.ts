@@ -9,6 +9,7 @@ const CH = {
   setupProgress: 'setup:progress',
   setupRetry: 'setup:retry',
   setupClose: 'setup:close',
+  setupLicense: 'setup:license',
 } as const satisfies Partial<typeof IPC>;
 
 const api = {
@@ -20,6 +21,8 @@ const api = {
   },
   retry: (): void => ipcRenderer.send(CH.setupRetry),
   close: (): void => ipcRenderer.send(CH.setupClose),
+  /** Opens a picker for the license image; installing starts once it is accepted. */
+  chooseLicense: (): void => ipcRenderer.send(CH.setupLicense),
 };
 
 export type SmaranSetupApi = typeof api;

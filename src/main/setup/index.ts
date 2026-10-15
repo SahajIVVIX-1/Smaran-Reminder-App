@@ -4,6 +4,8 @@ import { basename, dirname, join } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain, nativeImage, nativeTheme } from 'electron';
 import { IPC } from '@shared/ipc';
 import type { SetupInit, SetupProgress } from '@shared/setup';
+import { decodeWithNativeImage, pickAndImport } from '../license/ipc';
+import { LicenseStore } from '../license/LicenseStore';
 import { iconPath } from '../tray/Tray';
 import { loadRenderer, preloadPath } from '../windows/loadRenderer';
 import { chooseTarget, install, launchInstalled, QUIT_ARG } from './install';
@@ -48,6 +50,8 @@ function friendly(error: unknown): string {
 
 /** Shows the setup window and installs straight away. */
 export function runSetup(): void {
+  // Where the installed Smaran keeps its data (and its license): %APPDATA%\Smaran.
+  const dataDir = app.getPath('userData');
   // Keep the setup's own browser data out of the real Smaran folder.
   app.setPath('userData', join(app.getPath('temp'), 'smaran-setup'));
   app.on('window-all-closed', () => app.quit());
@@ -98,6 +102,23 @@ export function runSetup(): void {
       }
     };
 
+    // Smaran installs only with a valid license: one already on this PC, or an image chosen here.
+    const license = new LicenseStore(dataDir, { decodeOther: decodeWithNativeImage });
+    const askForLicense = (error?: string) =>
+      send({ phase: 'license', progress: 0, ...(error ? { error } : {}) });
+    let choosing = false;
+    ipcMain.on(IPC.setupLicense, (event) => {
+      if (event.sender !== win.webContents || running || choosing) return;
+      choosing = true;
+      void pickAndImport(license, win).then((result) => {
+        choosing = false;
+        if (result.ok) {
+          send({ phase: 'preparing', progress: 0, licensee: result.info.license?.name });
+          void start();
+        } else if (!('canceled' in result)) askForLicense(result.error);
+      });
+    });
+
     ipcMain.on(IPC.setupRetry, (event) => {
       if (event.sender === win.webContents) void start();
     });
@@ -116,6 +137,11 @@ export function runSetup(): void {
         target,
       };
       win.webContents.send(IPC.setupInit, init);
+      const current = license.info();
+      if (current.status !== 'valid') {
+        askForLicense(current.status === 'missing' ? undefined : (current.message ?? undefined));
+        return;
+      }
       // A moment for the window to appear before the work starts.
       setTimeout(() => void start(), 700);
     });
@@ -168,11 +194,12 @@ export function runUninstall(): void {
     if (data.response === 1) fs.rmSync(dataDir, { recursive: true, force: true });
 
     // The running exe can't delete its own folder: a hidden shell does it once we have exited.
-    spawn(
-      'cmd.exe',
-      ['/d', '/s', '/c', `"ping -n 4 127.0.0.1 >nul & rmdir /s /q "${dir}""`],
-      { detached: true, stdio: 'ignore', windowsHide: true, windowsVerbatimArguments: true },
-    ).unref();
+    spawn('cmd.exe', ['/d', '/s', '/c', `"ping -n 4 127.0.0.1 >nul & rmdir /s /q "${dir}""`], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+      windowsVerbatimArguments: true,
+    }).unref();
     app.quit();
   });
 }

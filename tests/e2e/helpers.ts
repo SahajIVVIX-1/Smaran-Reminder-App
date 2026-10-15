@@ -34,7 +34,11 @@ export async function launch(
   const userData = mkdtempSync(join(tmpdir(), 'smaran-e2e-'));
   if (seed) writeFileSync(join(userData, 'config.json'), JSON.stringify(seed, null, 2));
   if (history.length) writeFileSync(join(userData, 'history.json'), JSON.stringify(history));
-  const app = await electron.launch({ args: ['.', `--user-data-dir=${userData}`, ...extraArgs] });
+  // Development builds may skip the license check; packaged builds never can.
+  const app = await electron.launch({
+    args: ['.', `--user-data-dir=${userData}`, ...extraArgs],
+    env: { ...process.env, SMARAN_LICENSE_CHECK: 'off' },
+  });
   const page = await appWindow(app);
   return {
     app,

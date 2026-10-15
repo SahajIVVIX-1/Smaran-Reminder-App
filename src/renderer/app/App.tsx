@@ -15,6 +15,7 @@ import {
   BoltIcon,
   ClockIcon,
   GearIcon,
+  KeyIcon,
   MoonIcon,
   PlusIcon,
   SparkIcon,
@@ -22,6 +23,7 @@ import {
 } from './icons';
 import { Automations } from './pages/Automations';
 import { History } from './pages/History';
+import { License } from './pages/License';
 import { Reminders } from './pages/Reminders';
 import { Settings } from './pages/Settings';
 import { Today } from './pages/Today';
@@ -139,6 +141,8 @@ export function App() {
               <Automations />
             ) : route === 'history' ? (
               <History />
+            ) : route === 'license' ? (
+              <License />
             ) : (
               <Settings />
             )}
@@ -257,6 +261,13 @@ function Sidebar() {
             </div>
           )}
         </div>
+        <NavItem
+          active={route === 'license'}
+          onClick={() => go('license')}
+          icon={<KeyIcon size={16} />}
+        >
+          License
+        </NavItem>
         <NavItem
           active={route === 'settings'}
           onClick={() => go('settings')}

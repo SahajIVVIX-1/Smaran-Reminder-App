@@ -46,9 +46,16 @@ export function SetupCard({ init }: { init: SetupInit }) {
   const [glyph, setGlyph] = useState(0);
   const [verb, setVerb] = useState(() => pick(-1));
   const [seconds, setSeconds] = useState(0);
-  const working = state.phase !== 'done' && state.phase !== 'error';
+  const working = state.phase !== 'done' && state.phase !== 'error' && state.phase !== 'license';
 
-  useEffect(() => window.smaranSetup.onProgress(setState), []);
+  // The licensee's name stays once known, as the install goes on.
+  useEffect(
+    () =>
+      window.smaranSetup.onProgress((next) =>
+        setState((prev) => ({ ...next, licensee: next.licensee ?? prev.licensee })),
+      ),
+    [],
+  );
 
   useEffect(() => {
     if (!working) return undefined;
@@ -74,10 +81,7 @@ export function SetupCard({ init }: { init: SetupInit }) {
 
   return (
     <div className="grid h-screen place-items-center p-[22px] select-none">
-      <div
-        className="drag relative w-full animate-modal rounded-[22px]"
-        data-testid="setup"
-      >
+      <div className="drag relative w-full animate-modal rounded-[22px]" data-testid="setup">
         <div className="glass-card absolute inset-0" style={{ borderRadius: 'inherit' }} />
 
         <div className="relative px-6 pt-5 pb-5">
@@ -87,20 +91,55 @@ export function SetupCard({ init }: { init: SetupInit }) {
                 size={64}
                 goo
                 interactive={false}
-                scene={state.phase === 'done' ? 'check' : state.phase === 'error' ? 'cross' : undefined}
+                scene={
+                  state.phase === 'done' ? 'check' : state.phase === 'error' ? 'cross' : undefined
+                }
               />
             </span>
             <div className="min-w-0">
               <div className="font-serif text-[23px] leading-tight font-semibold text-ink">
-                {state.phase === 'done' ? 'Smaran is ready' : 'Installing Smaran'}
+                {state.phase === 'done'
+                  ? 'Smaran is ready'
+                  : state.phase === 'license'
+                    ? 'Your License, Please'
+                    : 'Installing Smaran'}
               </div>
               <div className="mt-0.5 text-[12px] text-muted">
-                Version {init.version} · Gentle reminders, on your schedule
+                Version {init.version} ·{' '}
+                {state.licensee
+                  ? `Licensed to ${state.licensee}`
+                  : 'Gentle reminders, on your schedule'}
               </div>
             </div>
           </div>
 
-          {state.phase === 'error' ? (
+          {state.phase === 'license' ? (
+            <div className="mt-4">
+              <p
+                className={`text-[12.5px] leading-snug ${state.error ? 'text-danger' : 'text-muted'}`}
+                role={state.error ? 'alert' : undefined}
+              >
+                {state.error ??
+                  'Smaran installs with a license. Choose the license image (PNG) you received.'}
+              </p>
+              <div className="no-drag relative z-10 mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.smaranSetup.chooseLicense()}
+                  className="h-[30px] flex-1 rounded-[10px] bg-accent text-[12.5px] font-medium text-on-accent hover:bg-accent-hover"
+                >
+                  Choose License Image…
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.smaranSetup.close()}
+                  className="glass-button h-[30px] flex-1 rounded-[10px] text-[12.5px] font-medium text-ink"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : state.phase === 'error' ? (
             <div className="mt-4">
               <p className="text-[12.5px] leading-snug text-danger">{state.error}</p>
               {/* Buttons sit outside the drag area, or Windows swallows their clicks. */}

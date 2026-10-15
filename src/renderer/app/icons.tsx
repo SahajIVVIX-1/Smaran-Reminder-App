@@ -113,6 +113,12 @@ export const SparkIcon = (p: IconProps) => (
     <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.3 6.3l2.5 2.5M15.2 15.2l2.5 2.5M6.3 17.7l2.5-2.5M15.2 8.8l2.5-2.5" />
   </Icon>
 );
+export const KeyIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="8" cy="15" r="4" />
+    <path d="M10.8 12.2L20 3M16 7l3 3M14 9l2 2" />
+  </Icon>
+);
 export const BoltIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M13 2L4 14h7l-1 8 9-12h-7z" />

@@ -64,6 +64,25 @@ src/renderer/  app/ (Today, Reminders, Automations, History, Settings), notifica
 tests/         unit/ (Vitest), e2e/ (Playwright + Electron), smoke/ (packaged build), fixtures/
 ```
 
+## Licenses
+
+Smaran installs and opens only with a valid license image (see `src/shared/license/core.ts` for
+the format: an Ed25519-signed payload hidden in a PNG's pixel low bits; JPGs carry it in a
+comment segment). The app checks it offline with the public key in
+`src/shared/license/publicKey.ts` and keeps the verified license in `license.json` in the data
+folder.
+
+| Command                                              | What it does                                                        |
+| ---------------------------------------------------- | ------------------------------------------------------------------- |
+| `npm run license:keygen`                             | Make the signing key (once) in `%USERPROFILE%\.smaran-license`, and write the public key into the app |
+| `npm run license:sign -- --name "Asha Rao" --years 2` | Issue a license PNG from the command line                          |
+| `npm run license:core`                               | Re-bundle the format for the Register page and the signing script after changing `core.ts` |
+
+The private key never goes in this repository or on the website: the unlisted
+`/Register/` page signs in the browser with the key file you pick. Back the key up; whoever has
+it can issue licenses. Development runs may skip the check with `SMARAN_LICENSE_CHECK=off`;
+packaged builds never can. Offline licensing deters copying but can't make it impossible.
+
 ## Signing
 
 Builds are unsigned, so SmartScreen warns on first run. To sign, add a certificate to

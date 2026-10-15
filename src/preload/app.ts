@@ -15,6 +15,7 @@ import type {
   SaveResult,
 } from '@shared/ipc';
 import type { FontCatalog } from '@shared/fonts';
+import type { LicenseImportResult, LicenseInfo } from '@shared/license/info';
 import type { LogoState } from '@shared/logoState';
 import type { Config, HistoryEntry, Id } from '@shared/schema';
 
@@ -44,6 +45,13 @@ const api = {
     showNow: (reminderId: Id): Promise<boolean> => ipcRenderer.invoke(IPC.showNow, { reminderId }),
     test: (request: NotifyTestRequest): Promise<void> =>
       ipcRenderer.invoke(IPC.notifyTest, request),
+  },
+  license: {
+    get: (): Promise<LicenseInfo> => ipcRenderer.invoke(IPC.licenseGet),
+    /** Opens a file picker and imports (or replaces) the license image. */
+    import: (): Promise<LicenseImportResult> => ipcRenderer.invoke(IPC.licenseImport),
+    onChanged: (listener: (info: LicenseInfo) => void): (() => void) =>
+      subscribe(IPC.licenseChanged, listener),
   },
   automations: {
     nextTimes: (): Promise<AutomationNext[]> => ipcRenderer.invoke(IPC.automationsNext),

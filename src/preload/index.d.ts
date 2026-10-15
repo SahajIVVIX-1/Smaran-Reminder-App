@@ -3,6 +3,7 @@ import type { SmaranLogoApi } from './trayart';
 import type { SmaranMenuApi } from './menu';
 import type { SmaranNotificationApi } from './notification';
 import type { SmaranSetupApi } from './setup';
+import type { SmaranLicenseApi } from './license';
 
 declare global {
   interface Window {
@@ -11,6 +12,7 @@ declare global {
     smaranMenu: SmaranMenuApi;
     smaranLogo: SmaranLogoApi;
     smaranSetup: SmaranSetupApi;
+    smaranLicense: SmaranLicenseApi;
   }
 }
 

@@ -1,3 +1,25 @@
+# Smaran 2.15.0
+
+- **Licenses.** Smaran now needs a license to install and to open. A license is a PNG image with
+  the license signed and hidden inside its pixels: who it's for, a unique ID, the product,
+  issue and expiry dates, the duration, and the issuer's IP address only if they chose to include it.
+  - **Activate:** Setup asks for the license image before installing (unless this PC already has
+    one), and Smaran shows a license screen (Import or Quit) until a valid one is imported.
+  - **License page:** a new page above Settings shows the status, name, ID, duration, issue and
+    expiry dates, and lets you import or replace the license.
+  - **Checked offline:** Smaran verifies the image's Ed25519 signature, the product and the
+    dates on this PC, keeps the verified license locally and needs no internet. An edited or
+    forged license, an expired one, or a clock set back is refused, and a refused image never
+    replaces a working license. Smaran checks again every hour while it runs.
+  - **PNG first:** JPG copies carry the license in a hidden comment and usually work, but
+    converting, resizing or editing an image can erase the license, so keep the original PNG.
+  - Like any offline licensing, this makes copying hard but can't make it impossible.
+- **Issuing licenses** (for the publisher): `npm run license:keygen` makes the signing key on your
+  PC, outside the project; the unlisted Register page on the website or
+  `npm run license:sign -- --name "…" --years N` makes license images with it.
+
+---
+
 # Smaran 2.14.0
 
 - **Automations.** A new page in the sidebar runs tasks for you, like a friendly Task Scheduler.
