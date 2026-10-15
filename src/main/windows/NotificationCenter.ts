@@ -101,6 +101,8 @@ export class NotificationCenter implements Notifier {
 
   show(request: NotificationRequest): void {
     const settings = this.settings();
+    // A reminder's own card shape wins over the one in Settings.
+    const shape = request.card ?? settings.notification.card;
     const look: NotificationLook = {
       theme:
         settings.theme === 'system'
@@ -110,15 +112,15 @@ export class NotificationCenter implements Notifier {
           : settings.theme,
       size: settings.notification.size,
       card: {
-        width: settings.notification.card.width ?? CARD_WIDTH[settings.notification.size],
-        height: settings.notification.card.height,
-        radius: settings.notification.card.radius,
+        width: shape.width ?? CARD_WIDTH[settings.notification.size],
+        height: shape.height,
+        radius: shape.radius,
       },
       font: settings.font,
       faces: this.faces(),
     };
     // First guess; the card reports its real size (card + shadow room).
-    const width = settings.notification.card.width
+    const width = shape.width
       ? look.card.width + WINDOW_WIDTH.comfortable - CARD_WIDTH.comfortable
       : WINDOW_WIDTH[look.size];
     const win = new BrowserWindow({

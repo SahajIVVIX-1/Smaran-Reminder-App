@@ -505,6 +505,7 @@ export class Engine {
         : (reminder.hideAfterSec ?? settings.notification.hideAfterSec),
       sound: reminder.sound === 'default' ? settings.notification.sound : reminder.sound === 'on',
       animation: reminder.animation,
+      ...(reminder.card ? { card: reminder.card } : {}),
     });
   }
 

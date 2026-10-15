@@ -1,3 +1,16 @@
+# Smaran 2.16.2
+
+- **Uninstalling always works.** If Smaran was still running (even when it had been started as
+  administrator), the uninstaller couldn't remove it. Setup and the uninstaller now close any
+  running Smaran themselves, asking Windows' permission only when they have to, and wait for its
+  files before removing them.
+- **Setup opens Smaran with your normal rights**, never as administrator.
+- **A shape for each reminder.** In a reminder's editor, Notification Shape lets that reminder's
+  card have its own width, height and corner roundness, with a live preview. Leave "Use the shape
+  from Settings" on to follow Settings.
+
+---
+
 # Smaran 2.16.1
 
 - **Shape your notifications.** Settings › Notifications has sliders for the card's width,

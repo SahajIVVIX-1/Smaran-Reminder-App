@@ -57,6 +57,26 @@ export function isTimeOfDay(rule: Rule): boolean {
   return rule.kind !== 'interval';
 }
 
+// ---------- Notification card shape ----------
+
+/** Notification card width for each size preset (px), unless a custom width is set. */
+export const CARD_WIDTH = { compact: 308, comfortable: 340, large: 384 } as const;
+/** Slider ranges for the custom card shape: [min, max] in px. */
+export const CARD_LIMITS = {
+  width: [260, 560],
+  height: [100, 280],
+  radius: [0, 32],
+} as const;
+export const CARD_RADIUS_DEFAULT = 18;
+
+/** A notification card's shape. width null = the size preset's; height null = fit the content. */
+export const CardShapeSchema = z.object({
+  width: z.number().int().min(CARD_LIMITS.width[0]).max(CARD_LIMITS.width[1]).nullable(),
+  height: z.number().int().min(CARD_LIMITS.height[0]).max(CARD_LIMITS.height[1]).nullable(),
+  radius: z.number().int().min(CARD_LIMITS.radius[0]).max(CARD_LIMITS.radius[1]),
+});
+export type CardShape = z.infer<typeof CardShapeSchema>;
+
 // ---------- Reminder ----------
 
 export const COLORS = ['clay', 'amber', 'olive', 'sage', 'sky', 'iris', 'rose', 'slate'] as const;
@@ -86,6 +106,8 @@ export const ReminderSchema = z.object({
   sound: z.enum(['default', 'on', 'off']),
   /** The Smaran dots on its notification: 'auto' (dance and form shapes) or one animation's key. */
   animation: z.string().min(1).max(60),
+  /** This reminder's own notification shape; absent = the one in Settings. */
+  card: CardShapeSchema.optional(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });
@@ -102,16 +124,6 @@ export const CORNERS = [
 ] as const;
 
 const FamiliesSchema = z.array(z.string().min(1).max(60)).max(30);
-
-/** Notification card width for each size preset (px), unless a custom width is set. */
-export const CARD_WIDTH = { compact: 308, comfortable: 340, large: 384 } as const;
-/** Slider ranges for the custom card shape: [min, max] in px. */
-export const CARD_LIMITS = {
-  width: [260, 560],
-  height: [100, 280],
-  radius: [0, 32],
-} as const;
-export const CARD_RADIUS_DEFAULT = 18;
 
 export const LogoSettingsSchema = z.object({
   /** Let the title-bar dots move at all. */
@@ -152,12 +164,8 @@ export const SettingsSchema = z.object({
     size: z.enum(['compact', 'comfortable', 'large']),
     sound: z.boolean(),
     hideAfterSec: z.number().int().min(3).max(600),
-    /** Every notification card's shape. null = the size preset's width / fit the content. */
-    card: z.object({
-      width: z.number().int().min(CARD_LIMITS.width[0]).max(CARD_LIMITS.width[1]).nullable(),
-      height: z.number().int().min(CARD_LIMITS.height[0]).max(CARD_LIMITS.height[1]).nullable(),
-      radius: z.number().int().min(CARD_LIMITS.radius[0]).max(CARD_LIMITS.radius[1]),
-    }),
+    /** Every notification card's shape (a reminder can override it). */
+    card: CardShapeSchema,
   }),
   quietHours: z
     .object({ enabled: z.boolean(), from: TimeSchema, to: TimeSchema })

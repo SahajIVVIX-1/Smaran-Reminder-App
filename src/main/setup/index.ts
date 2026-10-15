@@ -48,7 +48,7 @@ const WM_POPUPSYSTEMMENU = 0x0313;
 function friendly(error: unknown): string {
   const e = error as NodeJS.ErrnoException;
   if (e?.code === 'EBUSY' || e?.code === 'EPERM' || e?.code === 'EACCES')
-    return 'Some Smaran files are in use. Quit Smaran from the tray, then try again.';
+    return 'Windows didn’t let go of some files in time. Press Try Again.';
   return e?.message || String(error);
 }
 
@@ -217,7 +217,9 @@ export function runUninstall(): void {
       }
       setTimeout(() => {
         // The running exe can't delete its own folder: a hidden shell does it once we have exited.
-        spawn('cmd.exe', ['/d', '/s', '/c', `"ping -n 4 127.0.0.1 >nul & rmdir /s /q "${dir}""`], {
+        // A second try a few seconds later catches files Windows was still releasing.
+        const rm = `ping -n 4 127.0.0.1 >nul & rmdir /s /q "${dir}"`;
+        spawn('cmd.exe', ['/d', '/s', '/c', `"${rm} & ${rm} & ${rm}"`], {
           detached: true,
           stdio: 'ignore',
           windowsHide: true,
@@ -262,6 +264,15 @@ function deleteUserData(dataDir: string): void {
   if (!fs.existsSync(dataDir)) return;
   for (const name of fs.readdirSync(dataDir)) {
     if (name === LICENSE_FILE) continue;
-    fs.rmSync(join(dataDir, name), { recursive: true, force: true });
+    try {
+      fs.rmSync(join(dataDir, name), {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 300,
+      });
+    } catch {
+      // Best effort: a cache file Windows still holds is left behind rather than stopping here.
+    }
   }
 }

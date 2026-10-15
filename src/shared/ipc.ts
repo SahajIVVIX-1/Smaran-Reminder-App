@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { CustomFont } from './fonts';
-import { ColorSchema, IdSchema, type Id, type ReminderColor } from './schema';
+import { ColorSchema, IdSchema, type CardShape, type Id, type ReminderColor } from './schema';
 
 export { IPC, type IpcChannel } from './channels';
 
@@ -30,6 +30,8 @@ export interface NotificationRequest {
    * on hover and shows Run Now / Cancel. 'done' runs it now, 'dismiss' cancels it.
    */
   countdown?: boolean;
+  /** The reminder's own card shape, instead of the one in Settings. */
+  card?: CardShape;
 }
 
 /** What the card tells main. 'expired' = it hid itself without an answer. */

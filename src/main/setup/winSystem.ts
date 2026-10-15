@@ -3,7 +3,8 @@ import { join } from 'node:path';
 import { app, shell } from 'electron';
 
 /** Our entry in Settings › Apps (per user, like the old NSIS installer). */
-export const UNINSTALL_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Smaran';
+export const UNINSTALL_KEY =
+  'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Smaran';
 const UNINSTALL_ROOT = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall';
 const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
 export const APP_ID = 'com.sahaj.smaran';
@@ -17,10 +18,11 @@ function run(file: string, args: string[]): Promise<string> {
   });
 }
 
-const quietly = (p: Promise<unknown>): Promise<void> => p.then(
-  () => undefined,
-  () => undefined,
-);
+const quietly = (p: Promise<unknown>): Promise<void> =>
+  p.then(
+    () => undefined,
+    () => undefined,
+  );
 
 function powershell(command: string): Promise<string> {
   return run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command]);
@@ -45,27 +47,46 @@ export async function countOtherSmarans(): Promise<number> {
   return Number.parseInt(out.trim(), 10) || 0;
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Waits up to `ms` for every other Smaran to be gone; true if they are. */
+async function goneWithin(ms: number): Promise<boolean> {
+  for (let waited = 0; waited <= ms; waited += 300) {
+    if ((await countOtherSmarans()) === 0) return true;
+    await sleep(300);
+  }
+  return false;
+}
+
 /**
- * Closes any running Smaran (installed or portable, wherever it is): first politely, so it
- * saves its history, then by force. A version that predates --quit just opens its window,
- * and is then closed by force.
+ * Closes any running Smaran (installed or portable, wherever it is), so its files can be
+ * replaced or removed: first politely, so it saves its history; then by force; and if it runs
+ * as administrator (so a normal force-close is refused), with Windows' permission prompt.
+ * Returns true once none are left.
  */
-export async function closeOtherSmarans(quitArg: string): Promise<void> {
-  if ((await countOtherSmarans()) === 0) return;
+export async function closeOtherSmarans(quitArg: string): Promise<boolean> {
+  if ((await countOtherSmarans()) === 0) return true;
   // A second Smaran started with --quit tells the running one to quit, then exits itself.
   await new Promise<void>((resolve) =>
     execFile(process.execPath, [quitArg], { env: appEnv(), windowsHide: true }, () => resolve()),
   );
-  for (let i = 0; i < 12; i++) {
-    await new Promise((r) => setTimeout(r, 300));
-    if ((await countOtherSmarans()) === 0) return;
-  }
+  if (await goneWithin(4000)) return true;
+
   await quietly(
     powershell(
       `${others()} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`,
     ),
   );
-  await new Promise((r) => setTimeout(r, 800));
+  if (await goneWithin(1500)) return true;
+
+  // Still there: it was started as administrator. Ask Windows to end just those processes.
+  await quietly(
+    powershell(
+      `$ids = @(${others()} | ForEach-Object { '/PID'; $_.ProcessId }); ` +
+        `if ($ids.Count) { Start-Process -FilePath taskkill.exe -ArgumentList (@('/F','/T') + $ids) -Verb RunAs -WindowStyle Hidden -Wait }`,
+    ),
+  );
+  return goneWithin(4000);
 }
 
 // ---------- registry ----------

@@ -18,6 +18,7 @@ import { Button, IconButton, Input, NumberField, Segmented, Switch, TextArea } f
 import { getScene, type SceneKey } from '@shared/dots/dotsScenes';
 import { SmaranDots } from '../../dots';
 import { RichText } from '../../RichText';
+import { CardShape } from './CardShape';
 import { AnimationBrowser } from './LogoSettings';
 import { ScheduleEditor } from './ScheduleEditor';
 
@@ -387,6 +388,37 @@ export function ReminderEditor() {
                 setChoosingAnimation(false);
               }}
             />
+          </Section>
+
+          <Section
+            title="Notification Shape"
+            hint={
+              form.card
+                ? 'This reminder’s card has its own width, height and corners.'
+                : 'Uses the card shape from Settings.'
+            }
+          >
+            <label className="flex items-center gap-2.5 text-[13px]">
+              <Switch
+                label="Use the shape from Settings"
+                checked={!form.card}
+                onChange={(useDefault) => {
+                  if (useDefault) change({ card: undefined });
+                  else if (config) {
+                    change({ card: { ...config.settings.notification.card } });
+                  }
+                }}
+              />
+              Use the shape from Settings
+            </label>
+            {form.card && config && (
+              <div className="mt-2">
+                <CardShape
+                  n={{ ...config.settings.notification, card: form.card }}
+                  onChange={(card) => change({ card })}
+                />
+              </div>
+            )}
           </Section>
 
           <Section title="Colour">

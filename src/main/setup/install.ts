@@ -65,7 +65,8 @@ function listFiles(source: string, target: string): FileEntry[] {
  */
 export async function install(target: string, report: (p: SetupProgress) => void): Promise<void> {
   const source = dirname(process.execPath);
-  if (same(source, target)) throw new Error('Smaran Setup is already running from the install folder.');
+  if (same(source, target))
+    throw new Error('Smaran Setup is already running from the install folder.');
   if (!replaceable(target))
     throw new Error(`${target} already has other files in it, so Smaran will not overwrite it.`);
 
@@ -110,11 +111,16 @@ export async function install(target: string, report: (p: SetupProgress) => void
   report({ phase: 'done', progress: 1 });
 }
 
+/**
+ * Opens the installed Smaran as the signed-in user. Windows often runs a file named "Setup" as
+ * administrator; started directly, Smaran would inherit that and then couldn't be closed by a
+ * normal uninstall or update. Explorer starts it with the user's normal rights instead.
+ */
 export function launchInstalled(target: string): void {
-  spawn(join(target, EXE_NAME), [], {
-    cwd: target,
-    env: appEnv(),
-    detached: true,
-    stdio: 'ignore',
-  }).unref();
+  const exe = join(target, EXE_NAME);
+  const child = spawn('explorer.exe', [exe], { detached: true, stdio: 'ignore' });
+  child.once('error', () =>
+    spawn(exe, [], { cwd: target, env: appEnv(), detached: true, stdio: 'ignore' }).unref(),
+  );
+  child.unref();
 }
