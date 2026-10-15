@@ -8,8 +8,3 @@ playwright-report/
 .DS_Store
 *.tsbuildinfo
 coverage/
-
-# Smaran license signing key: never commit it (it lives in %USERPROFILE%\.smaran-license)
-private-key.json
-.smaran-license/
-*.smaran-key.json
