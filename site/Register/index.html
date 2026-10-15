@@ -30,11 +30,7 @@
       <section>
         <p class="eyebrow">Licenses</p>
         <h1>Register a <em>license</em></h1>
-        <p class="intro">
-          Enter who the license is for and for how long. This page makes a PNG with the signed
-          license hidden in its pixels. Signing happens in this browser: the passphrase unlocks
-          the signing key here, and neither is ever sent anywhere.
-        </p>
+        <p class="intro">Enter who the license is for and for how long.</p>
 
         <form id="form" class="panel" novalidate>
           <label class="field">
@@ -51,17 +47,12 @@
           <label class="field">
             <span>Passphrase</span>
             <input id="pass" type="password" autocomplete="current-password" spellcheck="false" />
-            <small>Unlocks the signing key in this browser. The passphrase is never sent anywhere.</small>
           </label>
           <details class="field alt-key">
             <summary>Use a key file instead</summary>
             <input id="key" type="file" accept=".json,application/json" />
-            <small>Your <code>private-key.json</code>, from <code>%USERPROFILE%\.smaran-license</code>. It stays on this PC.</small>
           </details>
-          <p class="ip-note" id="ipnote" role="status">
-            Looking up your public IP address…
-            <small>Every license records the public IP address it was made from. This page asks <code>api.ipify.org</code> for it; it is stored inside the license and shown in the app.</small>
-          </p>
+          <p class="ip-note" id="ipnote" role="status">Looking up your IP address…</p>
           <div class="actions">
             <button class="btn btn-primary" type="submit" id="make">Create License</button>
           </div>
@@ -73,13 +64,11 @@
         <img id="preview" alt="The license image" />
         <dl id="details"></dl>
         <div class="actions">
-          <a class="btn btn-primary" id="png" download>Download PNG (use this)</a>
-          <a class="btn btn-secondary" id="jpg" download>Download JPG</a>
+          <a class="btn btn-primary" id="png" download>Download License</a>
         </div>
         <p class="note">
-          Give the licensee the <strong>PNG</strong>. In Smaran they import it under License, or
-          when Setup asks for it. The JPG copy carries the license in a hidden comment instead of
-          its pixels; editing or re-saving either file usually destroys the license.
+          Give this image to the licensee. In Smaran they import it under License, or when Setup
+          asks for it.
         </p>
       </section>
     </main>

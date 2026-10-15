@@ -38,7 +38,7 @@ export function LicenseGate() {
       <p className="mt-2 max-w-[380px] font-serif text-[14.5px] leading-snug text-muted italic">
         {done && info?.license
           ? `Licensed to ${info.license.name} until ${date(info.license.expires)}. Opening Smaran…`
-          : 'Smaran needs a license to open. Import the license image (PNG) you received.'}
+          : 'Smaran needs a license to open. Import your license image.'}
       </p>
 
       {info?.license && !done && (
@@ -78,11 +78,6 @@ export function LicenseGate() {
           </button>
         </div>
       )}
-
-      <p className="mt-8 max-w-[380px] text-[11.5px] leading-snug text-faint">
-        The license is checked on this PC, without the internet. Use the original PNG: converting it
-        to JPG or editing it can erase the license inside.
-      </p>
     </div>
   );
 }

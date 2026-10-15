@@ -1,13 +1,10 @@
-// Makes a Smaran license image in the browser: payload → Ed25519 signature (WebCrypto) → hidden in
-// a PNG's pixels. The signing key comes from key.enc.json, unlocked here with the passphrase, or
-// from a private key file the user picks. Nothing is uploaded.
+// Smaran license registration.
 import {
   buildPayload,
   embedBits,
   encodeContainer,
   extractBits,
   decodeContainer,
-  jpegWithLicense,
   payloadBytes,
 } from './license-core.js';
 
@@ -28,13 +25,12 @@ class WrongPassphrase extends Error {}
 /** The signing key from key.enc.json, unlocked with the passphrase (made by license:seal-key). */
 async function jwkFromPassphrase(pass) {
   if (!crypto.subtle)
-    throw new Error('This page needs a secure (https) connection to unlock the key.');
+    throw new Error('This page can’t work here.');
   const res = await fetch('key.enc.json', { cache: 'no-store' });
-  if (!res.ok)
-    throw new Error('Signing isn’t set up on this site yet. Run npm run license:seal-key first.');
+  if (!res.ok) throw new Error('This page isn’t ready yet.');
   const sealed = await res.json();
   if (sealed.v !== 1 || sealed.kdf !== 'PBKDF2-SHA256')
-    throw new Error('The locked key on this site is in an unknown format.');
+    throw new Error('This page isn’t ready yet.');
   const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
   const base = await crypto.subtle.importKey(
     'raw',
@@ -68,19 +64,16 @@ async function jwkFromFile(file) {
   try {
     return JSON.parse(await file.text());
   } catch {
-    throw new Error('That key file isn’t valid JSON. Choose private-key.json.');
+    throw new Error('That file can’t be used.');
   }
 }
 
 async function importKeys(jwk) {
   if (jwk.kty !== 'OKP' || jwk.crv !== 'Ed25519' || !jwk.d || !jwk.x)
-    throw new Error('That file isn’t a Smaran signing key (Ed25519 private key).');
-  if (jwk.x !== APP_PUBLIC_KEY)
-    throw new Error(
-      'This key doesn’t match the one built into Smaran, so the app would reject its licenses.',
-    );
+    throw new Error('That file can’t be used.');
+  if (jwk.x !== APP_PUBLIC_KEY) throw new Error('That file can’t be used.');
   if (!crypto.subtle)
-    throw new Error('This browser can’t sign here. Use scripts/license-sign.mjs.');
+    throw new Error('This browser isn’t supported. Use a current Chrome, Edge or Firefox.');
   try {
     const sign = await crypto.subtle.importKey(
       'jwk',
@@ -98,9 +91,7 @@ async function importKeys(jwk) {
     );
     return { sign, verify };
   } catch {
-    throw new Error(
-      'This browser doesn’t support Ed25519 signing. Use a current Chrome, Edge or Firefox, or scripts/license-sign.mjs.',
-    );
+    throw new Error('This browser isn’t supported. Use a current Chrome, Edge or Firefox.');
   }
 }
 
@@ -127,7 +118,7 @@ async function lookUpIp() {
   note.append(
     pageIp
       ? `Your IP ${pageIp} will be stored in this license.`
-      : 'Couldn’t look up your public IP address. Licenses can’t be made without it; check the connection, then try again.',
+      : 'Couldn’t look up your IP address. Check the connection, then reload the page.',
   );
   note.insertAdjacentHTML('beforeend', detail);
   return pageIp;
@@ -260,14 +251,10 @@ form.addEventListener('submit', async (event) => {
     const file = $('key').files?.[0];
     const pass = $('pass').value;
     if (!file && !pass) throw new Error('Enter the passphrase.');
-    say('Unlocking the signing key…');
+    say('Working…');
     const keys = await importKeys(file ? await jwkFromFile(file) : await jwkFromPassphrase(pass));
-    say('Signing…');
     const ip = pageIp ?? (await lookUpIp());
-    if (!ip)
-      throw new Error(
-        'Couldn’t look up your public IP address, and every license needs it. Check the connection and try again.',
-      );
+    if (!ip) throw new Error('Couldn’t look up your IP address. Check the connection and try again.');
     const payload = buildPayload({
       name,
       years,
@@ -299,22 +286,16 @@ form.addEventListener('submit', async (event) => {
       back.payloadBytes,
     );
     if (!ok || back.payload.id !== payload.id)
-      throw new Error('The license didn’t read back correctly. Try again.');
+      throw new Error('Something went wrong. Try again.');
 
     const png = await blobOf(canvas, 'image/png');
-    const jpegBytes = new Uint8Array(
-      await (await blobOf(canvas, 'image/jpeg', 0.95)).arrayBuffer(),
-    );
-    const jpg = new Blob([jpegWithLicense(jpegBytes, container)], { type: 'image/jpeg' });
 
     urls.forEach((u) => URL.revokeObjectURL(u));
-    urls = [URL.createObjectURL(png), URL.createObjectURL(jpg)];
+    urls = [URL.createObjectURL(png)];
     const safe = payload.name.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'license';
     $('preview').src = urls[0];
     $('png').href = urls[0];
     $('png').download = `Smaran-License-${safe}.png`;
-    $('jpg').href = urls[1];
-    $('jpg').download = `Smaran-License-${safe}.jpg`;
     const dl = $('details');
     dl.replaceChildren();
     for (const [k, v] of [
@@ -333,7 +314,7 @@ form.addEventListener('submit', async (event) => {
       dl.append(dt, dd);
     }
     $('result').hidden = false;
-    say('License created and checked. Download the PNG.', 'ok');
+    say('License created. Download it below.', 'ok');
   } catch (error) {
     if (error instanceof WrongPassphrase) {
       $('pass').value = '';

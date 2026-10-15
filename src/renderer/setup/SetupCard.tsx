@@ -174,7 +174,7 @@ export function SetupCard({ init }: { init: SetupInit }) {
                 role={state.error ? 'alert' : undefined}
               >
                 {state.error ??
-                  'Smaran installs with a license. Choose the license image (PNG) you received.'}
+                  'Smaran installs with a license. Choose your license image.'}
               </p>
               <div className="no-drag relative z-10 mt-3 flex gap-2">
                 <button

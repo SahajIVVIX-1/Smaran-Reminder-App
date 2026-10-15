@@ -148,12 +148,12 @@ export function parsePayload(value: unknown): LicensePayload {
     isIso(p.issued) &&
     isIso(p.expires) &&
     typeof p.issuer === 'string';
-  if (!ok) throw new LicenseError('damaged', 'The license data inside this image is damaged.');
+  if (!ok) throw new LicenseError('damaged', 'This license isn’t valid.');
   // Licenses from before 2.16 didn't record the IP address; they must be issued again.
   if (!isIp(p.ip))
     throw new LicenseError(
       'damaged',
-      'This license is from an older version and doesn’t include the IP address it was issued from. Ask for a new license.',
+      'This license isn’t valid any more. Ask for a new license.',
     );
   return p as LicensePayload;
 }
@@ -163,7 +163,7 @@ export type LicenseState = 'valid' | 'expired' | 'not-yet-valid';
 /** Product and dates, for a payload whose signature is already verified. */
 export function checkPayload(payload: LicensePayload, now: Date): LicenseState {
   if (payload.product !== PRODUCT_ID && !EARLIER_PRODUCT_IDS.includes(payload.product))
-    throw new LicenseError('wrong-product', 'This license is for a different product.');
+    throw new LicenseError('wrong-product', 'This license isn’t valid.');
   // A day's grace either side for clocks and time zones.
   const day = 86_400_000;
   if (now.getTime() < Date.parse(payload.issued) - day) return 'not-yet-valid';
@@ -201,7 +201,7 @@ function containerLength(head: Uint8Array): number | null {
     MAGIC.length + 1,
   );
   if (length === 0 || length > MAX_PAYLOAD)
-    throw new LicenseError('damaged', 'The license data inside this image is damaged.');
+    throw new LicenseError('damaged', 'This license isn’t valid.');
   return HEADER + length + SIGNATURE_BYTES;
 }
 
@@ -215,7 +215,7 @@ export function decodeContainer(bytes: Uint8Array): Container {
   try {
     json = JSON.parse(fromUtf8.decode(payloadBytes));
   } catch {
-    throw new LicenseError('damaged', 'The license data inside this image is damaged.');
+    throw new LicenseError('damaged', 'This license isn’t valid.');
   }
   return { payload: parsePayload(json), payloadBytes, signature };
 }
@@ -230,7 +230,7 @@ export function capacity(pixels: number): number {
 /** Writes `data` into the low bit of R, G and B of each pixel, in order. Alpha is left alone. */
 export function embedBits(rgba: Uint8Array | Uint8ClampedArray, data: Uint8Array): void {
   if (data.length > capacity(rgba.length / 4))
-    throw new LicenseError('too-small', 'The image is too small to hold the license.');
+    throw new LicenseError('too-small', 'The license image couldn’t be made.');
   let bit = 0;
   for (let i = 0; i < rgba.length && bit < data.length * 8; i++) {
     if (i % 4 === 3) continue;
@@ -349,7 +349,7 @@ export interface Bitmap {
 
 /** Decodes a PNG. `inflate` is zlib's (node:zlib inflateSync in the app). */
 export function decodePng(bytes: Uint8Array, inflate: (data: Uint8Array) => Uint8Array): Bitmap {
-  if (!isPng(bytes)) throw new LicenseError('no-license', 'This file isn’t a PNG image.');
+  if (!isPng(bytes)) throw new LicenseError('no-license', 'This image doesn’t contain a Smaran license.');
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let pos = 8;
   let width = 0;
@@ -368,14 +368,14 @@ export function decodePng(bytes: Uint8Array, inflate: (data: Uint8Array) => Uint
       if (depth !== 8 || (colorType !== 2 && colorType !== 6))
         throw new LicenseError(
           'unsupported',
-          'This PNG has been re-saved in a format Smaran can’t read the license from. Use the original image.',
+          'This license isn’t valid.',
         );
     } else if (type === 'IDAT') idat.push(data);
     else if (type === 'IEND') break;
     pos += 12 + len;
   }
   if (!width || !height || idat.length === 0)
-    throw new LicenseError('damaged', 'This PNG image is damaged.');
+    throw new LicenseError('damaged', 'This license isn’t valid.');
   if (width * height > 40_000_000)
     throw new LicenseError('unsupported', 'This image is too large to be a license.');
   const joined = new Uint8Array(idat.reduce((n, d) => n + d.length, 0));
@@ -388,12 +388,12 @@ export function decodePng(bytes: Uint8Array, inflate: (data: Uint8Array) => Uint
   try {
     raw = inflate(joined);
   } catch {
-    throw new LicenseError('damaged', 'This PNG image is damaged.');
+    throw new LicenseError('damaged', 'This license isn’t valid.');
   }
   const bpp = colorType === 6 ? 4 : 3;
   const stride = width * bpp;
   if (raw.length < height * (stride + 1))
-    throw new LicenseError('damaged', 'This PNG image is damaged.');
+    throw new LicenseError('damaged', 'This license isn’t valid.');
   const pixels = new Uint8Array(height * stride);
   for (let y = 0; y < height; y++) {
     const filter = raw[y * (stride + 1)];
@@ -428,7 +428,7 @@ export function decodePng(bytes: Uint8Array, inflate: (data: Uint8Array) => Uint
           break;
         }
         default:
-          throw new LicenseError('damaged', 'This PNG image is damaged.');
+          throw new LicenseError('damaged', 'This license isn’t valid.');
       }
       row[x] = v & 0xff;
     }
@@ -508,8 +508,8 @@ export function containerFromImage(
   throw new LicenseError(
     'no-license',
     isJpeg(bytes)
-      ? 'This JPG doesn’t contain a Smaran license. JPG compression often destroys it: use the original PNG license.'
-      : 'This image doesn’t contain a Smaran license. Use the PNG license image you were given.',
+      ? 'This image doesn’t contain a Smaran license.'
+      : 'This image doesn’t contain a Smaran license.',
   );
 }
 

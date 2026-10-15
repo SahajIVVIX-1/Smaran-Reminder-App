@@ -83,7 +83,7 @@ export class LicenseStore {
         status: missing ? 'missing' : 'invalid',
         message: missing
           ? 'No license yet. Import your Smaran license image to start.'
-          : 'The saved license file is damaged. Import your license image again.',
+          : 'This license isn’t valid. Import your license image again.',
         license: null,
         importedAt: null,
       };
@@ -96,7 +96,7 @@ export class LicenseStore {
         return {
           status: 'invalid',
           message:
-            'Your PC’s date is earlier than when Smaran last ran. Set the correct date and time, then open Smaran again.',
+            'This license isn’t valid.',
           license: details(container),
           importedAt: stored.importedAt ?? null,
         };
@@ -111,7 +111,7 @@ export class LicenseStore {
         message:
           error instanceof LicenseError
             ? `${error.message} Import your license image again.`
-            : 'The saved license could not be checked. Import your license image again.',
+            : 'This license isn’t valid. Import your license image again.',
         license: null,
         importedAt: null,
       };
@@ -131,10 +131,10 @@ export class LicenseStore {
     try {
       size = fs.statSync(path).size;
     } catch {
-      throw new LicenseError('no-license', 'That file could not be opened.');
+      throw new LicenseError('no-license', 'That file couldn’t be opened.');
     }
     if (size > MAX_IMAGE_BYTES)
-      throw new LicenseError('no-license', 'That file is too large to be a license image.');
+      throw new LicenseError('no-license', 'This image doesn’t contain a Smaran license.');
     return this.importBytes(new Uint8Array(fs.readFileSync(path)));
   }
 
@@ -166,7 +166,7 @@ export class LicenseStore {
     if (!ok)
       throw new LicenseError(
         'bad-signature',
-        'This license isn’t genuine: it was changed after it was issued, or wasn’t issued for Smaran.',
+        'This license isn’t valid.',
       );
     return container;
   }
@@ -184,7 +184,7 @@ export class LicenseStore {
     if (state === 'not-yet-valid')
       return {
         status: 'not-yet-valid',
-        message: `This license starts on ${fmt(license.issued)}. Check your PC’s date and time.`,
+        message: 'This license isn’t valid yet.',
         license,
         importedAt,
       };

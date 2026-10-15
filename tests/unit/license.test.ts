@@ -112,7 +112,7 @@ describe('license payload', () => {
     expect(isIp('2001:db8::1')).toBe(true);
     expect(isIp('256.1.1.1')).toBe(false);
     const { ip: _ip, ...old } = payload();
-    expect(() => parsePayload(old)).toThrow(/older version/);
+    expect(() => parsePayload(old)).toThrow(/any more/);
   });
 
   it('adds years keeping the day, and 29 Feb falls back to 28 Feb', () => {
@@ -131,7 +131,7 @@ describe('license payload', () => {
     expect(PRODUCT_ID).toBe('smaran.sahaj.si');
     expect(checkPayload(payload({ product: 'com.sahaj.smaran' }), NOW)).toBe('valid');
     expect(() => checkPayload(payload({ product: 'com.other.app' }), NOW)).toThrow(
-      /different product/,
+      /isn’t valid/,
     );
   });
 
@@ -162,7 +162,7 @@ describe('container', () => {
     newer[7] = 9;
     expect(() => decodeContainer(newer)).toThrow(/newer Smaran/);
     const junk = encodeContainer(new TextEncoder().encode('{nope'), new Uint8Array(64));
-    expect(() => decodeContainer(junk)).toThrow(/damaged/);
+    expect(() => decodeContainer(junk)).toThrow(/isn’t valid/);
     expect(() => encodeContainer(new Uint8Array(3), new Uint8Array(10))).toThrow();
   });
 });
@@ -178,7 +178,7 @@ describe('steganography and images', () => {
 
   it('says when the image is too small or holds no license', () => {
     expect(capacity(8)).toBe(3);
-    expect(() => embedBits(new Uint8Array(16), container())).toThrow(/too small/);
+    expect(() => embedBits(new Uint8Array(16), container())).toThrow(/couldn’t be made/);
     expect(() => extractBits(new Uint8Array(64 * 64 * 4))).toThrow(/doesn’t contain/);
     expect(() => extractBits(new Uint8Array(8))).toThrow(LicenseError);
   });
@@ -235,7 +235,7 @@ describe('steganography and images', () => {
     expect(jpegLicense(withLicense)).toEqual(c);
     expect(jpegLicense(jpeg)).toBeNull();
     expect(containerFromImage(withLicense, inflate)).toEqual(c);
-    expect(() => containerFromImage(jpeg, inflate)).toThrow(/original PNG/);
+    expect(() => containerFromImage(jpeg, inflate)).toThrow(/doesn’t contain/);
     expect(() => jpegWithLicense(new Uint8Array([1, 2, 3]), c)).toThrow();
   });
 
@@ -281,9 +281,9 @@ describe('LicenseStore', () => {
   it('refuses forged, edited and other-product licenses, keeping the current one', () => {
     store().importFile(write('good.png', licensePng()));
     const forged = licensePng(container(payload({ name: 'Forger' }), other.privateKey));
-    expect(() => store().importFile(write('forged.png', forged))).toThrow(/isn’t genuine/);
+    expect(() => store().importFile(write('forged.png', forged))).toThrow(/isn’t valid/);
     const wrong = licensePng(container(payload({ product: 'com.other.app' })));
-    expect(() => store().importFile(write('wrong.png', wrong))).toThrow(/different product/);
+    expect(() => store().importFile(write('wrong.png', wrong))).toThrow(/isn’t valid/);
     expect(store().info().license?.name).toBe('Asha Rao');
   });
 
@@ -298,7 +298,7 @@ describe('LicenseStore', () => {
         ),
       ),
     ).toThrow(/doesn’t contain/);
-    expect(() => store().importFile(join(dir, 'missing.png'))).toThrow(/could not be opened/);
+    expect(() => store().importFile(join(dir, 'missing.png'))).toThrow(/couldn’t be opened/);
   });
 
   it('notices an edited license file, expiry and a clock set back', () => {
@@ -311,7 +311,7 @@ describe('LicenseStore', () => {
     now = new Date('2026-11-01T00:00:00Z');
     expect(store().info()).toMatchObject({
       status: 'invalid',
-      message: expect.stringMatching(/date/),
+      message: expect.stringMatching(/isn’t valid/),
     });
 
     now = new Date('2030-01-01T00:00:00Z');
@@ -324,7 +324,7 @@ describe('LicenseStore', () => {
     writeFileSync(file, '{ not json');
     expect(store().info()).toMatchObject({
       status: 'invalid',
-      message: expect.stringMatching(/damaged/),
+      message: expect.stringMatching(/isn’t valid/),
     });
   });
 });

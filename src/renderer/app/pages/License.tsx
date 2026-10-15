@@ -95,17 +95,6 @@ export function License() {
           </>
         )}
       </Card>
-
-      <div className="mt-6 animate-enter space-y-2 font-serif text-[13.5px] leading-snug text-muted italic [animation-delay:80ms]">
-        <p>
-          Your license is a picture with the license hidden inside it, signed so Smaran can tell if
-          it was changed. It’s checked on this PC, so Smaran works without the internet.
-        </p>
-        <p>
-          Keep the original PNG somewhere safe. Converting it to JPG, resizing or editing it can
-          erase the license inside.
-        </p>
-      </div>
     </div>
   );
 }

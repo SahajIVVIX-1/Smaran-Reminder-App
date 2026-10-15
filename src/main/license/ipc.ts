@@ -8,7 +8,7 @@ export const LICENSE_DIALOG: Electron.OpenDialogOptions = {
   title: 'Import Your Smaran License',
   properties: ['openFile'],
   filters: [
-    { name: 'License image (PNG recommended)', extensions: ['png', 'jpg', 'jpeg'] },
+    { name: 'License image', extensions: ['png', 'jpg', 'jpeg'] },
     { name: 'All files', extensions: ['*'] },
   ],
 };
@@ -47,7 +47,7 @@ export async function pickAndImport(
       error:
         error instanceof LicenseError
           ? error.message
-          : `Smaran couldn’t read that image: ${(error as Error).message}`,
+          : 'This image doesn’t contain a Smaran license.',
     };
   }
 }
