@@ -80,14 +80,19 @@ export function NotificationCard({
       const full = fullRef.current;
       const pill = pillRef.current;
       if (!full || !pill) return;
+      const pillWidth = card.customWidth ?? Math.min(width, pill.offsetWidth);
+      const pillHeight = card.height ?? pill.offsetHeight;
       const measured = {
         full: { width, height: full.offsetHeight },
-        pill: { width: Math.min(width, pill.offsetWidth), height: pill.offsetHeight },
+        pill: { width: pillWidth, height: pillHeight },
       };
       setSizes(measured);
-      window.smaranNotification.measured(width + PAD_X * 2, measured.full.height + PAD_Y * 2);
+      window.smaranNotification.measured(
+        Math.max(width, pillWidth) + PAD_X * 2,
+        Math.max(measured.full.height, pillHeight) + PAD_Y * 2,
+      );
     });
-  }, [width, card.height]);
+  }, [width, card.customWidth, card.height, card.padding]);
 
   useEffect(() => {
     window.smaranNotification.onShown((info) => {
@@ -231,8 +236,18 @@ export function NotificationCard({
       ? 'transform 260ms cubic-bezier(0.4, 0, 1, 1), opacity 220ms ease-in'
       : 'transform 480ms cubic-bezier(0.2, 1.1, 0.3, 1), opacity 260ms ease-out';
   const shape = sizes ? (expanded ? sizes.full : sizes.pill) : undefined;
-  // The folded pill is round-ended unless a smaller corner radius is chosen.
-  const radius = expanded || !sizes ? card.radius : Math.min(sizes.pill.height / 2, card.radius);
+  // Folded unhovered notification: custom radius or auto pill (capsule).
+  const autoRadius = sizes ? Math.min(sizes.pill.height / 2, 999) : 18;
+  const unhoveredRadius = card.radius !== null ? card.radius : autoRadius;
+  const radius =
+    expanded || !sizes
+      ? (card.radius !== null ? card.radius : 18)
+      : unhoveredRadius;
+  const padX = card.padding !== null && card.padding !== undefined ? card.padding : 18;
+  const padY =
+    card.padding !== null && card.padding !== undefined
+      ? Math.max(4, Math.round(card.padding * 0.6))
+      : 9;
 
   return (
     <div
@@ -271,13 +286,16 @@ export function NotificationCard({
           className="glass-card absolute inset-0 overflow-hidden"
           style={{ borderRadius: 'inherit' }}
         >
-          {/* Folded: just the title. */}
+          {/* Folded / unhovered: title (+ countdown). */}
           <div
             ref={pillRef}
             aria-hidden={expanded}
-            className="absolute top-0 left-0 flex w-max items-center px-[18px] py-[9px]"
+            className={`absolute top-0 left-0 flex items-center ${card.customWidth ? 'w-full justify-between' : 'w-max'}`}
             style={{
+              padding: `${padY}px ${padX}px`,
+              minHeight: card.height ?? undefined,
               maxWidth: width,
+              boxSizing: 'border-box',
               opacity: expanded && !measuring ? 0 : 1,
               transform: expanded ? 'scale(0.96)' : 'none',
               transition: `opacity ${expanded ? 160 : 240}ms ease ${expanded ? 0 : 60}ms, transform ${MORPH_MS}ms ${MORPH}`,
@@ -304,8 +322,6 @@ export function NotificationCard({
             className="absolute top-0 left-0 flex flex-col"
             style={{
               width,
-              // A custom height: text that doesn't fit is cut off; the buttons stay at the bottom.
-              height: card.height ?? undefined,
               opacity: expanded || measuring ? 1 : 0,
               transform: expanded || measuring ? 'none' : 'translateY(-4px)',
               transition: `opacity ${expanded ? 260 : 200}ms ease ${expanded ? 60 : 0}ms, transform ${MORPH_MS}ms ${MORPH}`,

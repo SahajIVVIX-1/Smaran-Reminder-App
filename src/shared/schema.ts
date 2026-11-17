@@ -63,17 +63,20 @@ export function isTimeOfDay(rule: Rule): boolean {
 export const CARD_WIDTH = { compact: 308, comfortable: 340, large: 384 } as const;
 /** Slider ranges for the custom card shape: [min, max] in px. */
 export const CARD_LIMITS = {
-  width: [260, 560],
-  height: [100, 280],
+  width: [200, 560],
+  height: [30, 200],
   radius: [0, 32],
+  padding: [4, 28],
 } as const;
 export const CARD_RADIUS_DEFAULT = 18;
+export const CARD_PADDING_DEFAULT = 12;
 
-/** A notification card's shape. width null = the size preset's; height null = fit the content. */
+/** A notification card's shape. width/height/radius/padding null = auto. */
 export const CardShapeSchema = z.object({
   width: z.number().int().min(CARD_LIMITS.width[0]).max(CARD_LIMITS.width[1]).nullable(),
   height: z.number().int().min(CARD_LIMITS.height[0]).max(CARD_LIMITS.height[1]).nullable(),
-  radius: z.number().int().min(CARD_LIMITS.radius[0]).max(CARD_LIMITS.radius[1]),
+  radius: z.number().int().min(CARD_LIMITS.radius[0]).max(CARD_LIMITS.radius[1]).nullable(),
+  padding: z.number().int().min(CARD_LIMITS.padding[0]).max(CARD_LIMITS.padding[1]).nullable().optional(),
 });
 export type CardShape = z.infer<typeof CardShapeSchema>;
 

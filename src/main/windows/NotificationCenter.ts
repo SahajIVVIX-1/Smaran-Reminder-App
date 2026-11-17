@@ -114,7 +114,9 @@ export class NotificationCenter implements Notifier {
       card: {
         width: shape.width ?? CARD_WIDTH[settings.notification.size],
         height: shape.height,
-        radius: shape.radius,
+        radius: shape.radius ?? null,
+        padding: shape.padding ?? null,
+        customWidth: shape.width,
       },
       font: settings.font,
       faces: this.faces(),

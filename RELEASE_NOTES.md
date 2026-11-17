@@ -1,3 +1,15 @@
+# Smaran 2.16.3
+
+- **Shape your unhovered notifications.** Notification Shape now controls the initial card
+  that appears before hover, letting you decide its width, height, corner roundness and inner
+  space when it arrives.
+- **Auto modes.** Each shape property has an Auto option: width and height fit content,
+  roundness forms a smooth capsule, and spacing uses defaults, or you can dial in custom values.
+- **Interactive preview.** The shape preview shows your initial notification at real size and
+  expands on hover, matching how notifications behave on screen.
+
+---
+
 # Smaran 2.16.2
 
 - **Uninstalling always works.** If Smaran was still running (even when it had been started as
