@@ -38,8 +38,10 @@ export function isUninstallRun(): boolean {
 /** Card plus room for its shadow and the coloured border light. */
 const WIDTH = 460;
 const HEIGHT = 320;
-/** How long "Smaran is ready" (or "removed") stays before the window goes. */
+/** How long "Smaran is ready" stays before the window goes. */
 const DONE_MS = 2400;
+/** How long "Smaran was removed" stays before the uninstaller window closes. */
+const UNINSTALL_DONE_MS = 5000;
 /** A moment for the window to appear before anything starts. */
 const SETTLE_MS = 700;
 /** Windows asks for the window's system menu (right-click on the caption, Alt+Space). */
@@ -117,6 +119,7 @@ export function runSetup(): void {
         running = false;
         setTimeout(() => {
           launchInstalled(target);
+          if (!win.isDestroyed()) win.destroy();
           app.quit();
         }, DONE_MS);
       } catch (error) {
@@ -192,8 +195,35 @@ export function runUninstall(): void {
     }
     const win = cardWindow('Uninstall Smaran');
     let running = false;
+    let quitting = false;
+    let uninstalled = false;
+    let autoCloseTimer: NodeJS.Timeout | null = null;
+
     const send = (progress: SetupProgress) => {
       if (!win.isDestroyed()) win.webContents.send(IPC.setupProgress, progress);
+    };
+
+    const finishAndQuit = () => {
+      if (quitting) return;
+      quitting = true;
+      running = false;
+      if (autoCloseTimer) {
+        clearTimeout(autoCloseTimer);
+        autoCloseTimer = null;
+      }
+      if (uninstalled) {
+        // The running exe can't delete its own folder: a hidden shell does it once we have exited.
+        // A second try a few seconds later catches files Windows was still releasing.
+        const rm = `ping -n 4 127.0.0.1 >nul & rmdir /s /q "${dir}"`;
+        spawn('cmd.exe', ['/d', '/s', '/c', `"${rm} & ${rm} & ${rm}"`], {
+          detached: true,
+          stdio: 'ignore',
+          windowsHide: true,
+          windowsVerbatimArguments: true,
+        }).unref();
+      }
+      if (!win.isDestroyed()) win.destroy();
+      app.quit();
     };
 
     const remove = async (deleteData: boolean) => {
@@ -209,24 +239,17 @@ export function runUninstall(): void {
         await deleteKey(UNINSTALL_KEY);
         send({ phase: 'removing', progress: 0.85 });
         if (deleteData) deleteUserData(dataDir);
+        running = false;
+        uninstalled = true;
         send({ phase: 'done', progress: 1 });
       } catch (error) {
         running = false;
         send({ phase: 'error', progress: 0, error: friendly(error) });
         return;
       }
-      setTimeout(() => {
-        // The running exe can't delete its own folder: a hidden shell does it once we have exited.
-        // A second try a few seconds later catches files Windows was still releasing.
-        const rm = `ping -n 4 127.0.0.1 >nul & rmdir /s /q "${dir}"`;
-        spawn('cmd.exe', ['/d', '/s', '/c', `"${rm} & ${rm} & ${rm}"`], {
-          detached: true,
-          stdio: 'ignore',
-          windowsHide: true,
-          windowsVerbatimArguments: true,
-        }).unref();
-        app.quit();
-      }, DONE_MS);
+      autoCloseTimer = setTimeout(() => {
+        finishAndQuit();
+      }, UNINSTALL_DONE_MS);
     };
 
     ipcMain.on(IPC.setupUninstall, (event, deleteData: unknown) => {
@@ -237,10 +260,18 @@ export function runUninstall(): void {
       if (event.sender === win.webContents && !running) send({ phase: 'confirm', progress: 0 });
     });
     ipcMain.on(IPC.setupClose, (event) => {
-      if (event.sender === win.webContents && !running) app.quit();
+      if (event.sender === win.webContents && !running) {
+        finishAndQuit();
+      }
     });
     win.on('close', (event) => {
-      if (running) event.preventDefault();
+      if (running) {
+        event.preventDefault();
+        return;
+      }
+      if (uninstalled && !quitting) {
+        finishAndQuit();
+      }
     });
     win.webContents.once('did-finish-load', () => {
       const init: SetupInit = {

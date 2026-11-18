@@ -1,3 +1,9 @@
+# Smaran 3.0.1
+
+- **Uninstaller Window 5-Second Auto-Close:** Fixed an issue where the always-on-top uninstaller card could remain stuck on screen after completing. The final "Goodbye for now / Smaran was removed" screen now cleanly closes and exits after exactly 5 seconds, and provides a direct "Close now" button along with `Escape` / `Enter` keyboard dismissal for immediate exit.
+
+---
+
 # Smaran 3.0.0
 
 - **Zero-Box Vector Screen Border Light:** Completely eliminated the square boxes and discrete micro-segment artifacts while the beam is moving. Re-engineered the perimeter renderer using continuous, native hardware-accelerated linear gradients along each screen edge, cutting draw calls from 167 down to 3 per frame for a silky-smooth, fluid laser beam with zero stairsteps.

@@ -59,6 +59,7 @@ export function SetupCard({ init }: { init: SetupInit }) {
   const [verb, setVerb] = useState(() => pick(-1));
   const [seconds, setSeconds] = useState(0);
   const [deleteData, setDeleteData] = useState(false);
+  const [doneCountdown, setDoneCountdown] = useState(5);
   const working = !['done', 'error', 'license', 'confirm'].includes(state.phase);
 
   // The licensee's name stays once known, as the install goes on.
@@ -69,6 +70,26 @@ export function SetupCard({ init }: { init: SetupInit }) {
       ),
     [],
   );
+
+  useEffect(() => {
+    if (uninstalling && state.phase === 'done') {
+      const timer = window.setInterval(() => {
+        setDoneCountdown((c) => Math.max(0, c - 1));
+      }, 1000);
+      return () => window.clearInterval(timer);
+    }
+    return undefined;
+  }, [uninstalling, state.phase]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || (e.key === 'Enter' && state.phase === 'done')) {
+        if (!working) window.smaranSetup.close();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [working, state.phase]);
 
   useEffect(() => {
     if (!working) return undefined;
@@ -85,7 +106,9 @@ export function SetupCard({ init }: { init: SetupInit }) {
   const percent = Math.round(state.progress * 100);
   const status = uninstalling
     ? state.phase === 'done'
-      ? 'Smaran was removed'
+      ? doneCountdown > 0
+        ? `Smaran was removed · Closing in ${doneCountdown}s`
+        : 'Smaran was removed'
       : (UNINSTALL_STEPS[Math.min(3, Math.floor(state.progress * 4))] ?? 'Tidying up')
     : state.phase === 'done'
       ? 'Opening Smaran'
@@ -239,8 +262,19 @@ export function SetupCard({ init }: { init: SetupInit }) {
                 />
               </div>
 
-              <div className="mt-2.5 truncate text-[11px] text-faint" title={init.target}>
-                {init.target}
+              <div className="mt-2.5 flex items-center justify-between text-[11px] text-faint">
+                <span className="truncate" title={init.target}>
+                  {init.target}
+                </span>
+                {uninstalling && state.phase === 'done' && (
+                  <button
+                    type="button"
+                    onClick={() => window.smaranSetup.close()}
+                    className="no-drag ml-2 shrink-0 rounded-md px-2 py-0.5 text-[11.5px] font-medium text-muted hover:bg-hover hover:text-ink active:scale-[0.97]"
+                  >
+                    Close now
+                  </button>
+                )}
               </div>
             </>
           )}
