@@ -78,8 +78,11 @@ test('settings save as you change them', async () => {
   const h = await launch(seedConfig());
   const p = h.page;
   await p.getByRole('button', { name: 'Settings' }).click();
+  await p.getByRole('tab', { name: 'Notifications' }).click();
   await p.getByRole('radio', { name: 'Top left' }).click();
+  await p.getByRole('tab', { name: 'Focus' }).click();
   await p.getByRole('switch', { name: 'Quiet hours' }).click();
+  await p.getByRole('tab', { name: 'General' }).click();
   await p.getByRole('radio', { name: 'Dark' }).click();
   await expect.poll(() => h.readConfig().settings.notification.corner).toBe('top-left');
   await expect.poll(() => h.readConfig().settings.quietHours.enabled).toBe(true);

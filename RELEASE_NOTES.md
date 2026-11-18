@@ -1,3 +1,14 @@
+# Smaran 2.16.4
+
+- **Tabbed navigation in Settings.** Settings are now organized into five focused sub-tabs:
+  General, Notifications, Focus, Animations, and Your Data.
+- **No more endless scrolling.** Find the setting you need instantly without scrolling through
+  one long page.
+- **Smooth transitions & full keyboard navigation.** Switch tabs with arrow keys or a click,
+  complete with fluid entrance animations and accessible tab panel semantics.
+
+---
+
 # Smaran 2.16.3
 
 - **Shape your unhovered notifications.** Notification Shape now controls the initial card
