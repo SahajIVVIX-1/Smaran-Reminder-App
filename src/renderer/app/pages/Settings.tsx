@@ -1,7 +1,9 @@
 import { format } from 'date-fns';
 import { useEffect, useState, type ReactNode } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import type { AppInfo, BackupResult } from '@shared/ipc';
 import { CORNERS, type Settings as SettingsT } from '@shared/schema';
+import { tabVariants } from '../animations';
 import { cx } from '../cx';
 import { useApp } from '../store';
 import { CardShape } from '../components/CardShape';
@@ -166,13 +168,17 @@ export function Settings() {
         })}
       </div>
 
-      <div
-        key={tab}
-        role="tabpanel"
-        id={`settings-panel-${tab}`}
-        aria-labelledby={`settings-tab-${tab}`}
-        className="animate-enter [animation-delay:30ms]"
-      >
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={tab}
+          role="tabpanel"
+          id={`settings-panel-${tab}`}
+          aria-labelledby={`settings-tab-${tab}`}
+          variants={tabVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+        >
         {tab === 'general' && (
           <Card title="General">
             <Row
@@ -309,6 +315,18 @@ export function Settings() {
                   </div>
                 )}
               </div>
+            </Row>
+            <Row
+              label="Screen border light"
+              hint="An animated, moving color beam along the edge of your screen while notifications are waiting."
+              htmlFor="set-border-light"
+            >
+              <Switch
+                id="set-border-light"
+                label="Screen border light"
+                checked={n.borderLight ?? true}
+                onChange={(borderLight) => setN({ borderLight })}
+              />
             </Row>
             <Row label="Sound" hint="A soft chime when a reminder appears." htmlFor="set-sound">
               <Switch
@@ -459,7 +477,8 @@ export function Settings() {
             )}
           </Card>
         )}
-      </div>
+        </motion.div>
+      </AnimatePresence>
 
       {info && (
         <p className="animate-enter pt-2 text-center text-[12px] text-faint [animation-delay:60ms]">

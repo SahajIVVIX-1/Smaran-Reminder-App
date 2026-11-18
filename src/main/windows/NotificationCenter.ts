@@ -14,6 +14,7 @@ import { CARD_WIDTH, DEFAULT_NOTIFICATION_MOTION, type Settings } from '@shared/
 import type { Notifier } from '../engine/Engine';
 import { loadRenderer, preloadPath } from './loadRenderer';
 import { pickDisplay, stackWindows, type Size } from './placement';
+import { ScreenBorderWindow } from './ScreenBorderWindow';
 
 /** First guess at the window width; the card reports its real size (card + shadow room). */
 const WINDOW_WIDTH: Record<Settings['notification']['size'], number> = {
@@ -45,6 +46,7 @@ interface Card {
  */
 export class NotificationCenter implements Notifier {
   private readonly cards = new Map<string, Card>();
+  private readonly screenBorder: ScreenBorderWindow;
   private onAction: (key: string, action: NotificationAction) => void = () => undefined;
   private onOpenApp: () => void = () => undefined;
   private onCount: (count: number) => void = () => undefined;
@@ -52,7 +54,11 @@ export class NotificationCenter implements Notifier {
   constructor(
     private readonly settings: () => Settings,
     private readonly faces: () => CustomFont[] = () => [],
-  ) {}
+  ) {
+    this.screenBorder = new ScreenBorderWindow(
+      () => this.settings().notification.borderLight ?? true,
+    );
+  }
 
   handleActions(
     handler: (key: string, action: NotificationAction) => void,
@@ -195,6 +201,7 @@ export class NotificationCenter implements Notifier {
 
   closeAll(): void {
     for (const card of [...this.cards.values()]) this.destroy(card);
+    this.screenBorder.hide();
   }
 
   /** Called whenever cards come or go (the logo rings while any are on screen). */
@@ -224,17 +231,27 @@ export class NotificationCenter implements Notifier {
   private layout(): void {
     this.onCount(this.cards.size);
     const settings = this.settings().notification;
+    const allDisplays = screen.getAllDisplays();
+    const primaryDisplay = screen.getPrimaryDisplay();
     const display = pickDisplay(
       settings.screen,
-      screen.getAllDisplays().map((d) => ({ id: d.id, bounds: d.bounds, workArea: d.workArea })),
-      screen.getPrimaryDisplay().id,
+      allDisplays.map((d) => ({ id: d.id, bounds: d.bounds, workArea: d.workArea })),
+      primaryDisplay.id,
       screen.getCursorScreenPoint(),
     );
+    const activeDisplay = allDisplays.find((d) => d.id === display.id) ?? primaryDisplay;
+
     const ready = [...this.cards.values()]
       .filter((c) => c.ready && !c.win.isDestroyed())
       .sort((a, b) => a.createdAt - b.createdAt);
     // The oldest cards stay; newer ones wait for room.
     const visible = ready.slice(0, MAX_VISIBLE).reverse();
+
+    if (visible.length > 0) {
+      this.screenBorder.show(activeDisplay);
+    } else {
+      this.screenBorder.hide();
+    }
     const positions = stackWindows(
       settings.corner,
       display.workArea,

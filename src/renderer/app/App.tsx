@@ -1,10 +1,12 @@
 import { format } from 'date-fns';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { shapesIn } from '@shared/logoSettings';
 import { createReminder } from '@shared/defaults';
 import { fontFaceCss, fontStack } from '@shared/fonts';
 import type { Route } from '@shared/ipc';
 import type { Settings as SettingsT } from '@shared/schema';
+import { pageVariants } from './animations';
 import { AutomationEditor } from './components/AutomationEditor';
 import { ContextMenuHost } from './components/ContextMenu';
 import { ReminderEditor } from './components/ReminderEditor';
@@ -132,21 +134,30 @@ export function App() {
       <div className="flex min-h-0 flex-1">
         <Sidebar />
         <main className="relative min-w-0 flex-1 overflow-hidden rounded-tl-xl border-t border-l border-line bg-bg">
-          <div key={route} className="h-full animate-fade overflow-y-auto">
-            {!config ? null : route === 'today' ? (
-              <Today />
-            ) : route === 'reminders' ? (
-              <Reminders />
-            ) : route === 'automations' ? (
-              <Automations />
-            ) : route === 'history' ? (
-              <History />
-            ) : route === 'license' ? (
-              <License />
-            ) : (
-              <Settings />
-            )}
-          </div>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={route}
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="h-full overflow-y-auto"
+            >
+              {!config ? null : route === 'today' ? (
+                <Today />
+              ) : route === 'reminders' ? (
+                <Reminders />
+              ) : route === 'automations' ? (
+                <Automations />
+              ) : route === 'history' ? (
+                <History />
+              ) : route === 'license' ? (
+                <License />
+              ) : (
+                <Settings />
+              )}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
 
@@ -297,11 +308,16 @@ function NavItem({
       aria-current={active ? 'page' : undefined}
       onClick={onClick}
       className={cx(
-        'flex h-8 w-full items-center gap-2.5 rounded-lg px-2.5 text-[13px] transition-colors duration-150',
-        active ? 'bg-hover font-medium text-ink' : 'text-muted hover:bg-hover hover:text-ink',
+        'relative flex h-8 w-full items-center gap-2.5 rounded-lg px-2.5 text-[13px]',
+        'transition-all duration-150 ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-[0.98]',
+        active
+          ? 'bg-hover font-medium text-ink shadow-[0_1px_2px_rgba(0,0,0,0.03)]'
+          : 'text-muted hover:bg-hover/70 hover:text-ink',
       )}
     >
-      <span className={active ? 'text-ink' : 'text-faint'}>{icon}</span>
+      <span className={cx('transition-colors duration-150', active ? 'text-ink' : 'text-faint')}>
+        {icon}
+      </span>
       {children}
     </button>
   );

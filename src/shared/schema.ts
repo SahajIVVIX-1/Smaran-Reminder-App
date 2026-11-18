@@ -223,6 +223,8 @@ export const SettingsSchema = z.object({
     card: CardShapeSchema,
     /** Motion / animation style for how notifications appear and stay attention-grabbing. */
     motion: NotificationMotionSchema.default(DEFAULT_NOTIFICATION_MOTION),
+    /** Moving light beam along the screen border while notifications or tasks are active. */
+    borderLight: z.boolean().default(true),
   }),
   quietHours: z
     .object({ enabled: z.boolean(), from: TimeSchema, to: TimeSchema })

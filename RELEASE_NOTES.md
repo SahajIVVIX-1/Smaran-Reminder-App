@@ -1,3 +1,15 @@
+# Smaran 2.16.7
+
+- **Screen Border Light:** An animated, moving multi-color beam circles the perimeter of your entire screen while notifications or tasks are active, matching the notification card's border light with ambient edge illumination until dismissed.
+- **Fluid UI Animation System:** Comprehensive, unified motion design across every screen powered by Motion (Framer Motion) and spring-damped CSS transitions.
+- **Buttery-smooth Page & Tab Transitions:** Every navigation between pages and tabs now cross-fades and glides naturally without sudden jumps or layout shifts.
+- **Tactile Button & Card Feedback:** All buttons and cards now provide subtle hover elevation, active press scaling, and fluid focus feedback.
+- **Smooth Dropdowns & Modals:** Modals, dialogs, and popovers now enter and exit with smooth spring deceleration.
+- **Shimmering Skeleton States:** Loading states now feature smooth shimmering placeholders.
+- **Reduced Motion Respect:** Full accessibility support respecting the user's system reduced-motion preferences.
+
+---
+
 # Smaran 2.16.6
 
 - **Permanent & custom duration for notifications:** Notifications can now be set to stay on screen permanently until you dismiss or snooze them, or for any custom number of seconds you choose.

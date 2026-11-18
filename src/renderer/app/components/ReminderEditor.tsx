@@ -5,6 +5,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { hasRich, plainRich, RICH_MARKERS, type RichMark } from '@shared/richText';
 import { ruleSummary } from '@shared/ruleSummary';
 import {
@@ -14,6 +15,7 @@ import {
   ReminderSchema,
   type Reminder,
 } from '@shared/schema';
+import { tabVariants } from '../animations';
 import { COLOR_BG, COLOR_NAME } from '../../colors';
 import { cx } from '../cx';
 import { useExit } from '../useExit';
@@ -306,13 +308,18 @@ export function ReminderEditor() {
         </div>
 
         {/* Tab Panels */}
-        <div
-          key={tab}
-          role="tabpanel"
-          id={`reminder-panel-${tab}`}
-          aria-labelledby={`reminder-tab-${tab}`}
-          className="min-h-0 flex-1 overflow-y-auto pb-2 animate-enter"
-        >
+        <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={tab}
+              role="tabpanel"
+              id={`reminder-panel-${tab}`}
+              aria-labelledby={`reminder-tab-${tab}`}
+              variants={tabVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+            >
           {/* Tab 1: Details (Title, Note, Schedule, Colour) */}
           {tab === 'details' && (
             <div>
@@ -717,6 +724,8 @@ export function ReminderEditor() {
               </Section>
             </div>
           )}
+            </motion.div>
+          </AnimatePresence>
         </div>
 
         <footer className="flex shrink-0 items-center gap-1.5 border-t border-line px-5 py-2.5">

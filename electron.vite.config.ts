@@ -42,6 +42,7 @@ export default defineConfig({
           trayart: resolve(__dirname, 'src/renderer/trayart/index.html'),
           setup: resolve(__dirname, 'src/renderer/setup/index.html'),
           license: resolve(__dirname, 'src/renderer/license/index.html'),
+          screenborder: resolve(__dirname, 'src/renderer/screenborder/index.html'),
         },
       },
     },

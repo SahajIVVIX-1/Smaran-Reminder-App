@@ -29,7 +29,7 @@ export function Popover({
   className?: string;
   matchWidth?: boolean;
 }) {
-  const { mounted, closing } = useExit(open, 140);
+  const { mounted, closing } = useExit(open, 160);
   const panel = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number; width: number; up: boolean } | null>(
     null,

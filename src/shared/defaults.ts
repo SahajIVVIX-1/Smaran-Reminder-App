@@ -31,6 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
     hideAfterSec: 8,
     card: { width: null, height: null, radius: null, padding: null },
     motion: DEFAULT_NOTIFICATION_MOTION,
+    borderLight: true,
   },
   quietHours: { enabled: false, from: '22:00', to: '07:00' },
   holdWhenBusy: true,

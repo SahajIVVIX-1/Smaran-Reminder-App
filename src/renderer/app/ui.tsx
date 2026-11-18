@@ -24,12 +24,13 @@ export function Button({ variant = 'secondary', size = 'md', className, ...rest 
       type="button"
       className={cx(
         'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg font-medium whitespace-nowrap',
-        'transition-[background-color,color,box-shadow,transform] duration-150 active:scale-[0.98]',
+        'transition-all duration-150 ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-[0.97] hover:-translate-y-[0.5px]',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-        'disabled:pointer-events-none disabled:opacity-45',
+        'disabled:pointer-events-none disabled:opacity-45 disabled:transform-none',
         size === 'sm' ? 'h-7 px-2.5 text-[12px]' : 'h-8 px-3 text-[13px]',
-        variant === 'primary' && 'bg-accent text-on-accent shadow-sm hover:bg-accent-hover',
-        variant === 'secondary' && 'border border-line bg-surface text-ink hover:bg-raised',
+        variant === 'primary' && 'bg-accent text-on-accent shadow-sm hover:bg-accent-hover hover:shadow',
+        variant === 'secondary' &&
+          'border border-line bg-surface text-ink hover:bg-raised hover:border-line/80 shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
         variant === 'ghost' && 'text-muted hover:bg-hover hover:text-ink',
         variant === 'danger' && 'text-danger hover:bg-hover',
         className,
@@ -44,8 +45,8 @@ export function IconButton({ className, ...rest }: ButtonHTMLAttributes<HTMLButt
     <button
       type="button"
       className={cx(
-        'grid h-7 w-7 shrink-0 place-items-center rounded-lg text-muted transition-colors duration-150',
-        'hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-accent',
+        'grid h-7 w-7 shrink-0 place-items-center rounded-lg text-muted transition-all duration-150 ease-[cubic-bezier(0.16,1,0.3,1)]',
+        'hover:bg-hover hover:text-ink active:scale-[0.92] focus-visible:outline-2 focus-visible:outline-accent',
         className,
       )}
       {...rest}
@@ -424,5 +425,27 @@ export function Dialog({
       </div>
     </div>,
     document.body,
+  );
+}
+
+/** Fluid skeleton placeholder with shimmering wave for loading states */
+export function Skeleton({ className }: { className?: string }) {
+  return <div className={cx('skeleton rounded-md', className)} aria-hidden />;
+}
+
+export function SkeletonList({ count = 3 }: { count?: number }) {
+  return (
+    <div className="space-y-2.5 py-2">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 rounded-xl border border-line bg-surface p-3.5">
+          <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-4 w-44" />
+            <Skeleton className="h-3 w-28" />
+          </div>
+          <Skeleton className="h-6 w-14 rounded-full" />
+        </div>
+      ))}
+    </div>
   );
 }
