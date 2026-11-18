@@ -330,105 +330,90 @@ export function Settings() {
               hint="An animated, moving color beam along the edge of your screen while notifications are waiting."
               htmlFor="set-border-light"
             >
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between gap-4">
-                  <Switch
-                    id="set-border-light"
-                    label="Screen border light"
-                    checked={n.borderLight ?? true}
-                    onChange={(borderLight) => setN({ borderLight })}
-                  />
-                  {(n.borderLight ?? true) && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => void window.smaran.reminders.previewBorderLight()}
-                    >
-                      Preview on screen
-                    </Button>
-                  )}
-                </div>
-
+              <div className="flex items-center gap-3">
                 {(n.borderLight ?? true) && (
-                  <div className="flex flex-col gap-3.5 pt-1">
-                    {/* Thickness */}
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center justify-between text-xs text-text-muted">
-                        <span>Border thickness</span>
-                        <span className="font-mono font-medium text-text">
-                          {n.borderLightThickness ?? 4} px · {thicknessLabel(n.borderLightThickness ?? 4)}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {[
-                          { px: 1, label: 'Hairline' },
-                          { px: 2, label: 'Very Thin' },
-                          { px: 4, label: 'Thin' },
-                          { px: 8, label: 'Medium' },
-                          { px: 14, label: 'Thick' },
-                          { px: 20, label: 'Very Thick' },
-                        ].map((preset) => {
-                          const active = (n.borderLightThickness ?? 4) === preset.px;
-                          return (
-                            <button
-                              key={preset.px}
-                              type="button"
-                              onClick={() => setN({ borderLightThickness: preset.px })}
-                              className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
-                                active
-                                  ? 'bg-accent text-accent-contrast shadow-sm'
-                                  : 'bg-surface-variant text-text-muted hover:text-text'
-                              }`}
-                            >
-                              {preset.label} ({preset.px}px)
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <Slider
-                        label="Border thickness"
-                        value={n.borderLightThickness ?? 4}
-                        min={1}
-                        max={24}
-                        step={1}
-                        suffix=" px"
-                        onChange={(thickness) => setN({ borderLightThickness: thickness })}
-                        className="w-full justify-between pt-1"
-                      />
-                    </div>
-
-                    {/* Brightness */}
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center justify-between text-xs text-text-muted">
-                        <span>Border brightness</span>
-                        <span className="font-mono font-medium text-text">
-                          {n.borderLightBrightness ?? 150}%
-                        </span>
-                      </div>
-                      <Segmented<'100' | '150' | '200'>
-                        label="Border brightness"
-                        value={String(n.borderLightBrightness ?? 150) as '100' | '150' | '200'}
-                        onChange={(brightness) =>
-                          setN({ borderLightBrightness: Number(brightness) })
-                        }
-                        options={[
-                          { value: '100', label: 'Standard (100%)' },
-                          { value: '150', label: 'High (150%)' },
-                          { value: '200', label: 'Ultra Vivid (200%)' },
-                        ]}
-                      />
-                      <p className="text-[11px] text-text-subtle">
-                        High brightness illuminates screen edges with multi-layer neon glow and white-hot accents.
-                      </p>
-                    </div>
-
-                    <p className="text-[11px] text-text-subtle">
-                      Fades in smoothly when alerts arrive, and leaves strictly with a smooth fade-out when dismissed.
-                    </p>
-                  </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => void window.smaran.reminders.previewBorderLight()}
+                  >
+                    Preview on screen
+                  </Button>
                 )}
+                <Switch
+                  id="set-border-light"
+                  label="Screen border light"
+                  checked={n.borderLight ?? true}
+                  onChange={(borderLight) => setN({ borderLight })}
+                />
               </div>
             </Row>
+
+            {(n.borderLight ?? true) && (
+              <>
+                <Row
+                  label="Border thickness"
+                  hint={`${n.borderLightThickness ?? 4} px · ${thicknessLabel(n.borderLightThickness ?? 4)}`}
+                >
+                  <div className="flex flex-col items-end gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      {[
+                        { px: 1, label: 'Hairline' },
+                        { px: 2, label: 'Very Thin' },
+                        { px: 4, label: 'Thin' },
+                        { px: 8, label: 'Medium' },
+                        { px: 14, label: 'Thick' },
+                        { px: 20, label: 'Very Thick' },
+                      ].map((preset) => {
+                        const active = (n.borderLightThickness ?? 4) === preset.px;
+                        return (
+                          <button
+                            key={preset.px}
+                            type="button"
+                            onClick={() => setN({ borderLightThickness: preset.px })}
+                            className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
+                              active
+                                ? 'bg-accent text-accent-contrast shadow-sm'
+                                : 'bg-surface-variant text-text-muted hover:text-text'
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <Slider
+                      label="Border thickness"
+                      value={n.borderLightThickness ?? 4}
+                      min={1}
+                      max={24}
+                      step={1}
+                      suffix=" px"
+                      onChange={(thickness) => setN({ borderLightThickness: thickness })}
+                      className="justify-end"
+                    />
+                  </div>
+                </Row>
+
+                <Row
+                  label="Border brightness"
+                  hint="Luminous multi-layer neon glow and white-hot accents."
+                >
+                  <Segmented<'100' | '150' | '200'>
+                    label="Border brightness"
+                    value={String(n.borderLightBrightness ?? 150) as '100' | '150' | '200'}
+                    onChange={(brightness) =>
+                      setN({ borderLightBrightness: Number(brightness) })
+                    }
+                    options={[
+                      { value: '100', label: 'Standard (100%)' },
+                      { value: '150', label: 'High (150%)' },
+                      { value: '200', label: 'Ultra Vivid (200%)' },
+                    ]}
+                  />
+                </Row>
+              </>
+            )}
             <Row label="Sound" hint="A soft chime when a reminder appears." htmlFor="set-sound">
               <Switch
                 id="set-sound"

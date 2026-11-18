@@ -1,3 +1,9 @@
+# Smaran 2.16.11
+
+- **Fixed Screen Border Settings Layout:** Resolved UI text overlapping and layout collision in Settings › Notifications. Each setting (Screen border light toggle + preview, Border thickness presets + slider, Border brightness) is now cleanly organized into its own structured, perfectly aligned row matching the application's design system.
+
+---
+
 # Smaran 2.16.10
 
 - **Native Windows System Tray Menu:** Right-clicking the system tray icon now opens a seamless native Windows context menu powered directly by Windows shell integration. The system tray overflow area (`^`) stays open properly without collapsing prematurely.
