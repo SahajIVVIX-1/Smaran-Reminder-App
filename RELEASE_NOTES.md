@@ -1,3 +1,16 @@
+# Smaran 2.16.5
+
+- **Attention-grabbing notification motions.** Choose how notifications announce themselves:
+  Fade Cycle, Bounce & Spring, Breathing Pulse, Attention Shake, or Classic Slide.
+- **Fade Cycle.** Notifications can fade in, stay visible for a few seconds, fade out, and repeat
+  rhythmically during the message duration so you never miss an alert.
+- **Custom settings per motion type.** Fine-tune visible duration, fade speeds, bounce springiness,
+  glow effects, and shake intervals tailored to each motion style.
+- **Smart hover & live preview.** Hovering immediately pauses all motion and restores 100% steady
+  visibility for easy reading, mirrored in the real-time Settings preview.
+
+---
+
 # Smaran 2.16.4
 
 - **Tabbed navigation in Settings.** Settings are now organized into five focused sub-tabs:

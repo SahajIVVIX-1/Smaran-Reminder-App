@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   CARD_LIMITS,
   CARD_PADDING_DEFAULT,
   CARD_RADIUS_DEFAULT,
   CARD_WIDTH,
+  type NotificationMotion,
   type Settings,
 } from '@shared/schema';
 import { Button, Row, Slider, Switch } from '../ui';
@@ -142,6 +143,7 @@ export function CardShape({
           customHeight={card.height}
           customRadius={card.radius}
           customPadding={card.padding ?? null}
+          motion={n.motion}
         />
       </div>
     </>
@@ -155,14 +157,79 @@ function CardPreview({
   customHeight,
   customRadius,
   customPadding,
+  motion,
 }: {
   customWidth: number | null;
   presetWidth: number;
   customHeight: number | null;
   customRadius: number | null;
   customPadding: number | null;
+  motion?: NotificationMotion;
 }) {
   const [hovered, setHovered] = useState(false);
+  const [faded, setFaded] = useState(false);
+  const [bounceHop, setBounceHop] = useState(false);
+  const [wiggling, setWiggling] = useState(false);
+
+  const isFaded = faded && !hovered && motion?.type === 'fade-cycle';
+  const isBounceHop = bounceHop && !hovered && motion?.type === 'bounce';
+  const isWiggling = wiggling && !hovered && motion?.type === 'wiggle';
+
+  // Fade cycle in preview
+  useEffect(() => {
+    if (!motion || motion.type !== 'fade-cycle' || hovered) return;
+    const { visibleSec, fadeSec } = motion.fadeCycle;
+    let tOut: number | undefined;
+    let tIn: number | undefined;
+    let cancelled = false;
+
+    const cycle = () => {
+      if (cancelled) return;
+      tOut = window.setTimeout(() => {
+        if (cancelled) return;
+        setFaded(true);
+        tIn = window.setTimeout(() => {
+          if (cancelled) return;
+          setFaded(false);
+          cycle();
+        }, fadeSec * 1000 + 700);
+      }, visibleSec * 1000);
+    };
+
+    cycle();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(tOut);
+      window.clearTimeout(tIn);
+      setFaded(false);
+    };
+  }, [motion, hovered]);
+
+  // Bounce hop in preview
+  useEffect(() => {
+    if (!motion || motion.type !== 'bounce' || !motion.bounce.repeat || hovered) return;
+    const timer = window.setInterval(() => {
+      setBounceHop(true);
+      window.setTimeout(() => setBounceHop(false), 650);
+    }, 3200);
+    return () => {
+      window.clearInterval(timer);
+      setBounceHop(false);
+    };
+  }, [motion, hovered]);
+
+  // Wiggle in preview
+  useEffect(() => {
+    if (!motion || motion.type !== 'wiggle' || hovered) return;
+    const timer = window.setInterval(() => {
+      setWiggling(true);
+      window.setTimeout(() => setWiggling(false), 550);
+    }, (motion.wiggle.intervalSec ?? 3) * 1000);
+    return () => {
+      window.clearInterval(timer);
+      setWiggling(false);
+    };
+  }, [motion, hovered]);
 
   const padX = customPadding ?? 18;
   const padY = customPadding != null ? Math.max(4, Math.round(customPadding * 0.6)) : 9;
@@ -182,6 +249,38 @@ function CardPreview({
       : CARD_RADIUS_DEFAULT
     : unhoveredRadius;
 
+  let motionAnimation: string | undefined;
+  if (!hovered && motion) {
+    if (isBounceHop) {
+      motionAnimation = 'bounce-hop-down 650ms ease-out';
+    } else if (isWiggling) {
+      motionAnimation =
+        motion.wiggle.strength === 'pronounced'
+          ? 'card-wiggle-pronounced 550ms ease-in-out'
+          : 'card-wiggle-subtle 550ms ease-in-out';
+    } else if (motion.type === 'pulse') {
+      const dur =
+        motion.pulse.speed === 'calm'
+          ? '2.6s'
+          : motion.pulse.speed === 'rapid'
+            ? '1.1s'
+            : '1.8s';
+      motionAnimation = `card-pulse-${motion.pulse.speed} ${dur} ease-in-out infinite`;
+    }
+  }
+
+  const previewOpacity =
+    isFaded && motion
+      ? motion.fadeCycle.minOpacity
+      : 1;
+
+  const glowBoxShadow =
+    !hovered && motion?.type === 'pulse' && motion.pulse.glow
+      ? '0 0 16px var(--accent-soft), var(--card-shadow)'
+      : undefined;
+
+  const fadeSec = motion?.type === 'fade-cycle' ? motion.fadeCycle.fadeSec : 0.25;
+
   return (
     <div className="grid place-items-center overflow-hidden rounded-xl bg-raised px-3 py-6">
       <div
@@ -190,6 +289,10 @@ function CardPreview({
           width,
           height,
           borderRadius: radius,
+          opacity: previewOpacity,
+          animation: motionAnimation,
+          boxShadow: glowBoxShadow,
+          transition: `all 300ms ease, opacity ${fadeSec}s ease-in-out`,
         }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}

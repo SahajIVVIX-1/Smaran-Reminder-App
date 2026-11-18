@@ -21,7 +21,11 @@ window.smaranNotification.onInit((init: NotificationInit) => {
   document.head.appendChild(faces);
   createRoot(root).render(
     <StrictMode>
-      <NotificationCard request={init.request} card={init.look.card} />
+      <NotificationCard
+        request={init.request}
+        card={init.look.card}
+        motion={init.look.motion}
+      />
     </StrictMode>,
   );
 });

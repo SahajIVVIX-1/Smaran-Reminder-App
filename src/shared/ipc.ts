@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { CustomFont } from './fonts';
-import { ColorSchema, IdSchema, type CardShape, type Id, type ReminderColor } from './schema';
+import { ColorSchema, IdSchema, type CardShape, type Id, type NotificationMotion, type ReminderColor } from './schema';
 
 export { IPC, type IpcChannel } from './channels';
 
@@ -32,6 +32,8 @@ export interface NotificationRequest {
   countdown?: boolean;
   /** The reminder's own card shape, instead of the one in Settings. */
   card?: CardShape;
+  /** The reminder's own attention motion, instead of the one in Settings. */
+  motion?: NotificationMotion;
 }
 
 /** What the card tells main. 'expired' = it hid itself without an answer. */
@@ -63,6 +65,8 @@ export interface NotificationLook {
     padding?: number | null;
     customWidth?: number | null;
   };
+  /** Motion style and settings for the notification. */
+  motion: NotificationMotion;
   /** Font family chosen in Settings, and any font files the user added. */
   font: string;
   faces: CustomFont[];

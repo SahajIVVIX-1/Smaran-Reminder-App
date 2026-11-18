@@ -10,7 +10,7 @@ import {
   type NotificationRequest,
 } from '@shared/ipc';
 import type { CustomFont } from '@shared/fonts';
-import { CARD_WIDTH, type Settings } from '@shared/schema';
+import { CARD_WIDTH, DEFAULT_NOTIFICATION_MOTION, type Settings } from '@shared/schema';
 import type { Notifier } from '../engine/Engine';
 import { loadRenderer, preloadPath } from './loadRenderer';
 import { pickDisplay, stackWindows, type Size } from './placement';
@@ -103,6 +103,7 @@ export class NotificationCenter implements Notifier {
     const settings = this.settings();
     // A reminder's own card shape wins over the one in Settings.
     const shape = request.card ?? settings.notification.card;
+    const motion = request.motion ?? settings.notification.motion ?? DEFAULT_NOTIFICATION_MOTION;
     const look: NotificationLook = {
       theme:
         settings.theme === 'system'
@@ -118,6 +119,7 @@ export class NotificationCenter implements Notifier {
         padding: shape.padding ?? null,
         customWidth: shape.width,
       },
+      motion,
       font: settings.font,
       faces: this.faces(),
     };

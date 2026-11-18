@@ -6,6 +6,7 @@ import { cx } from '../cx';
 import { useApp } from '../store';
 import { CardShape } from '../components/CardShape';
 import { FontPicker } from '../components/FontPicker';
+import { NotificationMotionSettings } from '../components/NotificationMotionSettings';
 import { Select } from '../components/Select';
 import { LogoSettingsCard } from '../components/LogoSettings';
 import { TimeField } from '../components/TimeField';
@@ -233,6 +234,10 @@ export function Settings() {
                 ]}
               />
             </Row>
+            <NotificationMotionSettings
+              motion={n.motion}
+              onChange={(motion) => setN({ motion })}
+            />
             <CardShape n={n} onChange={(card) => setN({ card })} />
             <Row
               label="Stay on screen for"

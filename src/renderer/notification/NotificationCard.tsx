@@ -9,6 +9,7 @@ import {
 } from 'react';
 import type { NotificationAction, NotificationLook, NotificationRequest } from '@shared/ipc';
 import { separator } from '@shared/menu';
+import { DEFAULT_NOTIFICATION_MOTION, type NotificationMotion } from '@shared/schema';
 import type { SceneKey } from '@shared/dots/dotsScenes';
 import { SmaranDots } from '../dots';
 import { RichText } from '../RichText';
@@ -48,10 +49,13 @@ interface Size {
 export function NotificationCard({
   request,
   card,
+  motion = DEFAULT_NOTIFICATION_MOTION,
 }: {
   request: NotificationRequest;
   /** Width, height (null = fit the content) and corner radius, from Settings. */
   card: NotificationLook['card'];
+  /** Motion and attention animation options. */
+  motion?: NotificationMotion;
 }) {
   const wrapper = useRef<HTMLDivElement>(null);
   const fullRef = useRef<HTMLDivElement>(null);
@@ -135,6 +139,76 @@ export function NotificationCard({
   useEffect(() => {
     if (visibleHeight) window.smaranNotification.shape(visibleHeight);
   }, [visibleHeight]);
+
+  // ---------- Attention Motion Effects ----------
+  const [faded, setFaded] = useState(false);
+  const [bounceHop, setBounceHop] = useState(false);
+  const [wiggling, setWiggling] = useState(false);
+
+  const isFaded = faded && phase === 'in' && motion.type === 'fade-cycle' && !holding;
+  const isBounceHop = bounceHop && phase === 'in' && motion.type === 'bounce' && !holding;
+  const isWiggling = wiggling && phase === 'in' && motion.type === 'wiggle' && !holding;
+
+  // 1. Fade cycle: fades in and out rhythmically during the duration of the notification
+  useEffect(() => {
+    if (phase !== 'in' || motion.type !== 'fade-cycle' || holding) return;
+    const { visibleSec, fadeSec } = motion.fadeCycle;
+    const visibleMs = visibleSec * 1000;
+    const fadeMs = fadeSec * 1000;
+    const pauseMs = 700; // pause while faded
+
+    let tOut: number | undefined;
+    let tIn: number | undefined;
+    let cancelled = false;
+
+    const cycle = () => {
+      if (cancelled) return;
+      tOut = window.setTimeout(() => {
+        if (cancelled) return;
+        setFaded(true);
+        tIn = window.setTimeout(() => {
+          if (cancelled) return;
+          setFaded(false);
+          cycle();
+        }, fadeMs + pauseMs);
+      }, visibleMs);
+    };
+
+    cycle();
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(tOut);
+      window.clearTimeout(tIn);
+      setFaded(false);
+    };
+  }, [phase, motion.type, motion.fadeCycle, holding]);
+
+  // 2. Bounce periodic attention hop
+  useEffect(() => {
+    if (phase !== 'in' || motion.type !== 'bounce' || !motion.bounce.repeat || holding) return;
+    const timer = window.setInterval(() => {
+      setBounceHop(true);
+      window.setTimeout(() => setBounceHop(false), 650);
+    }, 3400);
+    return () => {
+      window.clearInterval(timer);
+      setBounceHop(false);
+    };
+  }, [phase, motion.type, motion.bounce.repeat, holding]);
+
+  // 3. Wiggle periodic attention shake
+  useEffect(() => {
+    if (phase !== 'in' || motion.type !== 'wiggle' || holding) return;
+    const timer = window.setInterval(() => {
+      setWiggling(true);
+      window.setTimeout(() => setWiggling(false), 550);
+    }, motion.wiggle.intervalSec * 1000);
+    return () => {
+      window.clearInterval(timer);
+      setWiggling(false);
+    };
+  }, [phase, motion.type, motion.wiggle.intervalSec, holding]);
 
   function act(action: NotificationAction) {
     if (acted.current) return;
@@ -230,11 +304,65 @@ export function NotificationCard({
       : measuring
         ? 'none'
         : `translateY(${offscreen}) scale(0.97)`;
+  const slideMs =
+    motion.type === 'slide'
+      ? motion.slide.speed === 'snappy'
+        ? 300
+        : motion.slide.speed === 'smooth'
+          ? 700
+          : 480
+      : motion.type === 'bounce'
+        ? motion.bounce.energy === 'gentle'
+          ? 550
+          : motion.bounce.energy === 'energetic'
+            ? 440
+            : 500
+        : 480;
+
+  const slideEase =
+    motion.type === 'bounce'
+      ? motion.bounce.energy === 'gentle'
+        ? 'cubic-bezier(0.34, 1.35, 0.64, 1)'
+        : motion.bounce.energy === 'energetic'
+          ? 'cubic-bezier(0.175, 0.885, 0.32, 1.38)'
+          : 'cubic-bezier(0.34, 1.6, 0.64, 1)'
+      : 'cubic-bezier(0.2, 1.1, 0.3, 1)';
+
+  const fadeTransitionSec = motion.type === 'fade-cycle' ? motion.fadeCycle.fadeSec : 0.26;
   const slide = drag
     ? 'transform 0s'
     : phase === 'out'
       ? 'transform 260ms cubic-bezier(0.4, 0, 1, 1), opacity 220ms ease-in'
-      : 'transform 480ms cubic-bezier(0.2, 1.1, 0.3, 1), opacity 260ms ease-out';
+      : `transform ${slideMs}ms ${slideEase}, opacity ${fadeTransitionSec}s ease-in-out`;
+
+  const baseOpacity = phase === 'in' ? 1 - Math.min(0.6, Math.abs(dragY) / 120) : 0;
+  const targetOpacity = isFaded ? motion.fadeCycle.minOpacity : baseOpacity;
+
+  let motionAnimation: string | undefined;
+  if (phase === 'in' && !holding) {
+    if (isBounceHop) {
+      motionAnimation = fromBottom ? 'bounce-hop-up 650ms ease-out' : 'bounce-hop-down 650ms ease-out';
+    } else if (isWiggling) {
+      motionAnimation =
+        motion.wiggle.strength === 'pronounced'
+          ? 'card-wiggle-pronounced 550ms ease-in-out'
+          : 'card-wiggle-subtle 550ms ease-in-out';
+    } else if (motion.type === 'pulse') {
+      const dur =
+        motion.pulse.speed === 'calm'
+          ? '2.6s'
+          : motion.pulse.speed === 'rapid'
+            ? '1.1s'
+            : '1.8s';
+      motionAnimation = `card-pulse-${motion.pulse.speed} ${dur} ease-in-out infinite`;
+    }
+  }
+
+  const glowBoxShadow =
+    motion.type === 'pulse' && motion.pulse.glow && phase === 'in' && !holding
+      ? '0 0 18px var(--accent-soft), var(--card-shadow)'
+      : undefined;
+
   const shape = sizes ? (expanded ? sizes.full : sizes.pill) : undefined;
   // Folded unhovered notification: custom radius or auto pill (capsule).
   const autoRadius = sizes ? Math.min(sizes.pill.height / 2, 999) : 18;
@@ -277,8 +405,10 @@ export function NotificationCard({
           height: shape?.height,
           borderRadius: radius,
           transform,
-          opacity: phase === 'in' ? 1 - Math.min(0.6, Math.abs(dragY) / 120) : 0,
-          transition: `${slide}, width ${MORPH_MS}ms ${MORPH}, height ${MORPH_MS}ms ${MORPH}, border-radius ${MORPH_MS}ms ${MORPH}`,
+          opacity: targetOpacity,
+          animation: motionAnimation,
+          boxShadow: glowBoxShadow,
+          transition: `${slide}, width ${MORPH_MS}ms ${MORPH}, height ${MORPH_MS}ms ${MORPH}, border-radius ${MORPH_MS}ms ${MORPH}${motion.type === 'pulse' && motion.pulse.glow ? ', box-shadow 350ms ease' : ''}`,
         }}
         className="relative select-none"
       >

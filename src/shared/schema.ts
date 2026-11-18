@@ -80,6 +80,56 @@ export const CardShapeSchema = z.object({
 });
 export type CardShape = z.infer<typeof CardShapeSchema>;
 
+export const NotificationMotionSchema = z.object({
+  type: z.enum(['fade-cycle', 'bounce', 'pulse', 'wiggle', 'slide']),
+  fadeCycle: z.object({
+    visibleSec: z.number().min(1).max(10),
+    fadeSec: z.number().min(0.2).max(2),
+    minOpacity: z.number().min(0).max(0.6),
+  }),
+  bounce: z.object({
+    energy: z.enum(['gentle', 'medium', 'energetic']),
+    repeat: z.boolean(),
+  }),
+  pulse: z.object({
+    speed: z.enum(['calm', 'balanced', 'rapid']),
+    glow: z.boolean(),
+  }),
+  wiggle: z.object({
+    intervalSec: z.number().int().min(1).max(10),
+    strength: z.enum(['subtle', 'pronounced']),
+  }),
+  slide: z.object({
+    speed: z.enum(['snappy', 'normal', 'smooth']),
+  }),
+});
+export type NotificationMotion = z.infer<typeof NotificationMotionSchema>;
+export type MotionType = NotificationMotion['type'];
+
+export const DEFAULT_NOTIFICATION_MOTION: NotificationMotion = {
+  type: 'fade-cycle',
+  fadeCycle: {
+    visibleSec: 3,
+    fadeSec: 0.6,
+    minOpacity: 0.1,
+  },
+  bounce: {
+    energy: 'medium',
+    repeat: true,
+  },
+  pulse: {
+    speed: 'balanced',
+    glow: true,
+  },
+  wiggle: {
+    intervalSec: 3,
+    strength: 'subtle',
+  },
+  slide: {
+    speed: 'normal',
+  },
+};
+
 // ---------- Reminder ----------
 
 export const COLORS = ['clay', 'amber', 'olive', 'sage', 'sky', 'iris', 'rose', 'slate'] as const;
@@ -111,6 +161,8 @@ export const ReminderSchema = z.object({
   animation: z.string().min(1).max(60),
   /** This reminder's own notification shape; absent = the one in Settings. */
   card: CardShapeSchema.optional(),
+  /** This reminder's own attention motion; absent = the one in Settings. */
+  motion: NotificationMotionSchema.optional(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });
@@ -169,6 +221,8 @@ export const SettingsSchema = z.object({
     hideAfterSec: z.number().int().min(3).max(600),
     /** Every notification card's shape (a reminder can override it). */
     card: CardShapeSchema,
+    /** Motion / animation style for how notifications appear and stay attention-grabbing. */
+    motion: NotificationMotionSchema.default(DEFAULT_NOTIFICATION_MOTION),
   }),
   quietHours: z
     .object({ enabled: z.boolean(), from: TimeSchema, to: TimeSchema })
