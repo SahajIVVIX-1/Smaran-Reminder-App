@@ -17,15 +17,38 @@ export class WebDavHandler {
 
   isWebDavRequest(req: http.IncomingMessage): boolean {
     const method = req.method || '';
-    return [
-      'PROPFIND',
-      'PROPPATCH',
-      'MKCOL',
-      'COPY',
-      'MOVE',
-      'LOCK',
-      'UNLOCK',
-    ].includes(method);
+    if (
+      [
+        'PROPFIND',
+        'PROPPATCH',
+        'MKCOL',
+        'COPY',
+        'MOVE',
+        'LOCK',
+        'UNLOCK',
+      ].includes(method)
+    ) {
+      return true;
+    }
+    const headers = req.headers || {};
+    const ua = typeof headers['user-agent'] === 'string' ? headers['user-agent'].toLowerCase() : '';
+    if (
+      ua.includes('microsoft-webdav-miniredir') ||
+      ua.includes('webdavfs') ||
+      ua.includes('davwwwroot') ||
+      ua.includes('cyberduck') ||
+      ua.includes('rclone')
+    ) {
+      return true;
+    }
+    if (headers['translate'] === 'f' || headers['depth'] !== undefined) {
+      return true;
+    }
+    const url = (req.url || '').toLowerCase();
+    if (url.includes('/davwwwroot')) {
+      return true;
+    }
+    return false;
   }
 
   async handleRequest(
@@ -37,7 +60,10 @@ export class WebDavHandler {
     const method = req.method || 'GET';
     const rawUrl = req.url || '/';
     const parsedUrl = new URL(rawUrl, 'http://localhost');
-    const pathname = decodeURIComponent(parsedUrl.pathname);
+    let pathname = decodeURIComponent(parsedUrl.pathname);
+    if (pathname.toLowerCase().startsWith('/davwwwroot')) {
+      pathname = pathname.substring(11) || '/';
+    }
 
     // Apply standard WebDAV headers
     res.setHeader('DAV', '1,2');
@@ -165,7 +191,11 @@ export class WebDavHandler {
       mimeType: string,
     ) => {
       const cleanHref = href.startsWith('/') ? href : '/' + href;
-      const formattedHref = isDir && !cleanHref.endsWith('/') ? cleanHref + '/' : cleanHref;
+      const encodedHref = cleanHref
+        .split('/')
+        .map((segment) => encodeURIComponent(decodeURIComponent(segment)))
+        .join('/');
+      const formattedHref = isDir && !encodedHref.endsWith('/') ? encodedHref + '/' : encodedHref;
 
       return `  <D:response>
     <D:href>${this.escapeXml(formattedHref)}</D:href>
@@ -458,6 +488,8 @@ export class WebDavHandler {
       physicalTarget = safe;
     }
 
+    const exists = fs.existsSync(physicalTarget);
+
     try {
       const parentDir = path.dirname(physicalTarget);
       if (!fs.existsSync(parentDir)) {
@@ -468,7 +500,7 @@ export class WebDavHandler {
       req.pipe(fileStream);
 
       fileStream.on('finish', () => {
-        res.writeHead(201);
+        res.writeHead(exists ? 204 : 201);
         res.end();
       });
 

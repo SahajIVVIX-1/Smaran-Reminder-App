@@ -90,6 +90,8 @@ export const IPC = {
   fileserverVfsPickPath: 'fileserver:vfs:pickPath',
   fileserverKillConnection: 'fileserver:connection:kill',
   fileserverSetComment: 'fileserver:comment:set',
+  fileserverMountDrive: 'fileserver:mount:drive',
+  fileserverUnmountDrive: 'fileserver:unmount:drive',
   // Broadcast events
   fileserverStatusChanged: 'fileserver:event:statusChanged',
   fileserverTransfersUpdated: 'fileserver:event:transfersUpdated',

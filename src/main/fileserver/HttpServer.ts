@@ -361,31 +361,39 @@ export class HttpServer {
     return ip;
   }
 
-  private getSessionIdFromReq(req: http.IncomingMessage): string | null {
-    const cookie = req.headers.cookie;
-    if (cookie) {
-      const match = cookie.match(/smaran_session=([a-zA-Z0-9_-]+)/);
-      if (match && match[1]) return match[1];
+  private getFaviconPath(): string | null {
+    const candidates = [
+      path.join(process.cwd(), 'resources/icon.png'),
+      path.join(__dirname, '../../resources/icon.png'),
+      path.join(process.cwd(), 'branding/app-icon/png/app-icon-32.png'),
+      path.join(process.cwd(), 'branding/app-icon/app-icon.ico'),
+    ];
+    for (const c of candidates) {
+      if (fs.existsSync(c)) return c;
     }
-    const headerToken = req.headers['x-session-id'];
-    if (typeof headerToken === 'string') return headerToken;
     return null;
   }
 
-  private isSessionValid(session: SessionInfo): boolean {
-    const idleMs = Date.now() - session.lastActivity;
-    if (idleMs <= this.SESSION_TIMEOUT_MS) {
-      return true;
+  private getSessionIdFromReq(req: http.IncomingMessage): string | null {
+    const headerToken = req.headers['x-session-id'];
+    if (typeof headerToken === 'string' && headerToken) return headerToken;
+    const auth = req.headers['authorization'];
+    if (auth && auth.startsWith('Bearer ')) {
+      return auth.slice(7).trim();
     }
-    // Exempt if client has active uploads or downloads
-    const hasTransfers = Array.from(this.activeTransfers.values()).some(
-      (t) => t.clientIp === session.clientIp,
-    );
-    if (hasTransfers) {
-      session.lastActivity = Date.now();
-      return true;
+    try {
+      const parsed = new URL(req.url || '/', 'http://localhost');
+      const token = parsed.searchParams.get('token') || parsed.searchParams.get('sessionId');
+      if (token) return token;
+    } catch {
+      void 0;
     }
-    return false;
+    return null;
+  }
+
+  private isSessionValid(_session: SessionInfo): boolean {
+    // Sessions do not expire on a timer; refreshing the browser clears memory token
+    return true;
   }
 
   private authenticateUser(req: http.IncomingMessage): UserAccount | null {
@@ -485,8 +493,15 @@ export class HttpServer {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Range, Depth, Destination, Timeout, Lock-Token, X-Session-Id');
     res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Content-Length, Accept-Ranges, DAV, Lock-Token');
 
-    if (req.method === 'OPTIONS' && !this.webdav.isWebDavRequest(req)) {
-      res.writeHead(204);
+    if (req.method === 'OPTIONS') {
+      res.setHeader('DAV', '1,2');
+      res.setHeader('MS-Author-Via', 'DAV');
+      res.setHeader(
+        'Allow',
+        'GET, HEAD, POST, PUT, DELETE, OPTIONS, PROPFIND, PROPPATCH, MKCOL, MOVE, COPY, LOCK, UNLOCK',
+      );
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.writeHead(200, { 'Content-Length': '0' });
       res.end();
       return;
     }
@@ -508,20 +523,93 @@ export class HttpServer {
 
     const rawUrl = req.url || '/';
     const parsedUrl = new URL(rawUrl, 'http://localhost');
-    const pathname = parsedUrl.pathname;
+    let pathname = decodeURIComponent(parsedUrl.pathname);
+    if (pathname.toLowerCase().startsWith('/davwwwroot')) {
+      pathname = pathname.substring(11) || '/';
+    }
 
-    // 5. Root & Web File Manager UI with Context auto-rewrite
-    if (pathname === '/' || pathname === '/index.html') {
-      const user = this.authenticateUser(req);
-      if (!parsedUrl.searchParams.has('context')) {
-        const username = user ? user.username : 'visitor';
-        const cleanIp = this.getCleanClientIp(req);
-        res.writeHead(302, { Location: `/?context=${encodeURIComponent(username)}@${cleanIp}` });
-        res.end();
+    // 4.1 Favicon serving
+    if (pathname === '/favicon.ico' || pathname === '/favicon.png') {
+      const iconPath = this.getFaviconPath();
+      if (iconPath && fs.existsSync(iconPath)) {
+        const ext = path.extname(iconPath).toLowerCase();
+        const mime = ext === '.ico' ? 'image/x-icon' : 'image/png';
+        const buffer = fs.readFileSync(iconPath);
+        res.writeHead(200, {
+          'Content-Type': mime,
+          'Content-Length': buffer.length,
+          'Cache-Control': 'public, max-age=86400',
+        });
+        res.end(buffer);
         return;
       }
+    }
+
+    // 4.2 Windows Explorer 1-Click Drive Mount script download
+    if (pathname === '/api/mount-bat') {
+      const driveParam = (parsedUrl.searchParams.get('drive') || 'Z').toUpperCase().replace(/[^A-Z]/g, '') || 'Z';
+      const userParam = parsedUrl.searchParams.get('user') || (settings.authEnabled ? 'smaran' : '');
+      const passParam = parsedUrl.searchParams.get('pass') || (settings.authEnabled ? 'smaran@123' : '');
+      const hostIp = this.getCleanClientIp(req);
+      const serverPort = settings.port;
+      const lanUrl = `http://${req.headers.host || `${hostIp}:${serverPort}`}/`;
+
+      let mountCmd = `net use ${driveParam}: ${lanUrl} /persistent:no`;
+      if (settings.authEnabled && userParam) {
+        mountCmd = `net use ${driveParam}: ${lanUrl} /user:${userParam} "${passParam}" /persistent:no`;
+      }
+
+      const bat = `@echo off\r\n` +
+        `title Smaran HFS - Drive Mounter\r\n` +
+        `echo ========================================================\r\n` +
+        `echo  Smaran HFS - Network Drive Mounter\r\n` +
+        `echo  Target: ${lanUrl} -> Drive ${driveParam}:\r\n` +
+        `echo ========================================================\r\n` +
+        `echo.\r\n` +
+        `echo [1/4] Enabling Windows WebClient LAN HTTP Authentication...\r\n` +
+        `reg add "HKLM\\SYSTEM\\CurrentControlSet\\Services\\WebClient\\Parameters" /v BasicAuthLevel /t REG_DWORD /d 2 /f >nul 2>&1\r\n` +
+        `echo [2/4] Starting Windows WebClient service...\r\n` +
+        `net start WebClient >nul 2>&1\r\n` +
+        `echo [3/4] Clearing any existing mapping on Drive ${driveParam}:...\r\n` +
+        `net use ${driveParam}: /delete /y >nul 2>&1\r\n` +
+        `echo [4/4] Mapping Drive ${driveParam}: to Smaran HFS...\r\n` +
+        `${mountCmd}\r\n` +
+        `if %errorlevel% equ 0 (\r\n` +
+        `    echo.\r\n` +
+        `    echo [SUCCESS] Smaran HFS mounted to Drive ${driveParam}:!\r\n` +
+        `    echo Opening Drive ${driveParam}: in Windows Explorer...\r\n` +
+        `    explorer ${driveParam}:\\\r\n` +
+        `) else (\r\n` +
+        `    echo.\r\n` +
+        `    echo [ERROR] Failed to map drive. Error code: %errorlevel%\r\n` +
+        `    echo Ensure Smaran HFS is running and credentials are valid.\r\n` +
+        `    pause\r\n` +
+        `)\r\n`;
+
+      res.writeHead(200, {
+        'Content-Type': 'application/x-bat',
+        'Content-Disposition': 'attachment; filename="mount-smaran-drive.bat"',
+      });
+      res.end(bat);
+      return;
+    }
+
+    if (pathname === '/api/unmount-bat') {
+      const driveParam = (parsedUrl.searchParams.get('drive') || 'Z').toUpperCase().replace(/[^A-Z]/g, '') || 'Z';
+      const bat = `@echo off\r\nnet use ${driveParam}: /delete /y\r\necho Drive ${driveParam}: unmounted.\r\n`;
+      res.writeHead(200, {
+        'Content-Type': 'application/x-bat',
+        'Content-Disposition': 'attachment; filename="unmount-smaran-drive.bat"',
+      });
+      res.end(bat);
+      return;
+    }
+
+    // 5. Root & Web File Manager UI
+    if (pathname === '/' || pathname === '/index.html') {
+      const cleanIp = this.getCleanClientIp(req);
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(getWebManagerHtml(settings.serverName));
+      res.end(getWebManagerHtml(settings.serverName, cleanIp));
       return;
     }
 
@@ -583,10 +671,6 @@ export class HttpServer {
             createdAt: Date.now(),
             lastActivity: Date.now(),
           });
-          res.setHeader(
-            'Set-Cookie',
-            `smaran_session=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`,
-          );
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(
             JSON.stringify({
@@ -650,10 +734,6 @@ export class HttpServer {
       if (sessionId) {
         this.sessions.delete(sessionId);
       }
-      res.setHeader(
-        'Set-Cookie',
-        'smaran_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax',
-      );
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
       return;
@@ -941,10 +1021,13 @@ export class HttpServer {
     // 9. Auth check
     const user = this.authenticateUser(req);
     if (!this.checkAuth(req, user)) {
-      res.writeHead(401, {
+      const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'WWW-Authenticate': 'Basic realm="Smaran File Server"',
-      });
+      };
+      if (this.webdav.isWebDavRequest(req)) {
+        headers['WWW-Authenticate'] = 'Basic realm="Smaran HFS"';
+      }
+      res.writeHead(401, headers);
       res.end(JSON.stringify({ error: 'Authentication required' }));
       return;
     }
@@ -1112,6 +1195,22 @@ export class HttpServer {
       const rawRel = pathname.replace(/^\/(download|raw)\//, '');
       await this.serveFile(rawRel, isDownload, user, req, res);
       return;
+    }
+
+    // 19. Direct VFS file serving for WebDAV / Windows Explorer & Direct Links
+    if (req.method === 'GET' || req.method === 'HEAD') {
+      const resolved = this.vfs.resolvePath(pathname, user);
+      if (resolved?.physicalPath && fs.existsSync(resolved.physicalPath)) {
+        try {
+          const stat = fs.statSync(resolved.physicalPath);
+          if (!stat.isDirectory()) {
+            await this.serveFile(pathname, false, user, req, res);
+            return;
+          }
+        } catch {
+          void 0;
+        }
+      }
     }
 
     // 404

@@ -351,6 +351,75 @@ export class FileServerManager {
     });
   }
 
+  // Drive Mounting (WebDAV Network Drive)
+  async mountLocalDrive(options?: {
+    driveLetter?: string;
+    username?: string;
+    password?: string;
+  }): Promise<{ ok: boolean; driveLetter?: string; error?: string }> {
+    if (process.platform !== 'win32') {
+      return { ok: false, error: 'Local drive mapping is currently supported on Windows' };
+    }
+    const settings = this.store.getSettings();
+    if (!this.http.isRunning) {
+      return { ok: false, error: 'Smaran File Server is not running. Please start the server first.' };
+    }
+    const port = settings.port;
+    const drive = (options?.driveLetter || 'Z:').toUpperCase().replace(/[^A-Z:]/g, '');
+    const driveLetter = drive.endsWith(':') ? drive : `${drive}:`;
+    const user = options?.username || (settings.authEnabled ? 'smaran' : '');
+    const pass = options?.password || (settings.authEnabled ? 'smaran@123' : '');
+
+    try {
+      const { exec } = await import('node:child_process');
+      const { promisify } = await import('node:util');
+      const execAsync = promisify(exec);
+
+      // Best effort start WebClient service
+      try {
+        await execAsync('net start WebClient');
+      } catch {
+        void 0;
+      }
+
+      // Delete existing drive mapping on that letter if any
+      try {
+        await execAsync(`net use ${driveLetter} /delete /y`);
+      } catch {
+        void 0;
+      }
+
+      // Map drive using HTTP WebDAV
+      let cmd = `net use ${driveLetter} http://127.0.0.1:${port}/ /persistent:no`;
+      if (settings.authEnabled && user && pass) {
+        cmd = `net use ${driveLetter} http://127.0.0.1:${port}/ /user:${user} "${pass}" /persistent:no`;
+      }
+
+      await execAsync(cmd);
+
+      // Open in Explorer
+      shell.openPath(`${driveLetter}\\`);
+
+      return { ok: true, driveLetter };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: msg };
+    }
+  }
+
+  async unmountLocalDrive(driveLetter: string = 'Z:'): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const { exec } = await import('node:child_process');
+      const { promisify } = await import('node:util');
+      const execAsync = promisify(exec);
+      const dl = driveLetter.toUpperCase().endsWith(':') ? driveLetter : `${driveLetter}:`;
+      await execAsync(`net use ${dl} /delete /y`);
+      return { ok: true };
+    } catch (err: unknown) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
   private broadcast(channel: string, payload: unknown): void {
     for (const win of BrowserWindow.getAllWindows()) {
       if (!win.isDestroyed()) win.webContents.send(channel, payload);

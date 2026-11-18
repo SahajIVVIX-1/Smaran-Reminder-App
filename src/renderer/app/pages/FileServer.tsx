@@ -95,6 +95,12 @@ export function FileServer() {
   );
   const [webdavModal, setWebdavModal] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [mountLetter, setMountLetter] = useState('Z:');
+  const [mountUsername, setMountUsername] = useState('smaran');
+  const [mountPassword, setMountPassword] = useState('');
+  const [isMounting, setIsMounting] = useState(false);
+  const [mountedDrive, setMountedDrive] = useState<string | null>(null);
+  const [mountMessage, setMountMessage] = useState<{ text: string; error: boolean } | null>(null);
 
   useEffect(() => {
     void window.smaran.fileserver.status().then(setStatus);
@@ -133,6 +139,49 @@ export function FileServer() {
     navigator.clipboard.writeText(text);
     setCopiedUrl(text);
     setTimeout(() => setCopiedUrl(null), 2000);
+  };
+
+  const handleMountDrive = async () => {
+    setIsMounting(true);
+    setMountMessage(null);
+    try {
+      const res = await window.smaran.fileserver.mountLocalDrive({
+        driveLetter: mountLetter,
+        username: mountUsername,
+        password: mountPassword,
+      });
+      if (res.ok) {
+        setMountedDrive(res.driveLetter || mountLetter);
+        setMountMessage({
+          text: `Successfully mounted to ${res.driveLetter || mountLetter} and opened in Windows Explorer!`,
+          error: false,
+        });
+      } else {
+        setMountMessage({ text: res.error || 'Failed to mount drive', error: true });
+      }
+    } catch (err: unknown) {
+      setMountMessage({ text: err instanceof Error ? err.message : String(err), error: true });
+    } finally {
+      setIsMounting(false);
+    }
+  };
+
+  const handleUnmountDrive = async () => {
+    setIsMounting(true);
+    setMountMessage(null);
+    try {
+      const res = await window.smaran.fileserver.unmountLocalDrive(mountLetter);
+      if (res.ok) {
+        setMountedDrive(null);
+        setMountMessage({ text: `Drive ${mountLetter} unmounted.`, error: false });
+      } else {
+        setMountMessage({ text: res.error || 'Failed to unmount drive', error: true });
+      }
+    } catch (err: unknown) {
+      setMountMessage({ text: err instanceof Error ? err.message : String(err), error: true });
+    } finally {
+      setIsMounting(false);
+    }
   };
 
   return (
@@ -273,7 +322,7 @@ export function FileServer() {
         </Dialog>
       )}
 
-      {/* WebDAV Drive Guidance Dialog */}
+      {/* WebDAV Drive Guidance & 1-Click Mount Dialog */}
       {webdavModal && status && (
         <Dialog
           open={webdavModal}
@@ -285,22 +334,81 @@ export function FileServer() {
             </Button>
           }
         >
-          <div className="space-y-3 py-2 text-[13px] text-muted leading-relaxed">
+          <div className="space-y-3.5 py-2 text-[13px] text-muted leading-relaxed">
             <p>
               Smaran HFS includes a full native WebDAV server. You can mount your shared folders
-              directly in Windows Explorer as a network drive letter (e.g. <code className="text-ink">Z:</code>).
+              directly in Windows Explorer as a network drive letter to view, edit, add, and delete files like a local disk.
             </p>
-            <div className="rounded-lg border border-line bg-raised/50 p-3 font-mono text-[12px] text-ink select-all">
-              net use Z: {status.localUrl}/
+
+            <div className="grid grid-cols-3 gap-2.5">
+              <div>
+                <label className="text-[11.5px] font-medium text-ink block mb-1">Drive Letter</label>
+                <select
+                  className="w-full rounded-md border border-line bg-raised px-2.5 py-1.5 text-[12px] text-ink focus:outline-none focus:border-accent"
+                  value={mountLetter}
+                  onChange={(e) => setMountLetter(e.target.value)}
+                >
+                  <option value="Z:">Z:</option>
+                  <option value="Y:">Y:</option>
+                  <option value="X:">X:</option>
+                  <option value="W:">W:</option>
+                  <option value="V:">V:</option>
+                  <option value="S:">S:</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11.5px] font-medium text-ink block mb-1">Username</label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-line bg-raised px-2.5 py-1.5 text-[12px] text-ink focus:outline-none focus:border-accent"
+                  value={mountUsername}
+                  onChange={(e) => setMountUsername(e.target.value)}
+                  placeholder="smaran"
+                />
+              </div>
+              <div>
+                <label className="text-[11.5px] font-medium text-ink block mb-1">Password</label>
+                <input
+                  type="password"
+                  className="w-full rounded-md border border-line bg-raised px-2.5 py-1.5 text-[12px] text-ink focus:outline-none focus:border-accent"
+                  value={mountPassword}
+                  onChange={(e) => setMountPassword(e.target.value)}
+                  placeholder="Password"
+                />
+              </div>
             </div>
-            <div className="space-y-1 text-[12px]">
-              <div className="font-semibold text-ink">In Windows File Explorer:</div>
-              <ol className="list-decimal list-inside space-y-0.5">
-                <li>Open File Explorer and right-click <strong>This PC</strong>.</li>
-                <li>Select <strong>Map network drive…</strong></li>
-                <li>Enter <code className="text-ink">{status.localUrl}/</code> in the Folder box.</li>
-                <li>Click <strong>Finish</strong>. Your Smaran HFS is now accessible like a local drive!</li>
-              </ol>
+
+            {mountMessage && (
+              <div
+                className={`rounded-md p-2.5 text-[12px] ${
+                  mountMessage.error
+                    ? 'bg-danger/10 text-danger border border-danger/30'
+                    : 'bg-ok/10 text-ok border border-ok/30'
+                }`}
+              >
+                {mountMessage.text}
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Button variant="primary" onClick={() => void handleMountDrive()} disabled={isMounting}>
+                {isMounting ? 'Mounting...' : `Mount as Drive ${mountLetter}`}
+              </Button>
+              <Button variant="secondary" onClick={() => void handleUnmountDrive()} disabled={isMounting}>
+                Unmount {mountLetter}
+              </Button>
+              {mountedDrive && (
+                <span className="text-[12px] text-ok font-medium ml-1">
+                  Mapped to {mountedDrive}
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-1.5 pt-1">
+              <div className="font-semibold text-ink text-[12px]">Direct Command / LAN Setup:</div>
+              <div className="rounded-lg border border-line bg-raised/50 p-2.5 font-mono text-[11.5px] text-ink select-all">
+                net use {mountLetter} {status.localUrl}/ {mountUsername ? `/user:${mountUsername} "${mountPassword || '••••'}"` : ''} /persistent:no
+              </div>
             </div>
           </div>
         </Dialog>

@@ -1,3 +1,24 @@
+# Smaran 3.3.1
+
+- **Application Logo as Official Web Favicon:** The file server web manager now serves the official Smaran logo icon as its favicon (`/favicon.png` and `/favicon.ico`) with HTTP caching and embedded fallback, ensuring the Smaran brand appears consistently in browser tabs and bookmarks.
+- **Eliminated Browser-Native Popups:** Web browser API requests no longer trigger the browser's native basic auth credentials dialog. The `WWW-Authenticate: Basic` challenge header is now reserved strictly for WebDAV client user-agents (`Microsoft-WebDAV-MiniRedir`, `DavWWWRoot`, `WebDAVFS`), allowing the clean Smaran in-app login modal to operate without conflict.
+- **Ultra-Smooth 60fps Vector Smaran Dots Logo:** Replaced the low-resolution SVG goo-filter animation in the web manager header with the official vector-resampled `dots.js` engine. Smoothly morphs between signature scenes (`smark`, `dance`, `bell`, `check`, `heart`) at 60fps with zero pixelation or blurry edges on any display resolution.
+- **Secure Password Handling & Refresh-to-Logout:** Removed hardcoded default credentials from the sign-in modal fields. Session tokens are now stored strictly in JavaScript memory (`X-Session-Id`) without persistent cookies; reloading or refreshing the web page immediately logs out the session. Removed the 15-minute inactivity timer so long-running transfers and active sessions never drop unexpectedly.
+- **1-Click WebDAV Disk Mounting for Windows Explorer & macOS:** 
+  - **In-App Desktop:** Added a 1-click **"Mount as Drive Z:"** button in the File Server dashboard that starts the Windows WebClient service, maps the local drive letter, and opens Windows Explorer directly.
+  - **LAN Web Clients:** Added a 1-click **"Download 1-Click Drive Mounter (.bat)"** endpoint (`/api/mount-bat`) in the web manager that generates a ready-to-run Windows batch script. The script automatically enables Windows LAN HTTP authentication (`BasicAuthLevel=2`), clears previous mappings, maps Drive Z:, and opens the folder.
+  - **Bidirectional Live Sync:** Files added, modified, or deleted in the mounted drive immediately sync with host storage according to the authenticated user's permissions.
+- **Safe Native ReplaceState Address Bar Context:** Ported the `safeNativeReplaceState` typewriter effect from `blog.sahaj.si`. Smoothly streams the client identity into the address bar (`/?context=you@<ip>`) with zero backend 302 redirects, zero router reconciliation crashes, and zero page reloads.
+- **Complete Web Administration Suite:** Authenticated administrators can now manage every aspect of the server directly from their browser across an expanded 6-tab Admin Panel:
+  - **Settings:** Edit Server Name, Host Root Path, HTTP Port, Bind Address, Max Connections, Upload Size Limit, Rate Limit, Download/Upload Speed Caps, Per-IP Speed Caps, Authentication Required, Guest Access, WebDAV, UPnP, and Brute Force Protection.
+  - **User Accounts:** Add, delete, and fully edit existing user accounts (change roles, update passwords, and toggle each of the 8 permissions: Read, Upload, Delete, Rename, Mkdir, Comment, VFS, Zip).
+  - **VFS Mounts:** Add virtual folder mappings to physical host folders and configure read-only flags.
+  - **Active Shares:** Inspect and revoke tokenized sharing links.
+  - **Live Connections:** View connected client sessions and disconnect sockets with 1 click.
+  - **Audit Logs:** Real-time searchable server activity log with one-click clear.
+
+---
+
 # Smaran 3.3.0
 
 - **Mandatory Web Authentication & System Admin Protection:** Web file server requires authentication by default. Initialized with secure default administrator (`smaran` / `smaran@123`) requiring compulsory password change on first sign-in. The `smaran` username is protected against renaming or deletion. Includes 15-minute idle session timeout with active transfer exemption and `beforeunload` transfer protection.

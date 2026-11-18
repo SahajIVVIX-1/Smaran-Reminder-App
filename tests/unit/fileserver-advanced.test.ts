@@ -279,12 +279,30 @@ describe('Advanced Smaran HFS Features', () => {
   });
 
   describe('WebDAV Server Protocol', () => {
-    it('identifies WebDAV HTTP methods', () => {
+    it('identifies WebDAV HTTP methods and Windows client user-agents', () => {
       const webdav = new WebDavHandler(vfs, store.getSettings().rootDir);
       expect(webdav.isWebDavRequest({ method: 'PROPFIND' } as unknown as IncomingMessage)).toBe(true);
       expect(webdav.isWebDavRequest({ method: 'MKCOL' } as unknown as IncomingMessage)).toBe(true);
       expect(webdav.isWebDavRequest({ method: 'MOVE' } as unknown as IncomingMessage)).toBe(true);
-      expect(webdav.isWebDavRequest({ method: 'GET' } as unknown as IncomingMessage)).toBe(false);
+      expect(
+        webdav.isWebDavRequest({
+          method: 'GET',
+          headers: { 'user-agent': 'Microsoft-WebDAV-MiniRedir/10.0.19041' },
+        } as unknown as IncomingMessage),
+      ).toBe(true);
+      expect(
+        webdav.isWebDavRequest({
+          method: 'OPTIONS',
+          url: '/DavWWWRoot/',
+          headers: {},
+        } as unknown as IncomingMessage),
+      ).toBe(true);
+      expect(
+        webdav.isWebDavRequest({
+          method: 'GET',
+          headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        } as unknown as IncomingMessage),
+      ).toBe(false);
     });
 
     it('handles WebDAV PROPFIND and returns 207 Multi-Status XML', async () => {

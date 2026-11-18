@@ -179,6 +179,14 @@ const api = {
       ipcRenderer.invoke(IPC.fileserverKillConnection, id),
     setComment: (path: string, comment: string): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke(IPC.fileserverSetComment, { path, comment }),
+    mountLocalDrive: (payload?: {
+      driveLetter?: string;
+      username?: string;
+      password?: string;
+    }): Promise<{ ok: boolean; driveLetter?: string; error?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverMountDrive, payload),
+    unmountLocalDrive: (driveLetter?: string): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverUnmountDrive, driveLetter),
     onStatusChanged: (listener: (status: ServerStatus) => void): (() => void) =>
       subscribe(IPC.fileserverStatusChanged, listener),
     onTransfersUpdated: (listener: (transfers: ActiveTransfer[]) => void): (() => void) =>

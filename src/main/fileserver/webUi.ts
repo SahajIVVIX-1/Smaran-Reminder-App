@@ -1,11 +1,13 @@
-export function getWebManagerHtml(serverName: string): string {
+export function getWebManagerHtml(serverName: string, initialClientIp: string = ''): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(serverName)} - Smaran HFS</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='20' cy='32' r='7' fill='%23eaeaea'/%3E%3Ccircle cx='32' cy='32' r='7' fill='%23e06c43'/%3E%3Ccircle cx='44' cy='32' r='7' fill='%23f59f00'/%3E%3C/svg%3E">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/favicon.png">
   <style>
     :root {
       --bg: #121214;
@@ -20,6 +22,12 @@ export function getWebManagerHtml(serverName: string): string {
       --accent-soft: rgba(224, 108, 67, 0.15);
       --danger: #ef4444;
       --ok: #22c55e;
+      --logo-primary: #eaeaea;
+      --logo-accent: #e06c43;
+      --logo-accent-2: #f59f00;
+      --logo-alert: #e06c43;
+      --logo-success: #22c55e;
+      --logo-error: #ef4444;
       --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -631,11 +639,14 @@ export function getWebManagerHtml(serverName: string): string {
       .upload-dock { width: 90%; right: 5%; left: 5%; }
     }
   </style>
+  <script>
+    window.__INITIAL_IP__ = "${escapeHtml(initialClientIp)}";
+  </script>
 </head>
 <body>
   <header>
     <div class="brand">
-      <div class="smaran-brand-logo" id="smaran-brand-dots" title="Smaran"></div>
+      <svg class="smaran-brand-logo" id="smaran-brand-dots" data-dots="smark,dance,bell,check" data-hold="2.6" width="32" height="32" viewBox="-4 -4 72 72" title="Smaran HFS"></svg>
       <span>${escapeHtml(serverName)}</span>
       <span class="badge hide-mobile">LAN File Server</span>
       <div id="context-pill" class="context-pill" title="Client Context Identity">
@@ -792,37 +803,60 @@ export function getWebManagerHtml(serverName: string): string {
       setTimeout(() => div.remove(), duration);
     }
 
-    /* Client Inactivity & Session Monitor */
-    function resetIdleTimer() {
-      idleSeconds = 0;
-    }
-    ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(evt => {
-      window.addEventListener(evt, resetIdleTimer, { passive: true });
-    });
+    /* In-memory Session State & Safe Native ReplaceState */
+    let currentSessionId = null;
 
-    setInterval(() => {
-      idleSeconds++;
-      if (idleSeconds === SESSION_MAX_IDLE - 60) {
-        showToast('Session expiring in 60s due to inactivity...', 5000);
-      }
-      if (idleSeconds >= SESSION_MAX_IDLE) {
-        // If active transfers are underway, grant transfer exemption
-        if (activeUploadCount > 0) {
-          idleSeconds = 0;
-          return;
+    // Wrap window.fetch to attach in-memory X-Session-Id header (zero persistent cookies)
+    const _nativeFetch = window.fetch.bind(window);
+    window.fetch = function(url, init = {}) {
+      const opts = { ...init };
+      opts.headers = { ...(init.headers || {}) };
+      if (currentSessionId && typeof url === 'string' && (url.startsWith('/') || url.startsWith(window.location.origin))) {
+        if (opts.headers instanceof Headers) {
+          opts.headers.set('X-Session-Id', currentSessionId);
+        } else {
+          opts.headers['X-Session-Id'] = currentSessionId;
         }
-        idleSeconds = 0;
-        fetch('/api/logout', { method: 'POST' }).finally(() => {
-          currentUser = null;
-          updateSessionUI();
-          smaranAlert({
-            title: 'Session Expired',
-            message: 'You have been logged out after 15 minutes of inactivity for security.',
-            tone: 'warning'
-          }).then(() => showLoginModal());
-        });
       }
-    }, 1000);
+      return _nativeFetch(url, opts);
+    };
+
+    function safeNativeReplaceState(url) {
+      try {
+        if (typeof window === 'undefined') return;
+        const proto = History.prototype;
+        if (proto && typeof proto.replaceState === 'function') {
+          proto.replaceState.call(window.history, window.history.state, '', url);
+        } else {
+          window.history.replaceState(window.history.state, '', url);
+        }
+      } catch {}
+    }
+
+    async function updateContextAddressBar(userLabel, ip) {
+      const targetContext = (userLabel || 'you') + '@' + (ip || clientIp || 'lan');
+      const label = document.getElementById('context-label');
+      if (label) label.innerText = targetContext;
+
+      const currentSearch = window.location.search;
+      const initialPathname = window.location.pathname;
+      if (!currentSearch.includes('context=' + encodeURIComponent(targetContext)) && !currentSearch.includes('context=' + targetContext)) {
+        const existingParams = new URLSearchParams(window.location.search);
+        existingParams.delete('context');
+        const rest = existingParams.toString();
+        const restSuffix = rest ? '&' + rest : '';
+
+        const steps = [
+          'context=' + encodeURIComponent(userLabel || 'you') + '@',
+          'context=' + encodeURIComponent(targetContext),
+        ];
+
+        for (const step of steps) {
+          safeNativeReplaceState(initialPathname + '?' + step + restSuffix + window.location.hash);
+          await new Promise(r => setTimeout(r, 65));
+        }
+      }
+    }
 
     window.addEventListener('beforeunload', (e) => {
       if (activeUploadCount > 0) {
@@ -836,9 +870,9 @@ export function getWebManagerHtml(serverName: string): string {
         const res = await fetch('/api/session');
         if (res.ok) {
           const data = await res.json();
-          clientIp = data.clientIp || '127.0.0.1';
+          clientIp = data.clientIp || window.__INITIAL_IP__ || '127.0.0.1';
           currentUser = data.user;
-          updateContextPill();
+          updateContextAddressBar(currentUser ? currentUser.username : 'you', clientIp);
           updateSessionUI();
 
           if (data.authenticated && data.user && data.user.mustChangePassword) {
@@ -853,17 +887,7 @@ export function getWebManagerHtml(serverName: string): string {
     }
 
     function updateContextPill() {
-      const uName = currentUser ? currentUser.username : 'visitor';
-      const label = document.getElementById('context-label');
-      if (label) label.innerText = uName + '@' + clientIp;
-
-      // Sync URL without refreshing: /?context=user@ip
-      const contextStr = uName + '@' + clientIp;
-      const url = new URL(window.location.href);
-      if (url.searchParams.get('context') !== contextStr) {
-        url.searchParams.set('context', contextStr);
-        window.history.replaceState(null, '', url.pathname + url.search);
-      }
+      updateContextAddressBar(currentUser ? currentUser.username : 'you', clientIp);
     }
 
     function updateSessionUI() {
@@ -906,12 +930,14 @@ export function getWebManagerHtml(serverName: string): string {
 
     async function doLogout() {
       closeModal();
-      await fetch('/api/logout', { method: 'POST' });
+      currentSessionId = null;
       currentUser = null;
+      await fetch('/api/logout', { method: 'POST' });
       updateContextPill();
       updateSessionUI();
       showToast('Logged out');
       loadFiles();
+      showLoginModal();
     }
 
     function setViewMode(mode) {
@@ -1318,36 +1344,98 @@ export function getWebManagerHtml(serverName: string): string {
     }
 
     function showWebDavHelp() {
-      const host = window.location.host;
-      const webdavUrl = window.location.origin + '/webdav';
+      const webdavUrl = window.location.origin + '/';
+      const defaultUser = currentUser ? currentUser.username : 'smaran';
       const mc = document.getElementById('modal-container');
       mc.innerHTML = \`
         <div class="modal-overlay" onclick="closeModal()">
           <div class="modal-box large" onclick="event.stopPropagation()">
             <div class="modal-title">
-              <span>Mount as Network Drive (WebDAV)</span>
+              <span>Mount as Windows Network Drive (WebDAV)</span>
               <button onclick="closeModal()" class="icon-only" style="border:none;background:transparent;cursor:pointer;">✕</button>
             </div>
             <div class="modal-body">
-              <p class="modal-message">Mount this file server directly inside Windows File Explorer, macOS Finder, or Linux to edit files as a native local drive.</p>
-              <div style="background:#111; padding:12px; border-radius:6px; border:1px solid var(--line); font-family:monospace; margin-bottom:16px; word-break:break-all;">
-                \${webdavUrl}
+              <p class="modal-message">Mount this Smaran HFS storage directly into Windows File Explorer, macOS Finder, or Linux to view, edit, drag-and-drop, and delete files like a local disk drive.</p>
+              
+              <div style="background:rgba(255,255,255,0.02); padding:12px; border-radius:6px; border:1px solid var(--line); font-family:monospace; margin-bottom:14px; word-break:break-all; font-size:12.5px;">
+                <strong>WebDAV Root URL:</strong> \${webdavUrl}
               </div>
-              <h4 style="margin-bottom:8px; font-size:13px; color:var(--text);">Windows Setup:</h4>
-              <ol style="margin-left:20px; color:var(--muted); font-size:12.5px; line-height:1.7;">
-                <li>Open <strong>This PC</strong> in File Explorer.</li>
-                <li>Click <strong>Map network drive</strong> on the top menu bar.</li>
-                <li>Enter the WebDAV URL above in the <em>Folder</em> field.</li>
-                <li>Check <em>Connect using different credentials</em>, then sign in with your Smaran username and password.</li>
-              </ol>
+
+              <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:14px;">
+                <div>
+                  <label style="font-size:11.5px; color:var(--muted); display:block; margin-bottom:3px;">Drive Letter</label>
+                  <select id="wd-drive-letter" class="modal-input" style="margin-bottom:0;">
+                    <option value="Z" selected>Drive Z:</option>
+                    <option value="Y">Drive Y:</option>
+                    <option value="X">Drive X:</option>
+                    <option value="W">Drive W:</option>
+                    <option value="V">Drive V:</option>
+                    <option value="S">Drive S:</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size:11.5px; color:var(--muted); display:block; margin-bottom:3px;">Username</label>
+                  <input type="text" id="wd-mount-user" class="modal-input" value="\${escapeHtml(defaultUser)}" style="margin-bottom:0;" />
+                </div>
+                <div>
+                  <label style="font-size:11.5px; color:var(--muted); display:block; margin-bottom:3px;">Password</label>
+                  <input type="password" id="wd-mount-pass" class="modal-input" placeholder="Password" style="margin-bottom:0;" />
+                </div>
+              </div>
+
+              <div style="background:rgba(224,108,67,0.08); border:1px solid rgba(224,108,67,0.25); border-radius:6px; padding:10px 12px; margin-bottom:14px; font-size:12px; color:var(--text); line-height:1.6;">
+                <strong>⚡ Instant 1-Click Setup:</strong> Download the pre-configured Windows batch script below. It automatically enables Windows WebClient LAN HTTP authentication (<code style="color:var(--accent);">BasicAuthLevel=2</code>), starts the service, and maps the drive in File Explorer!
+              </div>
+
+              <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
+                <button class="primary" onclick="downloadMountBat()">⬇ Download 1-Click Drive Mounter (.bat)</button>
+                <button onclick="downloadUnmountBat()">Unmount Script (.bat)</button>
+                <button onclick="copyNetUseCommand()">Copy 'net use' Command</button>
+              </div>
+
+              <details style="font-size:12px; color:var(--muted);">
+                <summary style="cursor:pointer; font-weight:500; color:var(--text); margin-bottom:6px;">Manual Setup Instructions (Windows / Mac / Linux)</summary>
+                <ol style="margin-left:18px; line-height:1.7; margin-top:4px;">
+                  <li><strong>Windows Explorer:</strong> Right-click <em>This PC</em> &rarr; <em>Map network drive</em> &rarr; Folder: <code style="color:var(--text);">\${webdavUrl}</code>. Check <em>Connect using different credentials</em>.</li>
+                  <li><strong>macOS Finder:</strong> Press <kbd>Cmd+K</kbd> (Connect to Server) &rarr; Server Address: <code style="color:var(--text);">\${webdavUrl}</code>.</li>
+                  <li><strong>Linux / GNOME:</strong> In Files &rarr; <em>Other Locations</em> &rarr; <em>Connect to Server</em> &rarr; <code style="color:var(--text);">dav://\${window.location.host}/</code>.</li>
+                </ol>
+              </details>
             </div>
             <div class="modal-actions">
-              <button class="primary" onclick="navigator.clipboard.writeText('\${webdavUrl}'); showToast('WebDAV URL copied!');">Copy WebDAV URL</button>
               <button onclick="closeModal()">Close</button>
             </div>
           </div>
         </div>
       \`;
+    }
+
+    function downloadMountBat() {
+      const drive = (document.getElementById('wd-drive-letter') ? document.getElementById('wd-drive-letter').value : 'Z') || 'Z';
+      const user = document.getElementById('wd-mount-user') ? document.getElementById('wd-mount-user').value : '';
+      const pass = document.getElementById('wd-mount-pass') ? document.getElementById('wd-mount-pass').value : '';
+      const url = '/api/mount-bat?drive=' + encodeURIComponent(drive) + '&user=' + encodeURIComponent(user) + '&pass=' + encodeURIComponent(pass);
+      window.location.href = url;
+      showToast('Downloading mount-smaran-drive.bat...');
+    }
+
+    function downloadUnmountBat() {
+      const drive = (document.getElementById('wd-drive-letter') ? document.getElementById('wd-drive-letter').value : 'Z') || 'Z';
+      window.location.href = '/api/unmount-bat?drive=' + encodeURIComponent(drive);
+      showToast('Downloading unmount-smaran-drive.bat...');
+    }
+
+    function copyNetUseCommand() {
+      const drive = (document.getElementById('wd-drive-letter') ? document.getElementById('wd-drive-letter').value : 'Z') || 'Z';
+      const user = document.getElementById('wd-mount-user') ? document.getElementById('wd-mount-user').value : '';
+      const pass = document.getElementById('wd-mount-pass') ? document.getElementById('wd-mount-pass').value : '';
+      const webdavUrl = window.location.origin + '/';
+      let cmd = 'net use ' + drive + ': ' + webdavUrl + ' /persistent:no';
+      if (user && pass) {
+        cmd = 'net use ' + drive + ': ' + webdavUrl + ' /user:' + user + ' "' + pass + '" /persistent:no';
+      }
+      navigator.clipboard.writeText(cmd);
+      showToast('Command copied to clipboard!');
     }
 
     async function promptComment(item) {
@@ -1804,15 +1892,15 @@ export function getWebManagerHtml(serverName: string): string {
           <div class="modal-box" onclick="event.stopPropagation()">
             <div class="modal-title">Sign In</div>
             <div class="modal-body">
-              <p class="modal-message">Sign in to access your Smaran HFS storage. Default administrator credentials: <strong>smaran</strong> / <strong>smaran@123</strong></p>
+              <p class="modal-message">Sign in to access your Smaran HFS storage.</p>
               <div id="login-error-msg" class="login-error-alert" style="display:none;"></div>
               <div style="margin-bottom:12px;">
                 <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:5px; font-weight:500;">Username</label>
-                <input type="text" class="modal-input" id="login-user" value="smaran" style="margin-bottom:0;" autofocus />
+                <input type="text" class="modal-input" id="login-user" placeholder="Username" style="margin-bottom:0;" autofocus />
               </div>
               <div>
                 <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:5px; font-weight:500;">Password</label>
-                <input type="password" class="modal-input" id="login-pass" value="smaran@123" style="margin-bottom:0;" />
+                <input type="password" class="modal-input" id="login-pass" placeholder="Password" style="margin-bottom:0;" />
               </div>
             </div>
             <div class="modal-actions">
@@ -1828,7 +1916,7 @@ export function getWebManagerHtml(serverName: string): string {
       };
       if (uInput) uInput.addEventListener('keydown', handleKey);
       if (pInput) pInput.addEventListener('keydown', handleKey);
-      if (pInput) pInput.focus();
+      if (uInput) uInput.focus();
     }
 
     async function doLogin() {
@@ -1845,6 +1933,7 @@ export function getWebManagerHtml(serverName: string): string {
         });
         if (res.ok) {
           const data = await res.json();
+          currentSessionId = data.sessionId;
           currentUser = data.user;
           document.getElementById('modal-container').innerHTML = '';
           updateContextPill();
@@ -1882,7 +1971,7 @@ export function getWebManagerHtml(serverName: string): string {
             </div>
             <div class="modal-body">
               <p class="modal-message">
-                \${isCompulsory ? 'Welcome to Smaran HFS! You are using default credentials. You must update your password before proceeding.' : 'Update your administrator password:'}
+                \${isCompulsory ? 'Welcome to Smaran HFS! Please update your password before proceeding.' : 'Update your password:'}
               </p>
               <div id="pw-error-msg" class="login-error-alert" style="display:none;"></div>
               <div style="margin-bottom:12px;">
@@ -1892,7 +1981,7 @@ export function getWebManagerHtml(serverName: string): string {
               </div>
               <div style="margin-bottom:12px;">
                 <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:5px; font-weight:500;">Current Password</label>
-                <input type="password" class="modal-input" id="cpw-current" value="\${isCompulsory ? 'smaran@123' : ''}" style="margin-bottom:0;" />
+                <input type="password" class="modal-input" id="cpw-current" placeholder="Current Password" style="margin-bottom:0;" />
               </div>
               <div style="margin-bottom:12px;">
                 <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:5px; font-weight:500;">New Password (min 6 characters)</label>
@@ -2064,7 +2153,9 @@ export function getWebManagerHtml(serverName: string): string {
       }
     }
 
-    /* Web Admin Panel */
+    /* Web Admin Panel - Complete 6-Tab Administration Suite */
+    let currentAdminUsersList = [];
+
     async function showAdminModal() {
       if (!currentUser || currentUser.role !== 'admin') {
         smaranAlert({ title: 'Access Denied', message: 'Administrator role required.', tone: 'error' });
@@ -2074,21 +2165,25 @@ export function getWebManagerHtml(serverName: string): string {
       const mc = document.getElementById('modal-container');
       mc.innerHTML = \`
         <div class="modal-overlay" onclick="closeModal()">
-          <div class="modal-box large" onclick="event.stopPropagation()">
+          <div class="modal-box large" onclick="event.stopPropagation()" style="max-width:820px; width:92vw;">
             <div class="modal-title">
-              <span>Smaran HFS Web Administration Panel</span>
+              <span>Smaran HFS Web Administration</span>
               <button onclick="closeModal()" class="icon-only" style="border:none;background:transparent;cursor:pointer;">✕</button>
             </div>
-            <div class="admin-nav">
+            <div class="admin-nav" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; border-bottom:1px solid var(--line); padding-bottom:8px;">
               <button class="admin-nav-btn active" onclick="switchAdminTab('settings')">Settings</button>
-              <button class="admin-nav-btn" onclick="switchAdminTab('users')">User Accounts</button>
+              <button class="admin-nav-btn" onclick="switchAdminTab('users')">Users</button>
               <button class="admin-nav-btn" onclick="switchAdminTab('vfs')">VFS Mounts</button>
+              <button class="admin-nav-btn" onclick="switchAdminTab('shares')">Shares</button>
+              <button class="admin-nav-btn" onclick="switchAdminTab('conns')">Connections</button>
               <button class="admin-nav-btn" onclick="switchAdminTab('logs')">Audit Logs</button>
             </div>
-            <div class="modal-body" style="min-height:360px;">
-              <div id="admin-pane-settings" class="admin-pane active">Loading settings...</div>
+            <div class="modal-body" style="min-height:380px;">
+              <div id="admin-pane-settings" class="admin-pane active">Loading server settings...</div>
               <div id="admin-pane-users" class="admin-pane">Loading users...</div>
               <div id="admin-pane-vfs" class="admin-pane">Loading VFS mounts...</div>
+              <div id="admin-pane-shares" class="admin-pane">Loading active shares...</div>
+              <div id="admin-pane-conns" class="admin-pane">Loading connected clients...</div>
               <div id="admin-pane-logs" class="admin-pane">Loading audit logs...</div>
             </div>
           </div>
@@ -2100,7 +2195,7 @@ export function getWebManagerHtml(serverName: string): string {
 
     function switchAdminTab(name) {
       document.querySelectorAll('.admin-nav-btn').forEach(btn => btn.classList.remove('active'));
-      event.target.classList.add('active');
+      if (event && event.target) event.target.classList.add('active');
       document.querySelectorAll('.admin-pane').forEach(p => p.classList.remove('active'));
       const activePane = document.getElementById('admin-pane-' + name);
       if (activePane) activePane.classList.add('active');
@@ -2108,6 +2203,8 @@ export function getWebManagerHtml(serverName: string): string {
       if (name === 'settings') loadAdminSettings();
       if (name === 'users') loadAdminUsers();
       if (name === 'vfs') loadAdminVfs();
+      if (name === 'shares') loadAdminShares();
+      if (name === 'conns') loadAdminConnections();
       if (name === 'logs') loadAdminLogs();
     }
 
@@ -2117,33 +2214,70 @@ export function getWebManagerHtml(serverName: string): string {
         const res = await fetch('/api/admin/settings');
         const s = await res.json();
         pane.innerHTML = \`
-          <div style="display:flex; flex-direction:column; gap:12px;">
-            <div>
-              <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Server Name</label>
-              <input type="text" class="modal-input" id="adm-set-name" value="\${escapeHtml(s.serverName)}" style="margin-bottom:0;" />
-            </div>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div style="display:flex; flex-direction:column; gap:12px; max-height:460px; overflow-y:auto; padding-right:6px;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
               <div>
-                <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Port</label>
+                <label style="font-size:11.5px; color:var(--muted); display:block; margin-bottom:3px;">Server Name</label>
+                <input type="text" class="modal-input" id="adm-set-name" value="\${escapeHtml(s.serverName || '')}" style="margin-bottom:0;" />
+              </div>
+              <div>
+                <label style="font-size:11.5px; color:var(--muted); display:block; margin-bottom:3px;">Root Storage Path (Host)</label>
+                <input type="text" class="modal-input" id="adm-set-root" value="\${escapeHtml(s.rootDir || '')}" style="margin-bottom:0;" />
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
+              <div>
+                <label style="font-size:11.5px; color:var(--muted); display:block; margin-bottom:3px;">HTTP Port</label>
                 <input type="number" class="modal-input" id="adm-set-port" value="\${s.port}" style="margin-bottom:0;" />
               </div>
               <div>
-                <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Max Connections</label>
+                <label style="font-size:11.5px; color:var(--muted); display:block; margin-bottom:3px;">Bind Address</label>
+                <input type="text" class="modal-input" id="adm-set-bind" value="\${escapeHtml(s.bindAddress || '0.0.0.0')}" style="margin-bottom:0;" />
+              </div>
+              <div>
+                <label style="font-size:11.5px; color:var(--muted); display:block; margin-bottom:3px;">Max Connections</label>
                 <input type="number" class="modal-input" id="adm-set-maxconns" value="\${s.maxConnections || 2048}" style="margin-bottom:0;" />
               </div>
             </div>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
               <div>
-                <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Upload Limit (MB)</label>
+                <label style="font-size:11.5px; color:var(--muted); display:block; margin-bottom:3px;">Max Upload Size (MB)</label>
                 <input type="number" class="modal-input" id="adm-set-uploadlimit" value="\${s.uploadLimitMb || 4096}" style="margin-bottom:0;" />
               </div>
               <div>
-                <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Rate Limit / min</label>
+                <label style="font-size:11.5px; color:var(--muted); display:block; margin-bottom:3px;">Rate Limit (req/min)</label>
                 <input type="number" class="modal-input" id="adm-set-ratelimit" value="\${s.rateLimitPerMin || 600}" style="margin-bottom:0;" />
               </div>
             </div>
-            <div style="display:flex; justify-content:flex-end; margin-top:14px;">
-              <button class="primary" onclick="saveAdminSettings()">Save Server Settings</button>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
+              <div>
+                <label style="font-size:11.5px; color:var(--muted); display:block; margin-bottom:3px;">Max Download KB/s (0=unlimited)</label>
+                <input type="number" class="modal-input" id="adm-set-kbps-down" value="\${s.maxKbpsDown || 0}" style="margin-bottom:0;" />
+              </div>
+              <div>
+                <label style="font-size:11.5px; color:var(--muted); display:block; margin-bottom:3px;">Max Upload KB/s (0=unlimited)</label>
+                <input type="number" class="modal-input" id="adm-set-kbps-up" value="\${s.maxKbpsUp || 0}" style="margin-bottom:0;" />
+              </div>
+              <div>
+                <label style="font-size:11.5px; color:var(--muted); display:block; margin-bottom:3px;">Limit Per IP KB/s (0=unlimited)</label>
+                <input type="number" class="modal-input" id="adm-set-kbps-ip" value="\${s.maxKbpsPerIp || 0}" style="margin-bottom:0;" />
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:12px; margin-top:4px; padding:10px; background:rgba(255,255,255,0.02); border:1px solid var(--line); border-radius:6px;">
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" id="adm-set-auth" \${s.authEnabled ? 'checked' : ''} /> Require Authentication</label>
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" id="adm-set-guest" \${s.guestAccess ? 'checked' : ''} /> Allow Guest Access</label>
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" id="adm-set-webdav" \${s.webdavEnabled !== false ? 'checked' : ''} /> Enable WebDAV Server</label>
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" id="adm-set-upnp" \${s.upnpEnabled ? 'checked' : ''} /> Enable UPnP Port Mapping</label>
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" id="adm-set-range" \${s.enableRangeRequests !== false ? 'checked' : ''} /> Enable Range (Resume)</label>
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" id="adm-set-brute" \${s.bruteForceProtection !== false ? 'checked' : ''} /> Brute-Force Protection</label>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; margin-top:8px;">
+              <button class="primary" onclick="saveAdminSettings()">Save All Settings</button>
             </div>
           </div>
         \`;
@@ -2153,19 +2287,32 @@ export function getWebManagerHtml(serverName: string): string {
     }
 
     async function saveAdminSettings() {
-      const serverName = document.getElementById('adm-set-name').value;
-      const port = Number(document.getElementById('adm-set-port').value);
-      const maxConnections = Number(document.getElementById('adm-set-maxconns').value);
-      const uploadLimitMb = Number(document.getElementById('adm-set-uploadlimit').value);
-      const rateLimitPerMin = Number(document.getElementById('adm-set-ratelimit').value);
+      const payload = {
+        serverName: document.getElementById('adm-set-name').value.trim(),
+        rootDir: document.getElementById('adm-set-root').value.trim(),
+        port: Number(document.getElementById('adm-set-port').value),
+        bindAddress: document.getElementById('adm-set-bind').value.trim(),
+        maxConnections: Number(document.getElementById('adm-set-maxconns').value),
+        uploadLimitMb: Number(document.getElementById('adm-set-uploadlimit').value),
+        rateLimitPerMin: Number(document.getElementById('adm-set-ratelimit').value),
+        maxKbpsDown: Number(document.getElementById('adm-set-kbps-down').value),
+        maxKbpsUp: Number(document.getElementById('adm-set-kbps-up').value),
+        maxKbpsPerIp: Number(document.getElementById('adm-set-kbps-ip').value),
+        authEnabled: document.getElementById('adm-set-auth').checked,
+        guestAccess: document.getElementById('adm-set-guest').checked,
+        webdavEnabled: document.getElementById('adm-set-webdav').checked,
+        upnpEnabled: document.getElementById('adm-set-upnp').checked,
+        enableRangeRequests: document.getElementById('adm-set-range').checked,
+        bruteForceProtection: document.getElementById('adm-set-brute').checked,
+      };
 
       const res = await fetch('/api/admin/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ serverName, port, maxConnections, uploadLimitMb, rateLimitPerMin })
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
-        showToast('Settings saved!');
+        showToast('Server settings updated successfully!');
       } else {
         smaranAlert({ title: 'Error', message: 'Could not update settings', tone: 'error' });
       }
@@ -2177,28 +2324,35 @@ export function getWebManagerHtml(serverName: string): string {
         const res = await fetch('/api/admin/users');
         const data = await res.json();
         const users = data.users || [];
+        currentAdminUsersList = users;
         let html = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">'
-          + '<span style="font-weight:600; font-size:13px;">Configured User Accounts</span>'
+          + '<span style="font-weight:600; font-size:13px;">User Accounts (' + users.length + ')</span>'
           + '<button class="primary" onclick="promptAddUserModal()">+ Add User</button>'
           + '</div>'
+          + '<div style="max-height:360px; overflow-y:auto; border:1px solid var(--line); border-radius:6px;">'
           + '<table class="admin-table">'
           + '<thead><tr><th>Username</th><th>Role</th><th>Permissions</th><th>Actions</th></tr></thead>'
           + '<tbody>';
         for (const u of users) {
-          const perms = ['Read'];
-          if (u.permissions && u.permissions.upload) perms.push('Upload');
-          if (u.permissions && u.permissions.delete) perms.push('Delete');
-          if (u.permissions && u.permissions.rename) perms.push('Rename');
-          if (u.permissions && u.permissions.mkdir) perms.push('Mkdir');
+          const perms = [];
+          if (u.permissions?.read) perms.push('Read');
+          if (u.permissions?.upload) perms.push('Upload');
+          if (u.permissions?.delete) perms.push('Delete');
+          if (u.permissions?.rename) perms.push('Rename');
+          if (u.permissions?.mkdir) perms.push('Mkdir');
+          if (u.permissions?.vfs) perms.push('VFS');
           const isSmaran = u.username.toLowerCase() === 'smaran';
           html += '<tr>'
             + '<td><strong>' + escapeHtml(u.username) + '</strong> ' + (isSmaran ? '<span class="badge">System</span>' : '') + '</td>'
             + '<td>' + escapeHtml(u.role) + '</td>'
             + '<td style="font-size:11px; color:var(--muted);">' + perms.join(', ') + '</td>'
-            + '<td>' + (!isSmaran && !u.isSystem ? '<button class="danger action-btn" data-user-id="' + escapeHtml(u.id) + '" onclick="deleteAdminUser(this.dataset.userId)">Delete</button>' : '<span style="font-size:11px; color:var(--muted);">Permanent</span>') + '</td>'
+            + '<td><div style="display:flex; gap:6px;">'
+            + '<button class="action-btn" onclick="promptEditUserModal(\\'' + escapeHtml(u.id) + '\\')">Edit</button>'
+            + (!isSmaran && !u.isSystem ? '<button class="danger action-btn" data-user-id="' + escapeHtml(u.id) + '" onclick="deleteAdminUser(this.dataset.userId)">Delete</button>' : '<span style="font-size:11px; color:var(--muted); align-self:center;">Protected</span>')
+            + '</div></td>'
             + '</tr>';
         }
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
         pane.innerHTML = html;
       } catch (err) {
         pane.innerHTML = '<p style="color:var(--danger)">Error loading users: ' + escapeHtml(err.message) + '</p>';
@@ -2213,7 +2367,7 @@ export function getWebManagerHtml(serverName: string): string {
           <div class="modal-box" onclick="event.stopPropagation()">
             <div class="modal-title">Add New User Account</div>
             <div class="modal-body">
-              <p class="modal-message">All permissions are enabled by default for new accounts.</p>
+              <p class="modal-message">All basic permissions are enabled by default for new accounts.</p>
               <div style="margin-bottom:10px;">
                 <label style="font-size:12px; color:var(--muted);">Username</label>
                 <input type="text" class="modal-input" id="new-u-name" placeholder="Username" style="margin-bottom:0;" />
@@ -2230,7 +2384,7 @@ export function getWebManagerHtml(serverName: string): string {
                   <option value="guest">Guest</option>
                 </select>
               </div>
-              <div style="display:flex; flex-direction:column; gap:6px; font-size:12.5px; margin-top:8px;">
+              <div style="display:flex; flex-direction:column; gap:6px; font-size:12px; margin-top:8px;">
                 <label><input type="checkbox" id="perm-read" checked /> Read Files & Folders</label>
                 <label><input type="checkbox" id="perm-upload" checked /> Upload Files</label>
                 <label><input type="checkbox" id="perm-delete" checked /> Delete Files & Folders</label>
@@ -2283,6 +2437,91 @@ export function getWebManagerHtml(serverName: string): string {
       }
     }
 
+    function promptEditUserModal(userId) {
+      const u = currentAdminUsersList.find(x => x.id === userId);
+      if (!u) return;
+      const isSmaran = u.username.toLowerCase() === 'smaran' || u.isSystem;
+
+      const mc = document.createElement('div');
+      mc.id = 'sub-modal';
+      mc.innerHTML = \`
+        <div class="modal-overlay" style="z-index:160;">
+          <div class="modal-box" onclick="event.stopPropagation()">
+            <div class="modal-title">Edit User: \${escapeHtml(u.username)}</div>
+            <div class="modal-body">
+              <div style="margin-bottom:10px;">
+                <label style="font-size:12px; color:var(--muted);">Username</label>
+                <input type="text" class="modal-input" id="edit-u-name" value="\${escapeHtml(u.username)}" \${isSmaran ? 'disabled style="background:#202024; color:var(--muted);"' : ''} style="margin-bottom:0;" />
+              </div>
+              <div style="margin-bottom:10px;">
+                <label style="font-size:12px; color:var(--muted);">New Password (leave blank to keep unchanged)</label>
+                <input type="password" class="modal-input" id="edit-u-pass" placeholder="••••••••" style="margin-bottom:0;" />
+              </div>
+              <div style="margin-bottom:12px;">
+                <label style="font-size:12px; color:var(--muted);">Role</label>
+                <select id="edit-u-role" class="modal-input" \${isSmaran ? 'disabled style="background:#202024; color:var(--muted);"' : ''} style="margin-bottom:0;">
+                  <option value="user" \${u.role === 'user' ? 'selected' : ''}>Standard User</option>
+                  <option value="admin" \${u.role === 'admin' ? 'selected' : ''}>Administrator</option>
+                  <option value="guest" \${u.role === 'guest' ? 'selected' : ''}>Guest</option>
+                </select>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:6px; font-size:12px; margin-top:8px;">
+                <label><input type="checkbox" id="edit-perm-read" \${u.permissions?.read !== false ? 'checked' : ''} /> Read Files & Folders</label>
+                <label><input type="checkbox" id="edit-perm-upload" \${u.permissions?.upload !== false ? 'checked' : ''} /> Upload Files</label>
+                <label><input type="checkbox" id="edit-perm-delete" \${u.permissions?.delete !== false ? 'checked' : ''} /> Delete Files & Folders</label>
+                <label><input type="checkbox" id="edit-perm-rename" \${u.permissions?.rename !== false ? 'checked' : ''} /> Rename Files</label>
+                <label><input type="checkbox" id="edit-perm-mkdir" \${u.permissions?.mkdir !== false ? 'checked' : ''} /> Create New Folders</label>
+                <label><input type="checkbox" id="edit-perm-comment" \${u.permissions?.comment !== false ? 'checked' : ''} /> Edit Descriptions</label>
+                <label><input type="checkbox" id="edit-perm-vfs" \${u.permissions?.vfs ? 'checked' : ''} /> Manage VFS Mounts</label>
+                <label><input type="checkbox" id="edit-perm-zip" \${u.permissions?.zip !== false ? 'checked' : ''} /> Download ZIP Archives</label>
+                <label style="margin-top:4px;"><input type="checkbox" id="edit-perm-mustchange" \${u.mustChangePassword ? 'checked' : ''} /> Must Change Password on Next Login</label>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button onclick="document.getElementById('sub-modal').remove()">Cancel</button>
+              <button class="primary" onclick="submitUpdateUser('\${escapeHtml(u.id)}')">Save Changes</button>
+            </div>
+          </div>
+        </div>
+      \`;
+      document.body.appendChild(mc);
+    }
+
+    async function submitUpdateUser(userId) {
+      const u = currentAdminUsersList.find(x => x.id === userId);
+      if (!u) return;
+      const username = document.getElementById('edit-u-name').value.trim();
+      const password = document.getElementById('edit-u-pass').value.trim();
+      const role = document.getElementById('edit-u-role').value;
+      const permissions = {
+        read: document.getElementById('edit-perm-read').checked,
+        upload: document.getElementById('edit-perm-upload').checked,
+        delete: document.getElementById('edit-perm-delete').checked,
+        rename: document.getElementById('edit-perm-rename').checked,
+        mkdir: document.getElementById('edit-perm-mkdir').checked,
+        comment: document.getElementById('edit-perm-comment').checked,
+        vfs: document.getElementById('edit-perm-vfs').checked,
+        zip: document.getElementById('edit-perm-zip').checked,
+      };
+      const mustChangePassword = document.getElementById('edit-perm-mustchange').checked;
+
+      const payload = { id: userId, username, role, permissions, mustChangePassword };
+      if (password) payload.password = password;
+
+      const res = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        document.getElementById('sub-modal').remove();
+        showToast('User ' + username + ' updated');
+        loadAdminUsers();
+      } else {
+        alert('Could not update user');
+      }
+    }
+
     async function deleteAdminUser(id) {
       if (!confirm('Are you sure you want to delete this user?')) return;
       const res = await fetch('/api/admin/users/delete', {
@@ -2307,17 +2546,18 @@ export function getWebManagerHtml(serverName: string): string {
         const nodes = data.nodes || [];
         let html = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">'
           + '<span style="font-weight:600; font-size:13px;">Virtual File System Mounts</span>'
+          + '<button class="primary" onclick="promptAddVfsModal()">+ Add Mount</button>'
           + '</div>';
         if (nodes.length === 0) {
-          html += '<p style="color:var(--muted); font-size:13px;">Default storage root mounted at /</p>';
+          html += '<p style="color:var(--muted); font-size:13px;">Default storage root mounted at <code>/</code>.</p>';
         } else {
           html += '<table class="admin-table">'
-            + '<thead><tr><th>Virtual Path</th><th>Name</th><th>Type</th><th>Actions</th></tr></thead><tbody>';
+            + '<thead><tr><th>Virtual Path</th><th>Name</th><th>Physical Path</th><th>Actions</th></tr></thead><tbody>';
           for (const n of nodes) {
             html += '<tr>'
               + '<td style="font-family:monospace;">' + escapeHtml(n.vfsPath) + '</td>'
               + '<td>' + escapeHtml(n.name) + '</td>'
-              + '<td><span class="badge">' + escapeHtml(n.type) + '</span></td>'
+              + '<td style="font-size:11px; color:var(--muted);">' + escapeHtml(n.physicalPath || '') + '</td>'
               + '<td><button class="danger action-btn" data-vfs-id="' + escapeHtml(n.id) + '" onclick="deleteAdminVfs(this.dataset.vfsId)">Delete</button></td>'
               + '</tr>';
           }
@@ -2329,14 +2569,153 @@ export function getWebManagerHtml(serverName: string): string {
       }
     }
 
+    function promptAddVfsModal() {
+      const mc = document.createElement('div');
+      mc.id = 'sub-modal';
+      mc.innerHTML = \`
+        <div class="modal-overlay" style="z-index:160;">
+          <div class="modal-box" onclick="event.stopPropagation()">
+            <div class="modal-title">Add Virtual File System Mount</div>
+            <div class="modal-body">
+              <div style="margin-bottom:10px;">
+                <label style="font-size:12px; color:var(--muted);">Virtual Path (e.g. /media)</label>
+                <input type="text" class="modal-input" id="vfs-virt-path" placeholder="/media" style="margin-bottom:0;" />
+              </div>
+              <div style="margin-bottom:10px;">
+                <label style="font-size:12px; color:var(--muted);">Physical Host Folder Path</label>
+                <input type="text" class="modal-input" id="vfs-phys-path" placeholder="C:\\\\Media or /var/media" style="margin-bottom:0;" />
+              </div>
+              <div style="margin-bottom:10px;">
+                <label style="font-size:12px; color:var(--muted);">Display Name</label>
+                <input type="text" class="modal-input" id="vfs-name" placeholder="Media Collection" style="margin-bottom:0;" />
+              </div>
+              <label style="display:flex; align-items:center; gap:8px; font-size:12px; margin-top:8px;"><input type="checkbox" id="vfs-readonly" /> Read-Only Mount</label>
+            </div>
+            <div class="modal-actions">
+              <button onclick="document.getElementById('sub-modal').remove()">Cancel</button>
+              <button class="primary" onclick="submitCreateVfs()">Save Mount</button>
+            </div>
+          </div>
+        </div>
+      \`;
+      document.body.appendChild(mc);
+    }
+
+    async function submitCreateVfs() {
+      const vfsPath = document.getElementById('vfs-virt-path').value.trim();
+      const physicalPath = document.getElementById('vfs-phys-path').value.trim();
+      const name = document.getElementById('vfs-name').value.trim() || vfsPath;
+      const readOnly = document.getElementById('vfs-readonly').checked;
+
+      if (!vfsPath || !physicalPath) {
+        alert('Virtual path and physical path are required');
+        return;
+      }
+      const res = await fetch('/api/admin/vfs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vfsPath, physicalPath, name, type: 'directory', permissions: { readOnly } })
+      });
+      if (res.ok) {
+        document.getElementById('sub-modal').remove();
+        showToast('VFS mount created');
+        loadAdminVfs();
+      } else {
+        alert('Could not create VFS mount');
+      }
+    }
+
     async function deleteAdminVfs(id) {
-      if (!confirm('Remove this VFS mount?')) return;
+      if (!confirm('Remove this VFS mount? (Physical files will not be deleted)')) return;
       await fetch('/api/admin/vfs/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })
       });
       loadAdminVfs();
+    }
+
+    async function loadAdminShares() {
+      const pane = document.getElementById('admin-pane-shares');
+      try {
+        const res = await fetch('/api/admin/shares');
+        const data = await res.json();
+        const shares = data.shares || [];
+        let html = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">'
+          + '<span style="font-weight:600; font-size:13px;">Active Sharing Links (' + shares.length + ')</span>'
+          + '</div>';
+        if (shares.length === 0) {
+          html += '<p style="color:var(--muted); font-size:13px;">No active public share links.</p>';
+        } else {
+          html += '<div style="max-height:360px; overflow-y:auto; border:1px solid var(--line); border-radius:6px;">'
+            + '<table class="admin-table">'
+            + '<thead><tr><th>Token</th><th>Path</th><th>Downloads</th><th>Actions</th></tr></thead><tbody>';
+          for (const s of shares) {
+            html += '<tr>'
+              + '<td style="font-family:monospace; font-size:11.5px;">' + escapeHtml(s.token) + '</td>'
+              + '<td style="font-size:12px;">' + escapeHtml(s.relativePath) + '</td>'
+              + '<td style="font-size:11.5px;">' + (s.downloadCount || 0) + (s.maxDownloads ? ' / ' + s.maxDownloads : '') + '</td>'
+              + '<td><button class="danger action-btn" onclick="revokeAdminShare(\\'' + escapeHtml(s.id) + '\\')">Revoke</button></td>'
+              + '</tr>';
+          }
+          html += '</tbody></table></div>';
+        }
+        pane.innerHTML = html;
+      } catch (err) {
+        pane.innerHTML = '<p style="color:var(--danger)">Error: ' + escapeHtml(err.message) + '</p>';
+      }
+    }
+
+    async function revokeAdminShare(id) {
+      if (!confirm('Revoke this share link immediately?')) return;
+      await fetch('/api/admin/shares/revoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      showToast('Share revoked');
+      loadAdminShares();
+    }
+
+    async function loadAdminConnections() {
+      const pane = document.getElementById('admin-pane-conns');
+      try {
+        const res = await fetch('/api/admin/connections');
+        const data = await res.json();
+        const conns = data.connections || [];
+        let html = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">'
+          + '<span style="font-weight:600; font-size:13px;">Live Client Connections (' + conns.length + ')</span>'
+          + '</div>';
+        if (conns.length === 0) {
+          html += '<p style="color:var(--muted); font-size:13px;">No active client connections right now.</p>';
+        } else {
+          html += '<div style="max-height:360px; overflow-y:auto; border:1px solid var(--line); border-radius:6px;">'
+            + '<table class="admin-table">'
+            + '<thead><tr><th>Client IP</th><th>User</th><th>Active Transfers</th><th>Actions</th></tr></thead><tbody>';
+          for (const c of conns) {
+            html += '<tr>'
+              + '<td style="font-family:monospace; font-size:12px;">' + escapeHtml(c.clientIp) + '</td>'
+              + '<td>' + escapeHtml(c.username || 'guest') + '</td>'
+              + '<td>' + (c.activeTransfers || 0) + '</td>'
+              + '<td><button class="danger action-btn" onclick="killAdminConnection(\\'' + escapeHtml(c.id) + '\\')">Disconnect</button></td>'
+              + '</tr>';
+          }
+          html += '</tbody></table></div>';
+        }
+        pane.innerHTML = html;
+      } catch (err) {
+        pane.innerHTML = '<p style="color:var(--danger)">Error: ' + escapeHtml(err.message) + '</p>';
+      }
+    }
+
+    async function killAdminConnection(id) {
+      await fetch('/api/admin/connections/kill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      showToast('Connection disconnected');
+      loadAdminConnections();
     }
 
     async function loadAdminLogs() {
@@ -2349,7 +2728,7 @@ export function getWebManagerHtml(serverName: string): string {
           + '<span style="font-weight:600; font-size:13px;">Server Audit Log (' + logs.length + ' entries)</span>'
           + '<button class="danger action-btn" onclick="clearAdminLogs()">Clear Logs</button>'
           + '</div>'
-          + '<div style="max-height:300px; overflow-y:auto; border:1px solid var(--line); border-radius:6px;">'
+          + '<div style="max-height:320px; overflow-y:auto; border:1px solid var(--line); border-radius:6px;">'
           + '<table class="admin-table">'
           + '<thead><tr><th>Time</th><th>IP</th><th>Action</th><th>Status</th></tr></thead><tbody>';
         for (const l of logs) {
@@ -2374,212 +2753,190 @@ export function getWebManagerHtml(serverName: string): string {
       loadAdminLogs();
     }
 
-    /* Smaran Animated Dots Logo Engine */
-    function initSmaranDots() {
-      const container = document.getElementById('smaran-brand-dots');
-      if (!container) return;
+    /* 60fps Vector Smaran Dots Engine (Anti-Aliased, Non-Pixelated) */
+    (function () {
+      const N = 40;
+      const TAU = Math.PI * 2;
+      const DEG = Math.PI / 180;
+      const COLORS = {
+        primary: 'var(--logo-primary)',
+        accent: 'var(--logo-accent)',
+        accent2: 'var(--logo-accent-2)',
+        alert: 'var(--logo-alert)',
+        success: 'var(--logo-success)',
+        error: 'var(--logo-error)',
+      };
 
-      const N = 32;
-      const CX = 32, CY = 32;
-      const STROKES = 3;
-      const colors = ['#eaeaea', '#e06c43', '#f59f00'];
-
-      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      svg.setAttribute('viewBox', '0 0 64 64');
-      svg.setAttribute('width', '26');
-      svg.setAttribute('height', '26');
-      svg.style.overflow = 'visible';
-      svg.style.display = 'block';
-
-      const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-      defs.innerHTML = '<filter id="web-smaran-goo" filterUnits="userSpaceOnUse" x="-32" y="-32" width="128" height="128">' +
-        '<feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />' +
-        '<feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 8 -3" result="goo" />' +
-        '<feComposite in="SourceGraphic" in2="goo" operator="atop" />' +
-      '</filter>';
-      svg.appendChild(defs);
-
-      const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      group.setAttribute('filter', 'url(#web-smaran-goo)');
-
-      const paths = [];
-      for (let s = 0; s < STROKES; s++) {
-        const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        p.setAttribute('fill', 'none');
-        p.setAttribute('stroke-linecap', 'round');
-        p.setAttribute('stroke-linejoin', 'round');
-        p.setAttribute('stroke', colors[s]);
-        p.setAttribute('stroke-width', '4.5');
-        group.appendChild(p);
-        paths.push(p);
-      }
-      svg.appendChild(group);
-      container.appendChild(svg);
-
-      const pos = new Float64Array(STROKES * N * 2);
-      const vel = new Float64Array(STROKES * N * 2);
-      const targetPts = new Float64Array(STROKES * N * 2);
-      const curWidth = [4.5, 4.5, 4.5];
-      const targetWidth = [4.5, 4.5, 4.5];
-
-      function arcPts(cx, cy, r, a0Deg, a1Deg, count) {
-        const pts = [];
-        const rad0 = (a0Deg * Math.PI) / 180;
-        const rad1 = (a1Deg * Math.PI) / 180;
-        for (let i = 0; i < count; i++) {
-          const u = count > 1 ? i / (count - 1) : 0;
-          const th = rad0 + (rad1 - rad0) * u;
-          pts.push([cx + r * Math.cos(th), cy + r * Math.sin(th)]);
+      function resample(poly) {
+        const cum = [0];
+        for (let i = 1; i < poly.length; i++) {
+          const a = poly[i - 1];
+          const b = poly[i];
+          cum.push(cum[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1]));
         }
-        return pts;
-      }
-
-      function dotPts(x, y, count) {
-        const pts = [];
-        for (let i = 0; i < count; i++) pts.push([x, y]);
-        return pts;
-      }
-
-      function getSMarkTargets(t) {
-        const breath = 1 + 0.03 * Math.sin(t * 3);
-        const s0 = arcPts(CX, 22, 10.5 * breath, -30, -270, N);
-        const s1 = arcPts(CX, 42, 10.5 * breath, -90, 150, N);
-        const dX = CX + 18 * Math.cos((-45 * Math.PI) / 180);
-        const dY = CY + 18 * Math.sin((-45 * Math.PI) / 180);
-        const s2 = dotPts(dX, dY, N);
-        return { strokes: [s0, s1, s2], widths: [4.2, 4.2, 7.5] };
-      }
-
-      function getBounceTargets(t) {
-        const xs = [20, 32, 44];
-        const s0 = dotPts(xs[0], CY - 9 * Math.pow(Math.max(0, Math.sin(2 * Math.PI * (t * 1.1))), 1.5), N);
-        const s1 = dotPts(xs[1], CY - 9 * Math.pow(Math.max(0, Math.sin(2 * Math.PI * (t * 1.1 - 0.16))), 1.5), N);
-        const s2 = dotPts(xs[2], CY - 9 * Math.pow(Math.max(0, Math.sin(2 * Math.PI * (t * 1.1 - 0.32))), 1.5), N);
-        return { strokes: [s0, s1, s2], widths: [7.5, 7.5, 7.5] };
-      }
-
-      function getSpiralTargets(t) {
-        const p = (t * 0.4) % 1;
-        const r = 4 + 13 * Math.sin(p * Math.PI);
-        const a = (720 * p * Math.PI) / 180;
-        const p0 = [CX + r * Math.cos(a - Math.PI / 2), CY + r * Math.sin(a - Math.PI / 2)];
-        const p1 = [CX + r * Math.cos(a + Math.PI / 6), CY + r * Math.sin(a + Math.PI / 6)];
-        const p2 = [CX + r * Math.cos(a + (5 * Math.PI) / 6), CY + r * Math.sin(a + (5 * Math.PI) / 6)];
-        return { strokes: [dotPts(p0[0], p0[1], N), dotPts(p1[0], p1[1], N), dotPts(p2[0], p2[1], N)], widths: [7.0, 7.0, 7.0] };
-      }
-
-      function getWaveTargets(t) {
-        const xs = [20, 32, 44];
-        const s0 = dotPts(xs[0], CY + 7.5 * Math.sin(2 * Math.PI * (t * 0.9) - 0.0), N);
-        const s1 = dotPts(xs[1], CY + 7.5 * Math.sin(2 * Math.PI * (t * 0.9) - 0.9), N);
-        const s2 = dotPts(xs[2], CY + 7.5 * Math.sin(2 * Math.PI * (t * 0.9) - 1.8), N);
-        return { strokes: [s0, s1, s2], widths: [7.5, 7.5, 7.5] };
-      }
-
-      const scenes = [getSMarkTargets, getBounceTargets, getSpiralTargets, getWaveTargets];
-      let sceneIndex = 0;
-      let sceneTime = 0;
-      const SCENE_DURATION = 4.0;
-
-      const initFrame = getSMarkTargets(0);
-      for (let s = 0; s < STROKES; s++) {
-        curWidth[s] = initFrame.widths[s];
-        targetWidth[s] = initFrame.widths[s];
+        const total = cum[cum.length - 1];
+        if (!total) return Array.from({ length: N }, () => poly[0]);
+        const out = [];
+        let seg = 1;
         for (let k = 0; k < N; k++) {
-          const idx = (s * N + k) * 2;
-          pos[idx] = initFrame.strokes[s][k][0];
-          pos[idx + 1] = initFrame.strokes[s][k][1];
-          vel[idx] = 0;
-          vel[idx + 1] = 0;
+          const d = (total * k) / (N - 1);
+          while (seg < poly.length - 1 && cum[seg] < d) seg++;
+          const a = poly[seg - 1];
+          const b = poly[seg];
+          const len = cum[seg] - cum[seg - 1];
+          const u = len > 0 ? (d - cum[seg - 1]) / len : 0;
+          out.push([a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u]);
         }
+        return out;
       }
 
-      function impulse(strength) {
-        strength = strength || 1;
-        for (let s = 0; s < STROKES; s++) {
-          const kick = (95 + 30 * s) * strength;
-          const spin = (s - 1) * 55 * strength;
-          for (let k = 0; k < N; k++) {
-            const i = (s * N + k) * 2;
-            const dx = pos[i] - CX;
-            const dy = pos[i + 1] - CY;
-            const len = Math.hypot(dx, dy) || 1;
-            vel[i] += (dx / len) * kick - (dy / len) * spin;
-            vel[i + 1] += (dy / len) * kick + (dx / len) * spin;
-          }
+      function arc(cx, cy, r, a0, a1, steps = 48) {
+        const out = [];
+        for (let i = 0; i <= steps; i++) {
+          const a = (a0 + ((a1 - a0) * i) / steps) * DEG;
+          out.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
         }
+        return out;
       }
 
-      container.addEventListener('click', function() {
-        impulse(1.3);
-        sceneIndex = (sceneIndex + 1) % scenes.length;
-        sceneTime = 0;
+      const stroke = (poly, color, width = 5) => ({ pts: resample(poly), color, width });
+      const dot = (x, y, color, width = 10) => ({
+        pts: Array.from({ length: N }, () => [x, y]),
+        color,
+        width,
       });
 
-      container.addEventListener('mouseenter', function() {
-        impulse(0.5);
-      });
+      function rotate(s, cx, cy, deg) {
+        const a = deg * DEG;
+        const c = Math.cos(a);
+        const n = Math.sin(a);
+        return {
+          ...s,
+          pts: s.pts.map(([x, y]) => [cx + (x - cx) * c - (y - cy) * n, cy + (x - cx) * n + (y - cy) * c]),
+        };
+      }
+      function scale(s, k) {
+        return { ...s, pts: s.pts.map(([x, y]) => [32 + (x - 32) * k, 32 + (y - 32) * k]) };
+      }
 
-      let lastTime = performance.now();
-      function tick(now) {
-        const dt = Math.min((now - lastTime) / 1000, 0.05);
-        lastTime = now;
-
-        if (!document.hidden) {
-          sceneTime += dt;
-          if (sceneTime >= SCENE_DURATION) {
-            sceneTime = 0;
-            sceneIndex = (sceneIndex + 1) % scenes.length;
+      const SCENES = {
+        smark: (t) =>
+          [
+            stroke(arc(32, 22, 10, -30, -270), 'primary'),
+            stroke(arc(32, 42, 10, -90, 150), 'primary'),
+            dot(32 + 25 * Math.cos(-45 * DEG), 32 + 25 * Math.sin(-45 * DEG), 'accent'),
+          ].map((s) => scale(s, 1 + 0.025 * Math.sin((TAU * t) / 3))),
+        dance: (t) =>
+          ['primary', 'accent', 'accent2'].map((color, i) => {
+            const a = t * 2.1 + (i * TAU) / 3;
+            const r = 13 + 3 * Math.sin(t * 2.6);
+            return dot(32 + r * Math.cos(a), 32 + r * Math.sin(a) * 0.9, color);
+          }),
+        bell: (t) => {
+          const swing = 12 * Math.sin(t * 7) * Math.max(0, Math.sin((t * TAU) / 2.4));
+          const body = stroke(
+            [[15, 45], [20, 40], [20, 29], ...arc(32, 29, 12, 180, 360), [44, 29], [44, 40], [49, 45], [15, 45]],
+            'primary',
+          );
+          return [
+            rotate(body, 32, 14, swing),
+            rotate(dot(32, 51, 'alert', 7), 32, 14, swing * 1.4),
+            dot(32, 14, 'primary', 5),
+          ];
+        },
+        check: () => [
+          stroke([[16, 33], [27, 44], [48, 21]], 'success', 6),
+          dot(27, 44, 'success', 0),
+          dot(48, 21, 'success', 0),
+        ],
+        heart: (t) => {
+          const pts = [];
+          for (let i = 0; i <= 64; i++) {
+            const a = (i / 64) * TAU;
+            pts.push([
+              32 + 1.15 * 16 * Math.sin(a) ** 3,
+              31 - 1.15 * (13 * Math.cos(a) - 5 * Math.cos(2 * a) - 2 * Math.cos(3 * a) - Math.cos(4 * a)),
+            ]);
           }
+          const beat = 1 + 0.06 * Math.max(0, Math.sin(t * 6)) ** 4;
+          return [
+            scale(stroke(pts, 'error'), beat),
+            dot(32, 32, 'error', 0),
+            dot(32, 32, 'error', 0),
+          ];
+        },
+      };
 
-          const activeFn = scenes[sceneIndex];
-          const frame = activeFn(sceneTime);
+      const ease = (u) => (u < 0.5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2);
+      const lerp = (a, b, u) => a + (b - a) * u;
 
-          for (let s = 0; s < STROKES; s++) {
-            targetWidth[s] = frame.widths[s];
-            curWidth[s] += (targetWidth[s] - curWidth[s]) * Math.min(1, dt * 10);
+      function mix(from, to, u) {
+        return from.map((f, i) => {
+          const g = to[i];
+          return {
+            pts: f.pts.map((p, k) => [lerp(p[0], g.pts[k][0], u), lerp(p[1], g.pts[k][1], u)]),
+            width: lerp(f.width, g.width, u),
+            color: u < 0.5 ? f.color : g.color,
+          };
+        });
+      }
 
-            for (let k = 0; k < N; k++) {
-              const idx = (s * N + k) * 2;
-              targetPts[idx] = frame.strokes[s][k][0];
-              targetPts[idx + 1] = frame.strokes[s][k][1];
-            }
-          }
+      const d = (pts) =>
+        pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(2) + ' ' + p[1].toFixed(2)).join('');
 
-          const OMEGA = 14;
-          const DAMPING = 2 * OMEGA;
-          const steps = 2;
-          const h = dt / steps;
+      function mount(svg) {
+        const names = (svg.dataset.dots || 'smark').split(',').filter((n) => SCENES[n]);
+        if (!names.length) names.push('smark');
+        const hold = Number(svg.dataset.hold || 2.6);
+        const morph = 0.9;
+        svg.setAttribute('viewBox', '-4 -4 72 72');
+        svg.setAttribute('aria-hidden', 'true');
+        const paths = [0, 1, 2].map(() => {
+          const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          p.setAttribute('fill', 'none');
+          p.setAttribute('stroke-linecap', 'round');
+          p.setAttribute('stroke-linejoin', 'round');
+          svg.appendChild(p);
+          return p;
+        });
+        const draw = (frame) =>
+          frame.forEach((s, i) => {
+            paths[i].setAttribute('d', d(s.pts));
+            paths[i].setAttribute('stroke-width', Math.max(0, s.width).toFixed(2));
+            paths[i].setAttribute('stroke', COLORS[s.color]);
+            paths[i].style.opacity = s.width < 0.4 ? '0' : '1';
+          });
 
-          for (let step = 0; step < steps; step++) {
-            for (let i = 0; i < STROKES * N * 2; i += 2) {
-              const fx = OMEGA * OMEGA * (targetPts[i] - pos[i]) - DAMPING * vel[i];
-              const fy = OMEGA * OMEGA * (targetPts[i + 1] - pos[i + 1]) - DAMPING * vel[i + 1];
-
-              vel[i] += fx * h;
-              vel[i + 1] += fy * h;
-
-              pos[i] += vel[i] * h;
-              pos[i + 1] += vel[i + 1] * h;
-            }
-          }
-
-          for (let s = 0; s < STROKES; s++) {
-            let d = '';
-            for (let k = 0; k < N; k++) {
-              const i = (s * N + k) * 2;
-              d += (k === 0 ? 'M' : 'L') + pos[i].toFixed(2) + ' ' + pos[i + 1].toFixed(2);
-            }
-            paths[s].setAttribute('d', d);
-            paths[s].setAttribute('stroke-width', curWidth[s].toFixed(2));
-          }
+        const still = window.matchMedia('(prefers-reduced-motion: reduce)');
+        if (still.matches) {
+          draw(SCENES[names[0]](0));
+          return;
         }
-
+        const start = performance.now();
+        let visible = true;
+        if ('IntersectionObserver' in window) {
+          new IntersectionObserver(([e]) => (visible = e.isIntersecting)).observe(svg);
+        }
+        function tick(now) {
+          if (visible) {
+            const t = (now - start) / 1000;
+            const lap = hold + morph;
+            const idx = Math.floor(t / lap);
+            const into = t - idx * lap;
+            const cur = SCENES[names[idx % names.length]];
+            if (into < hold || names.length === 1) draw(cur(t));
+            else {
+              const next = SCENES[names[(idx + 1) % names.length]];
+              draw(mix(cur(t), next(t), ease((into - hold) / morph)));
+            }
+          }
+          requestAnimationFrame(tick);
+        }
         requestAnimationFrame(tick);
       }
 
-      requestAnimationFrame(tick);
-    }
+      window.SmaranDots = { mount, mountAll: () => document.querySelectorAll('svg[data-dots]').forEach(mount) };
+    })();
 
     // Keyboard navigation in lightbox
     window.addEventListener('keydown', (e) => {
@@ -2588,8 +2945,8 @@ export function getWebManagerHtml(serverName: string): string {
       if (e.key === 'ArrowRight') nextImage();
     });
 
-    // Initialize Animated Logo, Session & Initial Load
-    initSmaranDots();
+    // Initialize 60fps Vector Logo, Session & Files
+    window.SmaranDots.mountAll();
     checkSession().finally(() => {
       loadFiles();
     });

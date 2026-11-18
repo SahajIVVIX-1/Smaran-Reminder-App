@@ -88,4 +88,12 @@ export function registerFileServerIpc(manager: FileServerManager): void {
   ipcMain.handle(IPC.fileserverSetComment, (_event, payload: { path: string; comment: string }) =>
     manager.setFileComment(payload.path, payload.comment),
   );
+  ipcMain.handle(
+    IPC.fileserverMountDrive,
+    (_event, payload?: { driveLetter?: string; username?: string; password?: string }) =>
+      manager.mountLocalDrive(payload),
+  );
+  ipcMain.handle(IPC.fileserverUnmountDrive, (_event, driveLetter?: string) =>
+    manager.unmountLocalDrive(driveLetter),
+  );
 }
