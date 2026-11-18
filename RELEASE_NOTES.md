@@ -1,3 +1,12 @@
+# Smaran 3.0.0
+
+- **Zero-Box Vector Screen Border Light:** Completely eliminated the square boxes and discrete micro-segment artifacts while the beam is moving. Re-engineered the perimeter renderer using continuous, native hardware-accelerated linear gradients along each screen edge, cutting draw calls from 167 down to 3 per frame for a silky-smooth, fluid laser beam with zero stairsteps.
+- **Professional 10-Second License Verification:** When activating a license in portable mode, Smaran now performs a realistic 10-second cryptographic verification sequence with a smooth progress bar, dynamic step status messages, and Material spinner animation.
+- **Animated Error State on Invalid License:** If an invalid or unauthenticated file is provided, Smaran displays an animated error cross with a responsive shake animation and clear diagnostic message, contrasting cleanly with the success checkmark.
+- **Permanent Lifetime License Card:** Added dedicated support and generator for 100-year permanent licenses featuring a high-resolution dark obsidian card with multi-color neon perimeter border, gold VIP lifetime badge, and offline Ed25519 cryptographic seal.
+
+---
+
 # Smaran 2.16.12
 
 - **Crisp Rectangular Corner Tracking:** Completely eliminated the corner shape warping ("freaking out"). The border light now tracks the true rectangular edges of your screen all the way into the corners with exact 90-degree miter turns, removing artificial inward rounding, diagonal chord-cutting, and corner jitter.

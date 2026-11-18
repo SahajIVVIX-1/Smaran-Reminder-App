@@ -1,17 +1,15 @@
 // Screen border illumination renderer
 // Smooth, antialiased, hardware-accelerated Canvas 2D engine
-// Zero corner cutting, zero shape warping, dynamic loading motion
+// Continuous vector linear gradients, zero micro-segment boxes, dynamic loading motion
 
 declare global {
   interface Window {
     __borderSetOptions?: (options: { thickness?: number; brightness?: number }) => void;
-    __borderFadeIn?: () => void;
-    __borderFadeOut?: () => void;
   }
 }
 
-const container = document.querySelector<HTMLDivElement>('.border-container');
-const canvas = document.querySelector<HTMLCanvasElement>('#border-canvas');
+const canvas = document.getElementById('border-canvas') as HTMLCanvasElement | null;
+const container = document.getElementById('border-container');
 const ctx = canvas?.getContext('2d', { alpha: true });
 
 let currentThickness = 3;
@@ -22,43 +20,50 @@ let elapsedTime = 0;
 let isAnimating = false;
 
 interface ColorStop {
-  stop: number;
+  pos: number;
   r: number;
   g: number;
   b: number;
   a: number;
 }
 
-const COLOR_STOPS: ColorStop[] = [
-  { stop: 0.0, r: 0, g: 240, b: 255, a: 0.0 }, // Tail fades seamlessly to 0 opacity
-  { stop: 0.12, r: 0, g: 240, b: 255, a: 0.85 }, // Electric Cyan
-  { stop: 0.35, r: 0, g: 110, b: 255, a: 1.0 }, // Vivid Blue
-  { stop: 0.6, r: 255, g: 23, b: 85, a: 1.0 }, // Neon Coral / Magenta
-  { stop: 0.82, r: 255, g: 184, b: 0, a: 1.0 }, // Sunburst Amber
-  { stop: 0.94, r: 0, g: 230, b: 118, a: 1.0 }, // Vivid Emerald
-  { stop: 1.0, r: 255, g: 255, b: 255, a: 1.0 }, // White-hot Spark Core
+// Electric neon gradient palette with white-hot leading spark
+const COLOR_STOPS: readonly ColorStop[] = [
+  { pos: 0.0, r: 139, g: 141, b: 248, a: 0.0 }, // Transparent soft violet tail
+  { pos: 0.15, r: 139, g: 141, b: 248, a: 0.45 }, // Electric violet
+  { pos: 0.38, r: 66, g: 133, b: 244, a: 0.8 }, // Vivid neon cyan-blue
+  { pos: 0.62, r: 52, g: 168, b: 83, a: 0.95 }, // Emerald glow
+  { pos: 0.82, r: 251, g: 188, b: 5, a: 1.0 }, // Amber gold
+  { pos: 0.94, r: 234, g: 67, b: 53, a: 1.0 }, // Coral crimson
+  { pos: 1.0, r: 255, g: 255, b: 255, a: 1.0 }, // Pure white-hot laser head
 ];
 
-const DEFAULT_STOP: ColorStop = { stop: 0.0, r: 0, g: 240, b: 255, a: 0.0 };
+const DEFAULT_STOP: ColorStop = { pos: 0, r: 139, g: 141, b: 248, a: 1.0 };
 
 function sampleColor(u: number, brightnessFactor: number): string {
-  const t = Math.max(0, Math.min(1, u));
-  let i = 0;
-  while (i < COLOR_STOPS.length - 1 && (COLOR_STOPS[i + 1]?.stop ?? 1) < t) {
-    i++;
-  }
-  const s0 = COLOR_STOPS[i] ?? DEFAULT_STOP;
-  const s1 = COLOR_STOPS[i + 1] ?? s0;
-  const f = s1.stop === s0.stop ? 0 : (t - s0.stop) / (s1.stop - s0.stop);
+  const clamped = Math.max(0, Math.min(1, u));
+  let s0: ColorStop = COLOR_STOPS[0] ?? DEFAULT_STOP;
+  let s1: ColorStop = COLOR_STOPS[COLOR_STOPS.length - 1] ?? DEFAULT_STOP;
 
-  const boost = Math.min(1.35, brightnessFactor);
-  const r = Math.min(255, Math.round((s0.r + (s1.r - s0.r) * f) * boost));
-  const g = Math.min(255, Math.round((s0.g + (s1.g - s0.g) * f) * boost));
-  const b = Math.min(255, Math.round((s0.b + (s1.b - s0.b) * f) * boost));
-  const a = Math.min(
-    1,
-    (s0.a + (s1.a - s0.a) * f) * (brightnessFactor >= 1.5 ? 1 : Math.max(0.7, brightnessFactor)),
-  );
+  for (let i = 0; i < COLOR_STOPS.length - 1; i++) {
+    const c0 = COLOR_STOPS[i];
+    const c1 = COLOR_STOPS[i + 1];
+    if (!c0 || !c1) continue;
+    if (clamped >= c0.pos && clamped <= c1.pos) {
+      s0 = c0;
+      s1 = c1;
+      break;
+    }
+  }
+
+  const range = s1.pos - s0.pos;
+  const t = range > 0 ? (clamped - s0.pos) / range : 0;
+
+  const boost = Math.max(1, brightnessFactor);
+  const r = Math.min(255, Math.round((s0.r + (s1.r - s0.r) * t) * (1 + (boost - 1) * 0.2)));
+  const g = Math.min(255, Math.round((s0.g + (s1.g - s0.g) * t) * (1 + (boost - 1) * 0.2)));
+  const b = Math.min(255, Math.round((s0.b + (s1.b - s0.b) * t) * (1 + (boost - 1) * 0.2)));
+  const a = Math.min(1.0, (s0.a + (s1.a - s0.a) * t) * Math.min(1.8, boost));
 
   return `rgba(${r}, ${g}, ${b}, ${a.toFixed(3)})`;
 }
@@ -66,6 +71,13 @@ function sampleColor(u: number, brightnessFactor: number): string {
 interface Point {
   x: number;
   y: number;
+}
+
+interface BeamSegment {
+  pStart: Point;
+  pEnd: Point;
+  uStart: number;
+  uEnd: number;
 }
 
 /**
@@ -140,31 +152,65 @@ class PerimeterRect {
   }
 
   /**
-   * If any corner vertex lies strictly between dA and dB, return it.
-   * This guarantees that when a micro-segment turns a corner, it traces the exact
-   * corner vertex instead of cutting across diagonally and glitching its shape.
+   * Decomposes any sub-range [dStart, dEnd] into contiguous straight edge segments.
+   * Eliminates all micro-segments and boxes by utilizing native continuous line segments.
    */
-  getCornerBetween(dA: number, dB: number): Point | null {
-    if (this.totalLength <= 0) return null;
+  getSegments(dStart: number, dEnd: number): BeamSegment[] {
     const L = this.totalLength;
-    const a = ((dA % L) + L) % L;
-    let b = ((dB % L) + L) % L;
-    if (b <= a) b += L; // unroll forward
+    if (L <= 0 || dEnd <= dStart) return [];
 
-    const corners = [
+    let H = ((dEnd % L) + L) % L;
+    const len = dEnd - dStart;
+    let T = H - len;
+
+    while (T < 0) {
+      T += L;
+      H += L;
+    }
+
+    const baseCorners = [
       { k: this.k1, pt: this.v1 },
       { k: this.k2, pt: this.v2 },
       { k: this.k3, pt: this.v3 },
       { k: this.k4, pt: this.v0 },
-      { k: this.k4 + this.k1, pt: this.v1 },
     ];
 
-    for (const c of corners) {
-      if (c.k > a && c.k < b) {
-        return c.pt;
+    const splits: { d: number; pt: Point }[] = [];
+    for (let lap = 0; lap <= 2; lap++) {
+      const offset = lap * L;
+      for (const c of baseCorners) {
+        const pos = c.k + offset;
+        if (pos > T && pos < H) {
+          splits.push({ d: pos, pt: c.pt });
+        }
       }
     }
-    return null;
+    splits.sort((a, b) => a.d - b.d);
+
+    const keyPoints: { d: number; pt: Point }[] = [
+      { d: T, pt: this.getPoint(T) },
+      ...splits,
+      { d: H, pt: this.getPoint(H) },
+    ];
+
+    const segments: BeamSegment[] = [];
+    const totalDist = H - T;
+    if (totalDist <= 0) return [];
+
+    for (let i = 0; i < keyPoints.length - 1; i++) {
+      const pA = keyPoints[i];
+      const pB = keyPoints[i + 1];
+      if (!pA || !pB) continue;
+
+      segments.push({
+        pStart: pA.pt,
+        pEnd: pB.pt,
+        uStart: (pA.d - T) / totalDist,
+        uEnd: (pB.d - T) / totalDist,
+      });
+    }
+
+    return segments;
   }
 }
 
@@ -183,6 +229,74 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
+/**
+ * Draws a continuous, vector-smooth gradient line segment along a single straight edge.
+ * Uses native hardware-accelerated linear gradients to ensure zero box/square artifacts.
+ */
+function drawEdgeSegment(
+  renderCtx: CanvasRenderingContext2D,
+  seg: BeamSegment,
+  width: number,
+  brightness: number,
+  shadowBlur: number,
+  overrideColor?: string,
+) {
+  const dx = seg.pEnd.x - seg.pStart.x;
+  const dy = seg.pEnd.y - seg.pStart.y;
+  if (Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1) return;
+
+  renderCtx.lineWidth = width;
+  renderCtx.lineCap = 'round';
+  renderCtx.lineJoin = 'miter';
+  renderCtx.miterLimit = 3;
+
+  if (overrideColor) {
+    renderCtx.strokeStyle = overrideColor;
+    if (shadowBlur > 0) {
+      renderCtx.shadowBlur = shadowBlur;
+      renderCtx.shadowColor = overrideColor;
+    } else {
+      renderCtx.shadowBlur = 0;
+    }
+  } else {
+    const du = seg.uEnd - seg.uStart;
+    if (du <= 0) return;
+
+    const grad = renderCtx.createLinearGradient(
+      seg.pStart.x,
+      seg.pStart.y,
+      seg.pEnd.x,
+      seg.pEnd.y,
+    );
+
+    grad.addColorStop(0, sampleColor(seg.uStart, brightness));
+
+    for (const stop of COLOR_STOPS) {
+      if (stop.pos > seg.uStart && stop.pos < seg.uEnd) {
+        const t = (stop.pos - seg.uStart) / du;
+        if (t > 0 && t < 1) {
+          grad.addColorStop(t, sampleColor(stop.pos, brightness));
+        }
+      }
+    }
+
+    grad.addColorStop(1, sampleColor(seg.uEnd, brightness));
+    renderCtx.strokeStyle = grad;
+
+    if (shadowBlur > 0) {
+      renderCtx.shadowBlur = shadowBlur;
+      renderCtx.shadowColor = sampleColor((seg.uStart + seg.uEnd) / 2, brightness);
+    } else {
+      renderCtx.shadowBlur = 0;
+    }
+  }
+
+  renderCtx.beginPath();
+  renderCtx.moveTo(seg.pStart.x, seg.pStart.y);
+  renderCtx.lineTo(seg.pEnd.x, seg.pEnd.y);
+  renderCtx.stroke();
+}
+
 function drawFrame(timestamp: number) {
   if (!ctx || !canvas) return;
 
@@ -199,23 +313,23 @@ function drawFrame(timestamp: number) {
   const cyclePeriod = 2.4;
   const cyclePhase = (elapsedTime % cyclePeriod) / cyclePeriod; // 0 to 1
 
-  // Base steady forward drift (circles the entire perimeter in ~5.5 seconds)
-  const baseSpeed = L / 5.5;
+  // Steady forward drift (circles the entire screen perimeter in ~5.2 seconds)
+  const baseSpeed = L / 5.2;
   const baseTravel = baseSpeed * elapsedTime;
 
-  // Eased surge offset: the head surges forward during the first half of the cycle
-  const surgeOffset = (L * 0.07) * Math.sin(cyclePhase * Math.PI * 2 - Math.PI / 2);
+  // Eased surge offset: head surges forward during the acceleration half of the cycle
+  const surgeOffset = (L * 0.065) * Math.sin(cyclePhase * Math.PI * 2 - Math.PI / 2);
   const headDistance = (baseTravel + surgeOffset) % L;
 
   // Dynamic breathing beam length: stretches long during acceleration, compresses during catch-up
-  // Scales smoothly from ~9% of perimeter (compact) up to ~30% of perimeter (surge)
+  // Scales smoothly from ~9% of perimeter (compact) up to ~24% of perimeter (surge)
   const minBeamLen = Math.max(160, L * 0.09);
-  const maxBeamLen = Math.max(380, L * 0.30);
+  const maxBeamLen = Math.max(340, L * 0.24);
   const lengthFactor = (1 - Math.cos(cyclePhase * Math.PI * 2)) / 2;
   const beamLength = minBeamLen + (maxBeamLen - minBeamLen) * lengthFactor;
 
   // Luminescence surge factor: brightness gently breathes with the loading rhythm
-  const surgeLuminance = 1 + 0.22 * Math.sin(cyclePhase * Math.PI * 2);
+  const surgeLuminance = 1 + 0.20 * Math.sin(cyclePhase * Math.PI * 2);
 
   const dpr = window.devicePixelRatio || 1;
   ctx.save();
@@ -235,95 +349,47 @@ function drawFrame(timestamp: number) {
     perimeter.h,
   );
 
-  // 2. Sample points along the loading beam
-  const steps = 80;
-  const samplePoints: { pt: Point; dist: number }[] = [];
-  for (let i = 0; i <= steps; i++) {
-    const u = i / steps; // 0 (tail) to 1 (head)
-    const d = headDistance - beamLength * (1 - u);
-    samplePoints.push({ pt: perimeter.getPoint(d), dist: d });
-  }
+  // 2. Decompose the loading beam into continuous straight edge segments
+  const tailDistance = headDistance - beamLength;
+  const segments = perimeter.getSegments(tailDistance, headDistance);
 
-  // --- PASS 1: Ambient Glow ---
-  // Glow width scales strictly with thickness (at 1px, glow is minimal; at 14px+, glow is wide)
+  // --- PASS 1: Ambient Neon Glow ---
+  // Drawn as continuous straight vectors with hardware shadow blur
   const glowWidth = thickness <= 2 ? thickness * 1.8 : thickness * 2.6;
   const glowBlur = thickness <= 2 ? thickness * 1.4 : thickness * 2.2;
-  ctx.lineWidth = glowWidth;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'miter';
-  ctx.miterLimit = 3;
-  ctx.shadowBlur = glowBlur * brightness;
-
-  for (let i = 0; i < steps; i++) {
-    const sA = samplePoints[i];
-    const sB = samplePoints[i + 1];
-    if (!sA || !sB) continue;
-
-    const u = i / steps;
-    const color = sampleColor(u, brightness);
-    ctx.strokeStyle = color;
-    ctx.shadowColor = color;
-
-    const corner = perimeter.getCornerBetween(sA.dist, sB.dist);
-    ctx.beginPath();
-    ctx.moveTo(sA.pt.x, sA.pt.y);
-    if (corner) {
-      ctx.lineTo(corner.x, corner.y); // Turn the exact 90-degree corner
-    }
-    ctx.lineTo(sB.pt.x, sB.pt.y);
-    ctx.stroke();
+  for (const seg of segments) {
+    drawEdgeSegment(ctx, seg, glowWidth, brightness, glowBlur * brightness);
   }
 
   // --- PASS 2: Crisp Core Laser Beam ---
-  ctx.shadowBlur = Math.min(6, thickness * 1.2);
-  ctx.lineWidth = thickness;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'miter';
-  ctx.miterLimit = 3;
-
-  for (let i = 0; i < steps; i++) {
-    const sA = samplePoints[i];
-    const sB = samplePoints[i + 1];
-    if (!sA || !sB) continue;
-
-    const u = i / steps;
-    const color = sampleColor(u, brightness);
-    ctx.strokeStyle = color;
-    ctx.shadowColor = color;
-
-    const corner = perimeter.getCornerBetween(sA.dist, sB.dist);
-    ctx.beginPath();
-    ctx.moveTo(sA.pt.x, sA.pt.y);
-    if (corner) {
-      ctx.lineTo(corner.x, corner.y);
-    }
-    ctx.lineTo(sB.pt.x, sB.pt.y);
-    ctx.stroke();
+  // Zero internal micro-segment cuts, perfectly smooth gradient
+  for (const seg of segments) {
+    drawEdgeSegment(ctx, seg, thickness, brightness, Math.min(6, thickness * 1.2));
   }
 
   // --- PASS 3: Brilliant White-Hot Leading Spark ---
-  const sparkStart = Math.floor(steps * 0.92);
-  ctx.shadowBlur = Math.max(4, thickness * 1.5);
-  ctx.shadowColor = '#ffffff';
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = Math.max(1, thickness * 0.65);
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'miter';
-  ctx.miterLimit = 3;
+  // Smoothly highlights the front 9% tip of the beam with white radiance
+  const sparkStartDist = headDistance - beamLength * 0.09;
+  const sparkSegments = perimeter.getSegments(sparkStartDist, headDistance);
+  const sparkWidth = Math.max(1, thickness * 0.7);
+  const sparkBlur = Math.max(4, thickness * 1.5);
+  for (const seg of sparkSegments) {
+    drawEdgeSegment(ctx, seg, sparkWidth, brightness, sparkBlur, '#ffffff');
+  }
 
-  for (let i = sparkStart; i < steps; i++) {
-    const sA = samplePoints[i];
-    const sB = samplePoints[i + 1];
-    if (!sA || !sB) continue;
-
-    const corner = perimeter.getCornerBetween(sA.dist, sB.dist);
-    ctx.beginPath();
-    ctx.moveTo(sA.pt.x, sA.pt.y);
-    if (corner) {
-      ctx.lineTo(corner.x, corner.y);
+  // Seamless Corner Fill: if segments meet at a 90-degree corner, seal the vertex cleanly
+  if (segments.length > 1) {
+    for (let i = 0; i < segments.length - 1; i++) {
+      const sA = segments[i];
+      if (!sA) continue;
+      const cornerColor = sampleColor(sA.uEnd, brightness);
+      ctx.fillStyle = cornerColor;
+      ctx.shadowColor = cornerColor;
+      ctx.shadowBlur = Math.min(4, thickness);
+      ctx.beginPath();
+      ctx.arc(sA.pEnd.x, sA.pEnd.y, thickness / 2, 0, Math.PI * 2);
+      ctx.fill();
     }
-    ctx.lineTo(sB.pt.x, sB.pt.y);
-    ctx.stroke();
   }
 
   ctx.restore();
@@ -378,5 +444,3 @@ export function borderFadeOut(): void {
 }
 
 window.__borderSetOptions = setBorderOptions;
-window.__borderFadeIn = borderFadeIn;
-window.__borderFadeOut = borderFadeOut;

@@ -46,6 +46,7 @@ export const IPC = {
   automationsPick: 'automations:pick',
   licenseGet: 'license:get',
   licenseImport: 'license:import',
+  licenseActivate: 'license:activate',
   licenseChanged: 'license:changed',
   licenseQuit: 'license:quit',
   setupLicense: 'setup:license',

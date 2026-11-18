@@ -63,9 +63,14 @@ export function registerLicenseIpc(
     if (result.ok) {
       for (const win of BrowserWindow.getAllWindows())
         if (!win.isDestroyed()) win.webContents.send(IPC.licenseChanged, result.info);
-      onImported(result.info);
     }
     return result;
+  });
+  ipcMain.handle(IPC.licenseActivate, () => {
+    const info = store.info();
+    if (info.status === 'valid') {
+      onImported(info);
+    }
   });
   ipcMain.on(IPC.licenseQuit, () => app.quit());
 }
