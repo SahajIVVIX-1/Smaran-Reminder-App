@@ -23,6 +23,7 @@ import type {
   ShareLink,
   TransferHistoryEntry,
   UserAccount,
+  VfsNode,
 } from '@shared/fileserver';
 import type { FontCatalog } from '@shared/fonts';
 import type { LicenseImportResult, LicenseInfo } from '@shared/license/info';
@@ -172,6 +173,17 @@ const api = {
     },
     generateQr: (url: string): Promise<string> =>
       ipcRenderer.invoke(IPC.fileserverQrGenerate, url),
+    vfs: {
+      list: (): Promise<VfsNode[]> => ipcRenderer.invoke(IPC.fileserverVfsList),
+      save: (node: VfsNode): Promise<VfsNode> => ipcRenderer.invoke(IPC.fileserverVfsSave, node),
+      delete: (id: string): Promise<void> => ipcRenderer.invoke(IPC.fileserverVfsDelete, id),
+      pickPath: (isDirectory?: boolean): Promise<string | null> =>
+        ipcRenderer.invoke(IPC.fileserverVfsPickPath, isDirectory),
+    },
+    killConnection: (id: string): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.fileserverKillConnection, id),
+    setComment: (path: string, comment: string): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverSetComment, { path, comment }),
     onStatusChanged: (listener: (status: ServerStatus) => void): (() => void) =>
       subscribe(IPC.fileserverStatusChanged, listener),
     onTransfersUpdated: (listener: (transfers: ActiveTransfer[]) => void): (() => void) =>

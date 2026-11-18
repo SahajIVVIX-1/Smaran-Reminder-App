@@ -83,6 +83,13 @@ export const IPC = {
   fileserverLogsGet: 'fileserver:logs:get',
   fileserverLogsClear: 'fileserver:logs:clear',
   fileserverQrGenerate: 'fileserver:qr:generate',
+  // VFS & Advanced HFS features
+  fileserverVfsList: 'fileserver:vfs:list',
+  fileserverVfsSave: 'fileserver:vfs:save',
+  fileserverVfsDelete: 'fileserver:vfs:delete',
+  fileserverVfsPickPath: 'fileserver:vfs:pickPath',
+  fileserverKillConnection: 'fileserver:connection:kill',
+  fileserverSetComment: 'fileserver:comment:set',
   // Broadcast events
   fileserverStatusChanged: 'fileserver:event:statusChanged',
   fileserverTransfersUpdated: 'fileserver:event:transfersUpdated',

@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import { IPC } from '@shared/channels';
-import type { FileServerSettings } from '@shared/fileserver';
+import type { FileServerSettings, VfsNode } from '@shared/fileserver';
 import type { FileServerManager } from './FileServerManager';
 
 export function registerFileServerIpc(manager: FileServerManager): void {
@@ -76,4 +76,16 @@ export function registerFileServerIpc(manager: FileServerManager): void {
   ipcMain.handle(IPC.fileserverLogsClear, () => manager.clearLogs());
 
   ipcMain.handle(IPC.fileserverQrGenerate, (_event, url: string) => manager.generateQr(url));
+
+  // VFS & HFS 3.4.1 handlers
+  ipcMain.handle(IPC.fileserverVfsList, () => manager.getVfsNodes());
+  ipcMain.handle(IPC.fileserverVfsSave, (_event, node: VfsNode) => manager.saveVfsNode(node));
+  ipcMain.handle(IPC.fileserverVfsDelete, (_event, id: string) => manager.deleteVfsNode(id));
+  ipcMain.handle(IPC.fileserverVfsPickPath, (_event, isDir?: boolean) =>
+    manager.pickVfsPhysicalPath(undefined, isDir ?? true),
+  );
+  ipcMain.handle(IPC.fileserverKillConnection, (_event, id: string) => manager.killConnection(id));
+  ipcMain.handle(IPC.fileserverSetComment, (_event, payload: { path: string; comment: string }) =>
+    manager.setFileComment(payload.path, payload.comment),
+  );
 }

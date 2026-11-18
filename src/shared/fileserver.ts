@@ -51,6 +51,48 @@ export const VirtualFolderSchema = z.object({
 });
 export type VirtualFolder = z.infer<typeof VirtualFolderSchema>;
 
+export const VfsNodeTypeSchema = z.enum([
+  'physical_dir',
+  'physical_file',
+  'virtual_dir',
+  'link',
+]);
+export type VfsNodeType = z.infer<typeof VfsNodeTypeSchema>;
+
+export const VfsPermissionsSchema = z.object({
+  canRead: z.boolean().default(true),
+  canSee: z.boolean().default(true),
+  canUpload: z.boolean().default(false),
+  canDelete: z.boolean().default(false),
+  canList: z.boolean().default(true),
+  canArchive: z.boolean().default(true),
+});
+export type VfsPermissions = z.infer<typeof VfsPermissionsSchema>;
+
+export const VfsNodeSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  vfsPath: z.string().min(1),
+  type: VfsNodeTypeSchema.default('physical_dir'),
+  physicalPath: z.string().optional(),
+  linkUrl: z.string().optional(),
+  defaultDocument: z.string().optional(),
+  permissions: VfsPermissionsSchema.default({
+    canRead: true,
+    canSee: true,
+    canUpload: false,
+    canDelete: false,
+    canList: true,
+    canArchive: true,
+  }),
+  allowedRoles: z.array(UserRoleSchema).default([]),
+  readOnly: z.boolean().default(false),
+  hidden: z.boolean().default(false),
+  comment: z.string().optional(),
+  createdAt: z.string(),
+});
+export type VfsNode = z.infer<typeof VfsNodeSchema>;
+
 export const FileServerSettingsSchema = z.object({
   enabled: z.boolean().default(true), // auto-start on app launch
   serverName: z.string().default('Smaran File Server'),
@@ -67,6 +109,22 @@ export const FileServerSettingsSchema = z.object({
   httpsEnabled: z.boolean().default(false),
   httpsCertPath: z.string().default(''),
   httpsKeyPath: z.string().default(''),
+  // HFS 3.4.1 Bandwidth Throttling & Concurrency Limits
+  maxKbpsDown: z.number().int().min(0).default(0), // 0 = unlimited
+  maxKbpsUp: z.number().int().min(0).default(0), // 0 = unlimited
+  maxKbpsPerIp: z.number().int().min(0).default(0), // 0 = unlimited
+  maxDownloads: z.number().int().min(0).default(0), // 0 = unlimited
+  // HFS 3.4.1 Router UPnP & DDNS
+  upnpEnabled: z.boolean().default(false),
+  ddnsUrl: z.string().default(''),
+  ddnsIntervalMinutes: z.number().int().min(5).max(1440).default(60),
+  // HFS 3.4.1 WebDAV
+  webdavEnabled: z.boolean().default(true),
+  // HFS 3.4.1 Security & Firewall
+  ipFilterEnabled: z.boolean().default(false),
+  ipAllowlist: z.array(z.string()).default([]),
+  ipBlocklist: z.array(z.string()).default([]),
+  bruteForceProtection: z.boolean().default(true),
 });
 export type FileServerSettings = z.infer<typeof FileServerSettingsSchema>;
 
@@ -78,6 +136,19 @@ export interface FileItem {
   modifiedAt: string;
   mimeType: string;
   extension: string;
+  comment?: string;
+  isVirtual?: boolean;
+}
+
+export interface LiveConnection {
+  id: string;
+  clientIp: string;
+  userAgent: string;
+  connectedAt: string;
+  currentPath: string;
+  speedBps: number;
+  bytesSent: number;
+  bytesReceived: number;
 }
 
 export interface DirectoryListing {
@@ -149,6 +220,9 @@ export interface ServerStatus {
   currentDownloadSpeedBps: number;
   authEnabled: boolean;
   guestAccess: boolean;
+  upnpMapped: boolean;
+  publicIp: string;
+  liveConnections: LiveConnection[];
   error?: string;
 }
 

@@ -12,6 +12,7 @@ import type {
   ShareLink,
   TransferHistoryEntry,
   UserAccount,
+  VfsNode,
 } from '@shared/fileserver';
 import { FileServerStore } from './FileServerStore';
 import { HttpServer } from './HttpServer';
@@ -94,12 +95,13 @@ export class FileServerManager {
   }
 
   listDir(relPath: string): DirectoryListing | null {
-    return this.http.listDirectory(relPath);
+    return this.http.vfs.listDirectory(relPath);
   }
 
   mkdir(parentRel: string, name: string): { ok: boolean; error?: string } {
-    const settings = this.store.getSettings();
-    const target = resolveSafePath(settings.rootDir, path.join(parentRel, name));
+    const parentTarget = this.http.vfs.resolvePath(parentRel);
+    const base = parentTarget?.physicalPath || this.store.getSettings().rootDir;
+    const target = resolveSafePath(base, name);
     if (!target) return { ok: false, error: 'Invalid path' };
 
     try {
@@ -111,34 +113,33 @@ export class FileServerManager {
   }
 
   deleteItem(relPath: string): { ok: boolean; error?: string } {
-    const settings = this.store.getSettings();
-    const target = resolveSafePath(settings.rootDir, relPath);
-    if (!target || target === path.resolve(settings.rootDir)) {
+    const target = this.http.vfs.resolvePath(relPath);
+    if (!target?.physicalPath || !fs.existsSync(target.physicalPath)) {
+      return { ok: false, error: 'File or folder does not exist' };
+    }
+    if (target.physicalPath === path.resolve(this.store.getSettings().rootDir)) {
       return { ok: false, error: 'Cannot delete root folder' };
     }
 
     try {
-      if (fs.existsSync(target)) {
-        fs.rmSync(target, { recursive: true, force: true });
-        return { ok: true };
-      }
-      return { ok: false, error: 'File or folder does not exist' };
+      fs.rmSync(target.physicalPath, { recursive: true, force: true });
+      return { ok: true };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   }
 
   renameItem(relPath: string, newName: string): { ok: boolean; error?: string } {
-    const settings = this.store.getSettings();
-    const source = resolveSafePath(settings.rootDir, relPath);
-    if (!source) return { ok: false, error: 'Source not found' };
+    const target = this.http.vfs.resolvePath(relPath);
+    if (!target?.physicalPath || !fs.existsSync(target.physicalPath)) {
+      return { ok: false, error: 'Source not found' };
+    }
 
-    const parent = path.dirname(source);
-    const dest = resolveSafePath(settings.rootDir, path.relative(settings.rootDir, path.join(parent, newName)));
-    if (!dest) return { ok: false, error: 'Invalid destination' };
+    const parent = path.dirname(target.physicalPath);
+    const dest = path.join(parent, newName);
 
     try {
-      fs.renameSync(source, dest);
+      fs.renameSync(target.physicalPath, dest);
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -146,20 +147,75 @@ export class FileServerManager {
   }
 
   moveItem(srcRel: string, destFolderRel: string): { ok: boolean; error?: string } {
-    const settings = this.store.getSettings();
-    const source = resolveSafePath(settings.rootDir, srcRel);
-    const destFolder = resolveSafePath(settings.rootDir, destFolderRel);
-    if (!source || !destFolder) return { ok: false, error: 'Invalid path' };
+    const srcTarget = this.http.vfs.resolvePath(srcRel);
+    const destTarget = this.http.vfs.resolvePath(destFolderRel);
+    if (!srcTarget?.physicalPath || !destTarget?.physicalPath) {
+      return { ok: false, error: 'Invalid path' };
+    }
 
-    const fileName = path.basename(source);
-    const dest = path.join(destFolder, fileName);
+    const fileName = path.basename(srcTarget.physicalPath);
+    const dest = path.join(destTarget.physicalPath, fileName);
 
     try {
-      fs.renameSync(source, dest);
+      fs.renameSync(srcTarget.physicalPath, dest);
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
+  }
+
+  setFileComment(relPath: string, comment: string): { ok: boolean; error?: string } {
+    const target = this.http.vfs.resolvePath(relPath);
+    if (!target?.physicalPath || !fs.existsSync(target.physicalPath)) {
+      return { ok: false, error: 'File not found' };
+    }
+
+    try {
+      const dir = path.dirname(target.physicalPath);
+      const name = path.basename(target.physicalPath);
+      this.store.setCommentForFile(dir, name, comment);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  killConnection(id: string): boolean {
+    const res = this.http.killConnection(id);
+    this.broadcast(IPC.fileserverStatusChanged, this.getStatus());
+    return res;
+  }
+
+  // VFS Node Management
+  getVfsNodes(): VfsNode[] {
+    return this.store.getVfsNodes();
+  }
+
+  saveVfsNode(node: VfsNode): VfsNode {
+    this.store.saveVfsNode(node);
+    return node;
+  }
+
+  deleteVfsNode(id: string): void {
+    this.store.deleteVfsNode(id);
+  }
+
+  async pickVfsPhysicalPath(parentWindow?: BrowserWindow, isDirectory = true): Promise<string | null> {
+    const win = parentWindow || BrowserWindow.getFocusedWindow();
+    const res = await (win
+      ? dialog.showOpenDialog(win, {
+          title: isDirectory ? 'Select Directory to Map into VFS' : 'Select File to Map into VFS',
+          properties: isDirectory ? ['openDirectory'] : ['openFile'],
+        })
+      : dialog.showOpenDialog({
+          title: isDirectory ? 'Select Directory to Map into VFS' : 'Select File to Map into VFS',
+          properties: isDirectory ? ['openDirectory'] : ['openFile'],
+        }));
+
+    if (!res.canceled && res.filePaths[0]) {
+      return res.filePaths[0];
+    }
+    return null;
   }
 
   openFolderInExplorer(relPath = ''): void {

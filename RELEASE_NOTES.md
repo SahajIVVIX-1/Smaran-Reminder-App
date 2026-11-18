@@ -1,3 +1,21 @@
+# Smaran 3.2.0
+
+- **Complete Rejetto HFS 3.4.1 Feature Parity (Zero External Dependencies):** Upgraded Smaran HFS into a full-fledged HFS alternative running natively inside Smaran without external tools or dependencies.
+- **Hierarchical Virtual File System (VFS):** Mount arbitrary physical folders/drives (`D:\Photos`), virtual organization folders, and link nodes anywhere in the server path hierarchy. Supports granular permissions inheritance (`canRead`, `canUpload`, `canArchive`, `canDelete`), read-only flags, and hidden nodes.
+- **On-the-Fly Streaming ZIP Archives:** Stream single folders or multi-file selections directly as ZIP archives using `yazl` with zero intermediate disk space. Added single-click ZIP download buttons across Web and in-app file managers.
+- **Native WebDAV Server (RFC 4918):** Mount Smaran HFS directly in Windows File Explorer as a drive letter (`net use Z: http://<IP>:5900/`) or in macOS Finder without needing a web browser. Full support for `PROPFIND`, `MKCOL`, `MOVE`, `COPY`, `DELETE`, `LOCK`, `UNLOCK`, and `PUT`.
+- **In-Browser Rich Media Lightbox & Players:** Built-in fullscreen image lightbox with zoom, rotate, and next/prev cycling; HTML5 seekable video streaming player; audio player; syntax-highlighted code/text viewer; and in-browser PDF preview.
+- **Table & Grid View Modes:** Seamlessly toggle between detailed table list view and visual card/thumbnail grid view in the web file manager.
+- **Multi-File Batch Selection:** Checkbox selection with floating bottom dock for batch ZIP download and batch deletion.
+- **File Descriptions & Comments:** Standard `descript.ion` reading and editing across both the web and in-app managers.
+- **Bandwidth Throttling & Limits:** Token-bucket bandwidth limiter with configurable global download/upload caps (KB/s), per-IP speed caps, and maximum concurrent download limits.
+- **UPnP Router Port Forwarding:** Single-toggle automatic router port forwarding via `@rejetto/nat-upnp` for instant internet access.
+- **Dynamic DNS (DDNS) Updater:** Automated periodic IP updates for DuckDNS, No-IP, DynDNS, and custom webhooks.
+- **Live Connection Inspector:** Real-time connected clients table displaying client IP, User-Agent browser/OS, current path, data transferred, and one-click socket disconnect.
+- **Security & IP Firewall:** IP allowlist and blocklist masks supporting wildcards (`192.168.1.*`) and CIDR notation (`10.0.0.0/8`), combined with automatic anti-brute force temporary lockout after 5 failed login attempts.
+
+---
+
 # Smaran 3.1.0
 
 - **Smaran HFS (Self-Hosted HTTP File Server Engine):** Built a complete, native HTTP file server engine inside Smaran Reminder, inspired by Rejetto HFS. Operates independently with zero external installations or services required.

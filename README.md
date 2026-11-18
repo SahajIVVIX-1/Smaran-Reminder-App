@@ -5,14 +5,21 @@ notification card at the right time. Lives in the tray.
 Automations can also lock, sleep, sign out or shut down the PC, and open apps, files, scripts
 and links: at a time, at startup or sign-in, or on Windows events such as lock, unlock and wake.
 
-### Smaran HFS (Self-Hosted HTTP File Server)
+### Smaran HFS (Self-Hosted HTTP File Server & WebDAV Engine)
 Smaran includes its own built-in HTTP File Server engine (inspired by Rejetto HFS) to share files and folders over Wi-Fi and local networks:
-- **Zero External Dependencies**: Embedded directly into Smaran's native Node.js process.
-- **LAN Web File Manager**: Responsive, dark-themed web browser interface accessible to phones, tablets, and laptops on the same network (`http://<LAN-IP>:5900`).
-- **In-App Management**: Complete server control panel (start/stop/restart, LAN URLs, QR codes, active transfer monitor, speed gauges, audit logs).
-- **File Explorer**: Upload, download, create folders, rename, move, delete, and drag-and-drop file transfers.
-- **Streaming & HTTP Range**: Resumable downloads and streaming with `206 Partial Content`.
-- **Users & Permissions**: Role-based access control (Admin, User, Guest), per-user permissions (read, upload, delete), and password-protected folders.
+- **Zero External Dependencies**: Embedded directly into Smaran's native Node.js process without requiring external servers, runtimes, or tools.
+- **Virtual File System (VFS)**: Mount physical disks (`D:\Photos`), virtual organizational folders, and external link nodes with granular inheritance permissions (`canRead`, `canUpload`, `canArchive`, `canDelete`).
+- **Streaming ZIP Downloads**: On-the-fly streaming ZIP folder & multi-file downloads directly to HTTP responses via `yazl` without intermediate disk space.
+- **Native WebDAV Server (RFC 4918)**: Connect directly from Windows File Explorer as a mapped network drive letter (`net use Z: http://<IP>:5900/`) or macOS Finder without a web browser.
+- **LAN Web File Manager**: Responsive, dark-themed web browser interface with table & visual grid views, multi-file selection batch dock, and instant search.
+- **In-Browser Rich Media Player**: Lightbox for fullscreen image viewing with zoom/rotate, HTML5 video player, audio player, syntax-highlighted code/text viewer, and PDF preview.
+- **File Descriptions**: Standard `descript.ion` reading and editing displayed directly in web & in-app file listings.
+- **Bandwidth Throttling & Limits**: Global download/upload speed limits (KB/s), per-IP speed limits, and concurrent download caps.
+- **UPnP Router Port Forwarding**: Automatic one-click router port mapping via `@rejetto/nat-upnp` for instant remote access.
+- **Dynamic DNS (DDNS)**: Automated periodic IP updates for DuckDNS, No-IP, and DynDNS webhooks.
+- **Live Connection Inspector**: Real-time connected clients table displaying IP, User-Agent, active path, speed, and one-click socket disconnect.
+- **Security & Firewall**: IP allowlist and blocklist masks (wildcards & CIDR notation) with anti-brute force temporary lockout.
+- **Users & Permissions**: Role-based access control (Admin, User, Guest), per-user permissions, and password-protected folders.
 - **Share Links**: Secure tokenized sharing links with expiration, maximum download limits, and QR code sharing.
 - **Reminder Integration**: Attach files from your file server directly to reminders.
 

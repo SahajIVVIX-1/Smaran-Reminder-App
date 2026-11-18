@@ -7,6 +7,7 @@ import type {
   ShareLink,
   TransferHistoryEntry,
   UserAccount,
+  VfsNode,
   VirtualFolder,
 } from '@shared/fileserver';
 
@@ -19,6 +20,7 @@ export interface FileServerData {
   users: UserAccount[];
   shares: ShareLink[];
   virtualFolders: VirtualFolder[];
+  vfsNodes: VfsNode[];
   history: TransferHistoryEntry[];
 }
 
@@ -59,6 +61,18 @@ export class FileServerStore {
       httpsEnabled: false,
       httpsCertPath: '',
       httpsKeyPath: '',
+      maxKbpsDown: 0,
+      maxKbpsUp: 0,
+      maxKbpsPerIp: 0,
+      maxDownloads: 0,
+      upnpEnabled: false,
+      ddnsUrl: '',
+      ddnsIntervalMinutes: 60,
+      webdavEnabled: true,
+      ipFilterEnabled: false,
+      ipAllowlist: [],
+      ipBlocklist: [],
+      bruteForceProtection: true,
     };
 
     if (fs.existsSync(this.filePath)) {
@@ -69,6 +83,7 @@ export class FileServerStore {
           users: Array.isArray(raw.users) ? raw.users : [],
           shares: Array.isArray(raw.shares) ? raw.shares : [],
           virtualFolders: Array.isArray(raw.virtualFolders) ? raw.virtualFolders : [],
+          vfsNodes: Array.isArray(raw.vfsNodes) ? raw.vfsNodes : [],
           history: Array.isArray(raw.history) ? raw.history : [],
         };
       } catch {
@@ -81,6 +96,7 @@ export class FileServerStore {
       users: [],
       shares: [],
       virtualFolders: [],
+      vfsNodes: [],
       history: [],
     };
   }
@@ -200,6 +216,89 @@ export class FileServerStore {
   clearHistory(): void {
     this.data.history = [];
     this.save();
+  }
+
+  getVfsNodes(): VfsNode[] {
+    return [...this.data.vfsNodes];
+  }
+
+  saveVfsNode(node: VfsNode): void {
+    const idx = this.data.vfsNodes.findIndex((n) => n.id === node.id);
+    if (idx >= 0) {
+      this.data.vfsNodes[idx] = node;
+    } else {
+      this.data.vfsNodes.push(node);
+    }
+    this.save();
+  }
+
+  deleteVfsNode(id: string): void {
+    this.data.vfsNodes = this.data.vfsNodes.filter((n) => n.id !== id);
+    this.save();
+  }
+
+  findVfsNodeById(id: string): VfsNode | undefined {
+    return this.data.vfsNodes.find((n) => n.id === id);
+  }
+
+  /** Read descript.ion comments from a physical directory */
+  getCommentsForDir(dirPath: string): Record<string, string> {
+    const comments: Record<string, string> = {};
+    const ionPath = path.join(dirPath, 'descript.ion');
+    if (!fs.existsSync(ionPath)) return comments;
+
+    try {
+      const content = fs.readFileSync(ionPath, 'utf8');
+      const lines = content.split(/\r?\n/);
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        if (trimmed.startsWith('"')) {
+          const closingIdx = trimmed.indexOf('"', 1);
+          if (closingIdx > 1) {
+            const fileName = trimmed.slice(1, closingIdx);
+            const comment = trimmed.slice(closingIdx + 1).trim();
+            comments[fileName] = comment;
+          }
+        } else {
+          const spaceIdx = trimmed.indexOf(' ');
+          if (spaceIdx > 0) {
+            const fileName = trimmed.slice(0, spaceIdx);
+            const comment = trimmed.slice(spaceIdx + 1).trim();
+            comments[fileName] = comment;
+          }
+        }
+      }
+    } catch {
+      // Ignore read errors
+    }
+    return comments;
+  }
+
+  /** Write or update a comment in descript.ion */
+  setCommentForFile(dirPath: string, fileName: string, comment: string): void {
+    try {
+      const comments = this.getCommentsForDir(dirPath);
+      if (comment.trim()) {
+        comments[fileName] = comment.trim();
+      } else {
+        Reflect.deleteProperty(comments, fileName);
+      }
+
+      const ionPath = path.join(dirPath, 'descript.ion');
+      if (Object.keys(comments).length === 0) {
+        if (fs.existsSync(ionPath)) fs.unlinkSync(ionPath);
+        return;
+      }
+
+      const lines = Object.entries(comments).map(([name, text]) => {
+        const safeName = name.includes(' ') ? `"${name}"` : name;
+        return `${safeName} ${text}`;
+      });
+      fs.writeFileSync(ionPath, lines.join('\r\n') + '\r\n', 'utf8');
+    } catch (err) {
+      console.error('Failed to update descript.ion comment:', err);
+    }
   }
 
   getLogs(): ServerLogEntry[] {
