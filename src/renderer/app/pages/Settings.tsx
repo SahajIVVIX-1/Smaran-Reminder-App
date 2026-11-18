@@ -24,9 +24,10 @@ const CORNER_LABEL: Record<SettingsT['notification']['corner'], string> = {
 };
 
 function thicknessLabel(px: number): string {
+  if (px <= 1) return 'Hairline (Ultra Thin)';
   if (px <= 2) return 'Very Thin';
-  if (px <= 5) return 'Thin';
-  if (px <= 9) return 'Medium';
+  if (px <= 4) return 'Thin';
+  if (px <= 8) return 'Medium';
   if (px <= 14) return 'Thick';
   return 'Very Thick';
 }
@@ -360,11 +361,12 @@ export function Settings() {
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5">
                         {[
+                          { px: 1, label: 'Hairline' },
                           { px: 2, label: 'Very Thin' },
                           { px: 4, label: 'Thin' },
                           { px: 8, label: 'Medium' },
-                          { px: 12, label: 'Thick' },
-                          { px: 18, label: 'Very Thick' },
+                          { px: 14, label: 'Thick' },
+                          { px: 20, label: 'Very Thick' },
                         ].map((preset) => {
                           const active = (n.borderLightThickness ?? 4) === preset.px;
                           return (

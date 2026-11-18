@@ -1,3 +1,11 @@
+# Smaran 2.16.9
+
+- **True Hairline-to-Thick Precision:** Screen border light now scales with genuine visual fidelity from an ultra-thin 1px laser hairline up to 24px thick. Glow dispersion scales proportionally with thickness so thin lines stay truly thin without spreading across the screen.
+- **Zero Pixelation & Zero Square Blocks:** Re-engineered with an antialiased, hardware-accelerated Canvas 2D perimeter engine. Uses sub-pixel interpolation, smooth circular caps, rounded corner turns, and continuous linear color gradients—completely eliminating angular stepping, pixelated aliasing, and square block artifacts.
+- **Hairline Preset in Settings:** Added a dedicated 1px Hairline preset alongside Thin (2px), Medium (4px), Thick (8px), and Very Thick (14px/20px).
+
+---
+
 # Smaran 2.16.8
 
 - **Screen Border Thickness Control:** Control the screen border light thickness continuously from hairline very thin (1px) up to thick (24px), complete with quick presets (Very Thin, Thin, Medium, Thick, Very Thick) and a fine-tuning slider in Settings.
