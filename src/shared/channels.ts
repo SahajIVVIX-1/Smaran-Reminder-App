@@ -54,6 +54,7 @@ export const IPC = {
   setupProgress: 'setup:progress',
   setupRetry: 'setup:retry',
   setupClose: 'setup:close',
+  screenBorderPreview: 'screenborder:preview',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];

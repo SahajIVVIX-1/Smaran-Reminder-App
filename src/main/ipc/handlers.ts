@@ -102,6 +102,9 @@ export function registerIpcHandlers(smaran: SmaranApp): void {
       sound: settings.sound,
     });
   });
+  ipcMain.handle(IPC.screenBorderPreview, () => {
+    smaran.notifications.previewBorderLight();
+  });
 
   ipcMain.handle(IPC.automationsNext, () => automations.nextTimes());
   ipcMain.handle(IPC.automationsRuns, () => automations.running());

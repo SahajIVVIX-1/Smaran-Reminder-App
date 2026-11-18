@@ -225,6 +225,10 @@ export const SettingsSchema = z.object({
     motion: NotificationMotionSchema.default(DEFAULT_NOTIFICATION_MOTION),
     /** Moving light beam along the screen border while notifications or tasks are active. */
     borderLight: z.boolean().default(true),
+    /** Thickness in px of the screen border light (1 to 24px, default 4). */
+    borderLightThickness: z.number().int().min(1).max(24).default(4),
+    /** Brightness percentage of the screen border light (50% to 200%, default 150%). */
+    borderLightBrightness: z.number().int().min(50).max(200).default(150),
   }),
   quietHours: z
     .object({ enabled: z.boolean(), from: TimeSchema, to: TimeSchema })

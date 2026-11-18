@@ -34,7 +34,8 @@ function powershell(command: string): Promise<string> {
  */
 export function appEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env };
-  for (const key of Object.keys(env)) if (key.startsWith('PORTABLE_EXECUTABLE_')) delete env[key];
+  for (const key of Object.keys(env))
+    if (key.startsWith('PORTABLE_EXECUTABLE_')) Reflect.deleteProperty(env, key);
   return env;
 }
 

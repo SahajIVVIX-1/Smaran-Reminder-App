@@ -55,9 +55,14 @@ export class NotificationCenter implements Notifier {
     private readonly settings: () => Settings,
     private readonly faces: () => CustomFont[] = () => [],
   ) {
-    this.screenBorder = new ScreenBorderWindow(
-      () => this.settings().notification.borderLight ?? true,
-    );
+    this.screenBorder = new ScreenBorderWindow(() => {
+      const notif = this.settings().notification;
+      return {
+        enabled: notif.borderLight ?? true,
+        thickness: notif.borderLightThickness ?? 4,
+        brightness: notif.borderLightBrightness ?? 150,
+      };
+    });
   }
 
   handleActions(
@@ -202,6 +207,26 @@ export class NotificationCenter implements Notifier {
   closeAll(): void {
     for (const card of [...this.cards.values()]) this.destroy(card);
     this.screenBorder.hide();
+  }
+
+  /** Temporarily previews the screen border light (e.g. from Settings). */
+  previewBorderLight(): void {
+    const allDisplays = screen.getAllDisplays();
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const settings = this.settings().notification;
+    const display = pickDisplay(
+      settings.screen,
+      allDisplays.map((d) => ({ id: d.id, bounds: d.bounds, workArea: d.workArea })),
+      primaryDisplay.id,
+      screen.getCursorScreenPoint(),
+    );
+    const activeDisplay = allDisplays.find((d) => d.id === display.id) ?? primaryDisplay;
+    this.screenBorder.preview(activeDisplay, 2500);
+  }
+
+  /** Updates thickness or brightness while active if settings change. */
+  onConfigChanged(): void {
+    this.screenBorder.applyLiveSettings();
   }
 
   /** Called whenever cards come or go (the logo rings while any are on screen). */

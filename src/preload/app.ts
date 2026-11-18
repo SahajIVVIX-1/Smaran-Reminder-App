@@ -45,6 +45,8 @@ const api = {
     showNow: (reminderId: Id): Promise<boolean> => ipcRenderer.invoke(IPC.showNow, { reminderId }),
     test: (request: NotifyTestRequest): Promise<void> =>
       ipcRenderer.invoke(IPC.notifyTest, request),
+    previewBorderLight: (): Promise<void> =>
+      ipcRenderer.invoke(IPC.screenBorderPreview),
   },
   license: {
     get: (): Promise<LicenseInfo> => ipcRenderer.invoke(IPC.licenseGet),

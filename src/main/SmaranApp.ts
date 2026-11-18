@@ -136,6 +136,7 @@ export class SmaranApp {
       this.automations.onConfigChanged();
       this.syncSystem(next);
       this.logo?.configure(next.settings.logo);
+      this.notifications.onConfigChanged();
       this.refreshTray();
     });
 

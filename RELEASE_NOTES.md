@@ -1,3 +1,12 @@
+# Smaran 2.16.8
+
+- **Screen Border Thickness Control:** Control the screen border light thickness continuously from hairline very thin (1px) up to thick (24px), complete with quick presets (Very Thin, Thin, Medium, Thick, Very Thick) and a fine-tuning slider in Settings.
+- **High-Intensity Brightness & Radiance:** Dramatically boosted luminance with an electric neon palette, multi-layer ambient bloom, intense glow, and white-hot core accents, plus customizable brightness levels (Standard, High, Ultra Vivid).
+- **Smooth Fade-In & Fade-Out Transitions:** Screen border illumination enters exclusively with a silky-smooth fade-in and exits with a graceful fade-out when notifications are dismissed, without any abrupt disappearance or flickering.
+- **Instant Live Screen Preview:** Test and preview your border light thickness and brightness directly on your screen with one click from Settings before reminders arrive.
+
+---
+
 # Smaran 2.16.7
 
 - **Screen Border Light:** An animated, moving multi-color beam circles the perimeter of your entire screen while notifications or tasks are active, matching the notification card's border light with ambient edge illumination until dismissed.
