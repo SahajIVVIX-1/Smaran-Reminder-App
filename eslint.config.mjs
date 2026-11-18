@@ -11,6 +11,7 @@ export default tseslint.config(
       'out/**',
       'release/**',
       'branding/**',
+      'site/**',
       // Source files you keep for reference (the dots package and explorer), not app code.
       'assets/**',
       'dist/**',

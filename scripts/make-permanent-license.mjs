@@ -351,7 +351,9 @@ fs.writeFileSync(outLicense, finalPngBytes);
 try {
   fs.unlinkSync(tempHtml);
   fs.unlinkSync(tempPng);
-} catch {}
+} catch {
+  // best effort cleanup
+}
 
 console.log('\n======================================================');
 console.log('🎉 Permanent License Generated Successfully!');

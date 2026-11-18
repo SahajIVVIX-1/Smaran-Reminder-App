@@ -1,3 +1,10 @@
+# Smaran 3.0.2
+
+- **Fixed Screen Border Light Visibility:** Resolved an issue where the screen border light overlay remained invisible. Restored the IPC fade-in / fade-out bindings (`window.__borderFadeIn` and `window.__borderFadeOut`), added resilient multi-selector element lookup for the border container, and ensured the animation loop starts immediately on display.
+- **Architectural Vector Decoupling:** Relocated `PerimeterRect` and vector beam slicing math to `@shared/perimeter`, providing shared TypeScript typing, zero runtime overhead, and comprehensive unit test coverage.
+
+---
+
 # Smaran 3.0.1
 
 - **Uninstaller Window 5-Second Auto-Close:** Fixed an issue where the always-on-top uninstaller card could remain stuck on screen after completing. The final "Goodbye for now / Smaran was removed" screen now cleanly closes and exits after exactly 5 seconds, and provides a direct "Close now" button along with `Escape` / `Enter` keyboard dismissal for immediate exit.

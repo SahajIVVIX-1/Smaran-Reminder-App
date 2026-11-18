@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '@shared/defaults';
+import { PerimeterRect } from '@shared/perimeter';
 import { SettingsSchema } from '@shared/schema';
 
 describe('Screen Border Light settings & schema', () => {
@@ -104,5 +105,31 @@ describe('Screen Border Light settings & schema', () => {
       expect(parsed.data.notification.borderLightThickness).toBe(4);
       expect(parsed.data.notification.borderLightBrightness).toBe(150);
     }
+  });
+
+  it('decomposes perimeter ranges into continuous straight edge segments without cuts', () => {
+    const p = new PerimeterRect();
+    p.update(1920, 1080, 4);
+
+    expect(p.totalLength).toBeGreaterThan(0);
+    expect(p.totalLength).toBe(p.w * 2 + p.h * 2);
+
+    // Test a beam that wraps across the top-right corner
+    const trCornerDist = p.k1; // Top-Right corner position
+    const segments = p.getSegments(trCornerDist - 100, trCornerDist + 100);
+
+    expect(segments.length).toBe(2);
+    // Segment 1 ends at TR corner
+    expect(segments[0]?.pEnd.x).toBeCloseTo(p.v1.x);
+    expect(segments[0]?.pEnd.y).toBeCloseTo(p.v1.y);
+    // Segment 2 starts at TR corner
+    expect(segments[1]?.pStart.x).toBeCloseTo(p.v1.x);
+    expect(segments[1]?.pStart.y).toBeCloseTo(p.v1.y);
+
+    // Verify all progress parameters are valid and strictly non-decreasing
+    expect(segments[0]?.uStart).toBeCloseTo(0);
+    expect(segments[0]?.uEnd).toBeCloseTo(0.5);
+    expect(segments[1]?.uStart).toBeCloseTo(0.5);
+    expect(segments[1]?.uEnd).toBeCloseTo(1.0);
   });
 });

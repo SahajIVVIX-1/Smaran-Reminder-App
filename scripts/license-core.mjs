@@ -356,6 +356,7 @@ function containerFromImage(bytes, inflate, decodeOther) {
     try {
       return extractBits(other.rgba);
     } catch {
+      // ignore decoding error
     }
   }
   throw new LicenseError(
