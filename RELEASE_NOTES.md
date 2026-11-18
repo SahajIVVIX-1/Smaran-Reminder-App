@@ -1,3 +1,11 @@
+# Smaran 3.2.1
+
+- **Native Smaran Web Popups:** Completely eliminated browser-native `prompt()`, `confirm()`, and `alert()` dialogs in the web file manager. All user interactions (Folder Creation, Renaming, File Deletion, Batch Deletion, Description/Comment Editing, and Sign In) now use beautifully crafted, native Smaran modal popups featuring Anthropic Serif typography, dark obsidian glass styling, autofocus, Esc/Enter keyboard navigation, and seamless state resolution.
+- **Smaran Animated Dots Logo in Web UI:** Integrated the iconic animated 3-dot Smaran logo directly into the web file manager header. Powered by real-time spring physics and an SVG liquid-merge filter, the dots cycle smoothly through signature Smaran dances (`s-mark`, typing `bounce`, orbital `spiral`, and harmonic `wave`) with interactive hover expansion and click impulse kicks.
+- **Inline Authentication Feedback:** Replaced browser alert boxes on authentication failure with smooth inline alert notices and shake feedback within the sign-in modal.
+
+---
+
 # Smaran 3.2.0
 
 - **Complete Rejetto HFS 3.4.1 Feature Parity (Zero External Dependencies):** Upgraded Smaran HFS into a full-fledged HFS alternative running natively inside Smaran without external tools or dependencies.

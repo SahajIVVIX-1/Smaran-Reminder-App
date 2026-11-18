@@ -53,12 +53,33 @@ export function getWebManagerHtml(serverName: string): string {
     .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
       font-weight: 600;
       font-size: 16px;
       color: var(--text);
     }
-    .brand svg { color: var(--accent); }
+    .smaran-brand-logo {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      cursor: pointer;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    .smaran-brand-logo:hover {
+      background: rgba(224, 108, 67, 0.12);
+      border-color: rgba(224, 108, 67, 0.35);
+      transform: scale(1.06);
+    }
+    .smaran-brand-logo:active {
+      transform: scale(0.94);
+    }
     .badge {
       font-size: 11px;
       padding: 2px 7px;
@@ -345,41 +366,100 @@ export function getWebManagerHtml(serverName: string): string {
       background: var(--accent);
       transition: width 0.2s;
     }
-    /* Modals & Lightbox */
+    /* Modals, Popups & Dialogs */
+    @keyframes smaranModalIn {
+      from {
+        opacity: 0;
+        transform: scale(0.95) translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+    @keyframes smaranFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes smaranShake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-5px); }
+      40%, 80% { transform: translateX(5px); }
+    }
     .modal-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.75);
-      backdrop-filter: blur(4px);
+      background: rgba(0, 0, 0, 0.72);
+      backdrop-filter: blur(6px);
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 100;
+      z-index: 150;
       padding: 20px;
+      animation: smaranFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .modal-box {
-      background: var(--card);
+      background: #18181b;
       border: 1px solid var(--line);
-      border-radius: 10px;
+      border-radius: 16px;
       padding: 24px;
-      width: 90%;
-      max-width: 520px;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+      width: 92%;
+      max-width: 440px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75);
+      animation: smaranModalIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
     }
     .modal-box.large {
       max-width: 960px;
       width: 95%;
     }
     .modal-title {
-      font-size: 16px;
+      font-family: Georgia, Cambria, "Times New Roman", Times, serif;
+      font-size: 19px;
       font-weight: 600;
-      margin-bottom: 12px;
+      color: var(--text);
+      margin-bottom: 8px;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      letter-spacing: -0.01em;
+    }
+    .modal-message {
+      font-size: 13.5px;
+      color: var(--muted);
+      line-height: 1.55;
+      margin-bottom: 16px;
+    }
+    .modal-input {
+      width: 100%;
+      background: #121214;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 9px 12px;
+      font-size: 13.5px;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.15s ease;
+      margin-bottom: 20px;
+      box-sizing: border-box;
+    }
+    .modal-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-soft);
     }
     .modal-body { margin-bottom: 20px; }
-    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    .modal-actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
+    .login-error-alert {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      margin-bottom: 14px;
+      animation: smaranShake 0.4s ease;
+    }
     .lightbox-img-wrap {
       display: flex;
       align-items: center;
@@ -458,12 +538,7 @@ export function getWebManagerHtml(serverName: string): string {
 <body>
   <header>
     <div class="brand">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
-        <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
-        <line x1="6" y1="6" x2="6.01" y2="6"/>
-        <line x1="6" y1="18" x2="6.01" y2="18"/>
-      </svg>
+      <div class="smaran-brand-logo" id="smaran-brand-dots" title="Smaran"></div>
       <span>${escapeHtml(serverName)}</span>
       <span class="badge">LAN File Server</span>
     </div>
@@ -899,9 +974,151 @@ export function getWebManagerHtml(serverName: string): string {
       window.location.href = '/api/zip-selection?items=' + encodeURIComponent(list);
     }
 
+    /* Custom Smaran Dialogs (Confirm, Prompt, Alert) */
+    let activeDialogCleanup = null;
+
+    function smaranConfirm(options) {
+      return new Promise(function(resolve) {
+        if (activeDialogCleanup) activeDialogCleanup(false);
+        const mc = document.getElementById('modal-container');
+        const title = options.title || 'Confirm';
+        const message = options.message || '';
+        const confirmText = options.confirmText || 'Confirm';
+        const cancelText = options.cancelText || 'Cancel';
+        const isDanger = !!options.isDanger;
+
+        mc.innerHTML = '<div class="modal-overlay" id="smaran-dialog-overlay">' +
+          '<div class="modal-box" onclick="event.stopPropagation()">' +
+            '<div class="modal-title">' + escapeHtml(title) + '</div>' +
+            '<div class="modal-message">' + escapeHtml(message) + '</div>' +
+            '<div class="modal-actions">' +
+              '<button type="button" id="smaran-dialog-cancel">' + escapeHtml(cancelText) + '</button>' +
+              '<button type="button" class="' + (isDanger ? 'danger' : 'primary') + '" id="smaran-dialog-confirm">' + escapeHtml(confirmText) + '</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+
+        const overlay = document.getElementById('smaran-dialog-overlay');
+        const cancelBtn = document.getElementById('smaran-dialog-cancel');
+        const confirmBtn = document.getElementById('smaran-dialog-confirm');
+
+        function cleanup(result) {
+          document.removeEventListener('keydown', handleKey);
+          activeDialogCleanup = null;
+          mc.innerHTML = '';
+          resolve(result);
+        }
+        function handleKey(e) {
+          if (e.key === 'Escape') { e.preventDefault(); cleanup(false); }
+          else if (e.key === 'Enter') { e.preventDefault(); cleanup(true); }
+        }
+        activeDialogCleanup = cleanup;
+        overlay.onclick = function() { cleanup(false); };
+        cancelBtn.onclick = function() { cleanup(false); };
+        confirmBtn.onclick = function() { cleanup(true); };
+        document.addEventListener('keydown', handleKey);
+        confirmBtn.focus();
+      });
+    }
+
+    function smaranPrompt(options) {
+      return new Promise(function(resolve) {
+        if (activeDialogCleanup) activeDialogCleanup(null);
+        const mc = document.getElementById('modal-container');
+        const title = options.title || 'Input';
+        const message = options.message || '';
+        const defaultValue = options.defaultValue || '';
+        const placeholder = options.placeholder || '';
+        const confirmText = options.confirmText || 'Save';
+        const cancelText = options.cancelText || 'Cancel';
+        const isDanger = !!options.isDanger;
+
+        mc.innerHTML = '<div class="modal-overlay" id="smaran-dialog-overlay">' +
+          '<div class="modal-box" onclick="event.stopPropagation()">' +
+            '<div class="modal-title">' + escapeHtml(title) + '</div>' +
+            '<div class="modal-message">' + escapeHtml(message) + '</div>' +
+            '<input type="text" class="modal-input" id="smaran-dialog-input" value="' + escapeHtml(defaultValue) + '" placeholder="' + escapeHtml(placeholder) + '" />' +
+            '<div class="modal-actions">' +
+              '<button type="button" id="smaran-dialog-cancel">' + escapeHtml(cancelText) + '</button>' +
+              '<button type="button" class="' + (isDanger ? 'danger' : 'primary') + '" id="smaran-dialog-confirm">' + escapeHtml(confirmText) + '</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+
+        const overlay = document.getElementById('smaran-dialog-overlay');
+        const cancelBtn = document.getElementById('smaran-dialog-cancel');
+        const confirmBtn = document.getElementById('smaran-dialog-confirm');
+        const input = document.getElementById('smaran-dialog-input');
+
+        function cleanup(result) {
+          document.removeEventListener('keydown', handleKey);
+          activeDialogCleanup = null;
+          mc.innerHTML = '';
+          resolve(result);
+        }
+        function handleKey(e) {
+          if (e.key === 'Escape') { e.preventDefault(); cleanup(null); }
+          else if (e.key === 'Enter') { e.preventDefault(); cleanup(input.value); }
+        }
+        activeDialogCleanup = cleanup;
+        overlay.onclick = function() { cleanup(null); };
+        cancelBtn.onclick = function() { cleanup(null); };
+        confirmBtn.onclick = function() { cleanup(input.value); };
+        document.addEventListener('keydown', handleKey);
+        input.focus();
+        input.select();
+      });
+    }
+
+    function smaranAlert(options) {
+      return new Promise(function(resolve) {
+        if (activeDialogCleanup) activeDialogCleanup(undefined);
+        const mc = document.getElementById('modal-container');
+        const title = options.title || 'Notice';
+        const message = options.message || '';
+        const confirmText = options.confirmText || 'OK';
+        const tone = options.tone || 'neutral';
+
+        mc.innerHTML = '<div class="modal-overlay" id="smaran-dialog-overlay">' +
+          '<div class="modal-box" onclick="event.stopPropagation()">' +
+            '<div class="modal-title" style="' + (tone === 'error' ? 'color:var(--danger);' : '') + '">' + escapeHtml(title) + '</div>' +
+            '<div class="modal-message">' + escapeHtml(message) + '</div>' +
+            '<div class="modal-actions">' +
+              '<button type="button" class="primary" id="smaran-dialog-confirm">' + escapeHtml(confirmText) + '</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+
+        const overlay = document.getElementById('smaran-dialog-overlay');
+        const confirmBtn = document.getElementById('smaran-dialog-confirm');
+
+        function cleanup() {
+          document.removeEventListener('keydown', handleKey);
+          activeDialogCleanup = null;
+          mc.innerHTML = '';
+          resolve();
+        }
+        function handleKey(e) {
+          if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); cleanup(); }
+        }
+        activeDialogCleanup = cleanup;
+        overlay.onclick = function() { cleanup(); };
+        confirmBtn.onclick = function() { cleanup(); };
+        document.addEventListener('keydown', handleKey);
+        confirmBtn.focus();
+      });
+    }
+
     async function deleteSelected() {
       if (selectedPaths.size === 0) return;
-      if (!confirm('Delete ' + selectedPaths.size + ' selected item(s)?')) return;
+      const count = selectedPaths.size;
+      const ok = await smaranConfirm({
+        title: 'Delete Selected Items',
+        message: 'Are you sure you want to permanently delete ' + count + ' selected item' + (count > 1 ? 's' : '') + '? This action cannot be undone.',
+        confirmText: 'Delete ' + count + ' Item' + (count > 1 ? 's' : ''),
+        isDanger: true
+      });
+      if (!ok) return;
       for (const p of selectedPaths) {
         await fetch('/api/delete', {
           method: 'POST',
@@ -910,6 +1127,7 @@ export function getWebManagerHtml(serverName: string): string {
         });
       }
       clearSelection();
+      showToast(count + ' item' + (count > 1 ? 's' : '') + ' deleted');
       loadFiles();
     }
 
@@ -1110,9 +1328,15 @@ export function getWebManagerHtml(serverName: string): string {
       \`;
     }
 
-    function promptComment(item) {
+    async function promptComment(item) {
       const current = item.comment || '';
-      const text = prompt('Edit description for "' + item.name + '":', current);
+      const text = await smaranPrompt({
+        title: 'File Description',
+        message: 'Enter a description or comment for "' + item.name + '":',
+        defaultValue: current,
+        placeholder: 'Enter notes or description...',
+        confirmText: 'Save Description'
+      });
       if (text === null) return;
       fetch('/api/comment', {
         method: 'POST',
@@ -1120,12 +1344,17 @@ export function getWebManagerHtml(serverName: string): string {
         body: JSON.stringify({ path: item.relativePath, comment: text.trim() })
       }).then(res => {
         if (!res.ok) throw new Error('Could not update description');
+        showToast('Description updated');
         loadFiles();
-      }).catch(err => showToast(err.message));
+      }).catch(err => smaranAlert({ title: 'Error', message: err.message, tone: 'error' }));
     }
 
     function closeModal() {
-      document.getElementById('modal-container').innerHTML = '';
+      if (activeDialogCleanup) {
+        activeDialogCleanup(null);
+      } else {
+        document.getElementById('modal-container').innerHTML = '';
+      }
     }
 
     function filterFiles() {
@@ -1218,8 +1447,13 @@ export function getWebManagerHtml(serverName: string): string {
       }
     });
 
-    function promptNewFolder() {
-      const name = prompt('Enter new folder name:');
+    async function promptNewFolder() {
+      const name = await smaranPrompt({
+        title: 'New Folder',
+        message: 'Create a new folder in ' + (currentPath === '/' ? 'the root directory' : currentPath) + ':',
+        placeholder: 'Folder name',
+        confirmText: 'Create Folder'
+      });
       if (!name || !name.trim()) return;
       fetch('/api/mkdir', {
         method: 'POST',
@@ -1227,74 +1461,323 @@ export function getWebManagerHtml(serverName: string): string {
         body: JSON.stringify({ path: currentPath, name: name.trim() })
       }).then(res => {
         if (!res.ok) throw new Error('Could not create folder');
+        showToast('Folder created');
         loadFiles();
-      }).catch(err => showToast(err.message));
+      }).catch(err => smaranAlert({ title: 'Error', message: err.message, tone: 'error' }));
     }
 
-    function promptRename(item) {
-      const newName = prompt('Rename ' + item.name + ' to:', item.name);
-      if (!newName || newName.trim() === item.name) return;
+    async function promptRename(item) {
+      const newName = await smaranPrompt({
+        title: 'Rename ' + (item.isDir ? 'Folder' : 'File'),
+        message: 'Enter a new name for "' + item.name + '":',
+        defaultValue: item.name,
+        confirmText: 'Rename'
+      });
+      if (!newName || !newName.trim() || newName.trim() === item.name) return;
       fetch('/api/rename', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: item.relativePath, newName: newName.trim() })
       }).then(res => {
         if (!res.ok) throw new Error('Could not rename item');
+        showToast('Renamed successfully');
         loadFiles();
-      }).catch(err => showToast(err.message));
+      }).catch(err => smaranAlert({ title: 'Error', message: err.message, tone: 'error' }));
     }
 
-    function confirmDelete(item) {
-      if (!confirm('Are you sure you want to delete "' + item.name + '"?')) return;
+    async function confirmDelete(item) {
+      const ok = await smaranConfirm({
+        title: 'Delete ' + (item.isDir ? 'Folder' : 'File'),
+        message: 'Are you sure you want to permanently delete "' + item.name + '"? This action cannot be undone.',
+        confirmText: 'Delete',
+        isDanger: true
+      });
+      if (!ok) return;
       fetch('/api/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: item.relativePath })
       }).then(res => {
         if (!res.ok) throw new Error('Could not delete item');
+        showToast('Item deleted');
         loadFiles();
-      }).catch(err => showToast(err.message));
+      }).catch(err => smaranAlert({ title: 'Error', message: err.message, tone: 'error' }));
     }
 
     function showLoginModal() {
       const mc = document.getElementById('modal-container');
       mc.innerHTML = \`
         <div class="modal-overlay">
-          <div class="modal-box">
+          <div class="modal-box" onclick="event.stopPropagation()">
             <div class="modal-title">Sign In</div>
             <div class="modal-body">
-              <p style="color:var(--muted); font-size:13px; margin-bottom:12px;">This server requires credentials to access files.</p>
-              <div style="margin-bottom:10px;">
-                <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Username</label>
-                <input type="text" id="login-user" autofocus>
+              <p class="modal-message">This server requires authentication to access and manage files.</p>
+              <div id="login-error-msg" class="login-error-alert" style="display:none;"></div>
+              <div style="margin-bottom:12px;">
+                <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:5px; font-weight:500;">Username</label>
+                <input type="text" class="modal-input" id="login-user" style="margin-bottom:0;" autofocus />
               </div>
               <div>
-                <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Password</label>
-                <input type="password" id="login-pass">
+                <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:5px; font-weight:500;">Password</label>
+                <input type="password" class="modal-input" id="login-pass" style="margin-bottom:0;" />
               </div>
             </div>
             <div class="modal-actions">
-              <button class="primary" onclick="doLogin()">Log In</button>
+              <button class="primary" id="btn-login-submit" onclick="doLogin()">Log In</button>
             </div>
           </div>
         </div>
       \`;
+      const uInput = document.getElementById('login-user');
+      const pInput = document.getElementById('login-pass');
+      const handleKey = (e) => {
+        if (e.key === 'Enter') doLogin();
+      };
+      if (uInput) uInput.addEventListener('keydown', handleKey);
+      if (pInput) pInput.addEventListener('keydown', handleKey);
+      if (uInput) uInput.focus();
     }
 
     async function doLogin() {
-      const u = document.getElementById('login-user').value;
-      const p = document.getElementById('login-pass').value;
-      const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: u, password: p })
-      });
-      if (res.ok) {
-        document.getElementById('modal-container').innerHTML = '';
-        loadFiles();
-      } else {
-        alert('Invalid credentials');
+      const u = document.getElementById('login-user') ? document.getElementById('login-user').value : '';
+      const p = document.getElementById('login-pass') ? document.getElementById('login-pass').value : '';
+      const errEl = document.getElementById('login-error-msg');
+      if (errEl) errEl.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: u, password: p })
+        });
+        if (res.ok) {
+          document.getElementById('modal-container').innerHTML = '';
+          loadFiles();
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          const msg = errData.error || 'Invalid username or password';
+          if (errEl) {
+            errEl.textContent = msg;
+            errEl.style.display = 'block';
+          } else {
+            smaranAlert({ title: 'Sign In Failed', message: msg, tone: 'error' });
+          }
+        }
+      } catch (err) {
+        if (errEl) {
+          errEl.textContent = 'Server connection failed';
+          errEl.style.display = 'block';
+        } else {
+          smaranAlert({ title: 'Network Error', message: 'Could not connect to the file server', tone: 'error' });
+        }
       }
+    }
+
+    /* Smaran Animated Dots Logo Engine */
+    function initSmaranDots() {
+      const container = document.getElementById('smaran-brand-dots');
+      if (!container) return;
+
+      const N = 32;
+      const CX = 32, CY = 32;
+      const STROKES = 3;
+      const colors = ['#eaeaea', '#e06c43', '#f59f00'];
+
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 64 64');
+      svg.setAttribute('width', '26');
+      svg.setAttribute('height', '26');
+      svg.style.overflow = 'visible';
+      svg.style.display = 'block';
+
+      const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+      defs.innerHTML = '<filter id="web-smaran-goo" filterUnits="userSpaceOnUse" x="-32" y="-32" width="128" height="128">' +
+        '<feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />' +
+        '<feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 8 -3" result="goo" />' +
+        '<feComposite in="SourceGraphic" in2="goo" operator="atop" />' +
+      '</filter>';
+      svg.appendChild(defs);
+
+      const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      group.setAttribute('filter', 'url(#web-smaran-goo)');
+
+      const paths = [];
+      for (let s = 0; s < STROKES; s++) {
+        const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        p.setAttribute('fill', 'none');
+        p.setAttribute('stroke-linecap', 'round');
+        p.setAttribute('stroke-linejoin', 'round');
+        p.setAttribute('stroke', colors[s]);
+        p.setAttribute('stroke-width', '4.5');
+        group.appendChild(p);
+        paths.push(p);
+      }
+      svg.appendChild(group);
+      container.appendChild(svg);
+
+      const pos = new Float64Array(STROKES * N * 2);
+      const vel = new Float64Array(STROKES * N * 2);
+      const targetPts = new Float64Array(STROKES * N * 2);
+      const curWidth = [4.5, 4.5, 4.5];
+      const targetWidth = [4.5, 4.5, 4.5];
+
+      function arcPts(cx, cy, r, a0Deg, a1Deg, count) {
+        const pts = [];
+        const rad0 = (a0Deg * Math.PI) / 180;
+        const rad1 = (a1Deg * Math.PI) / 180;
+        for (let i = 0; i < count; i++) {
+          const u = count > 1 ? i / (count - 1) : 0;
+          const th = rad0 + (rad1 - rad0) * u;
+          pts.push([cx + r * Math.cos(th), cy + r * Math.sin(th)]);
+        }
+        return pts;
+      }
+
+      function dotPts(x, y, count) {
+        const pts = [];
+        for (let i = 0; i < count; i++) pts.push([x, y]);
+        return pts;
+      }
+
+      function getSMarkTargets(t) {
+        const breath = 1 + 0.03 * Math.sin(t * 3);
+        const s0 = arcPts(CX, 22, 10.5 * breath, -30, -270, N);
+        const s1 = arcPts(CX, 42, 10.5 * breath, -90, 150, N);
+        const dX = CX + 18 * Math.cos((-45 * Math.PI) / 180);
+        const dY = CY + 18 * Math.sin((-45 * Math.PI) / 180);
+        const s2 = dotPts(dX, dY, N);
+        return { strokes: [s0, s1, s2], widths: [4.2, 4.2, 7.5] };
+      }
+
+      function getBounceTargets(t) {
+        const xs = [20, 32, 44];
+        const s0 = dotPts(xs[0], CY - 9 * Math.pow(Math.max(0, Math.sin(2 * Math.PI * (t * 1.1))), 1.5), N);
+        const s1 = dotPts(xs[1], CY - 9 * Math.pow(Math.max(0, Math.sin(2 * Math.PI * (t * 1.1 - 0.16))), 1.5), N);
+        const s2 = dotPts(xs[2], CY - 9 * Math.pow(Math.max(0, Math.sin(2 * Math.PI * (t * 1.1 - 0.32))), 1.5), N);
+        return { strokes: [s0, s1, s2], widths: [7.5, 7.5, 7.5] };
+      }
+
+      function getSpiralTargets(t) {
+        const p = (t * 0.4) % 1;
+        const r = 4 + 13 * Math.sin(p * Math.PI);
+        const a = (720 * p * Math.PI) / 180;
+        const p0 = [CX + r * Math.cos(a - Math.PI / 2), CY + r * Math.sin(a - Math.PI / 2)];
+        const p1 = [CX + r * Math.cos(a + Math.PI / 6), CY + r * Math.sin(a + Math.PI / 6)];
+        const p2 = [CX + r * Math.cos(a + (5 * Math.PI) / 6), CY + r * Math.sin(a + (5 * Math.PI) / 6)];
+        return { strokes: [dotPts(p0[0], p0[1], N), dotPts(p1[0], p1[1], N), dotPts(p2[0], p2[1], N)], widths: [7.0, 7.0, 7.0] };
+      }
+
+      function getWaveTargets(t) {
+        const xs = [20, 32, 44];
+        const s0 = dotPts(xs[0], CY + 7.5 * Math.sin(2 * Math.PI * (t * 0.9) - 0.0), N);
+        const s1 = dotPts(xs[1], CY + 7.5 * Math.sin(2 * Math.PI * (t * 0.9) - 0.9), N);
+        const s2 = dotPts(xs[2], CY + 7.5 * Math.sin(2 * Math.PI * (t * 0.9) - 1.8), N);
+        return { strokes: [s0, s1, s2], widths: [7.5, 7.5, 7.5] };
+      }
+
+      const scenes = [getSMarkTargets, getBounceTargets, getSpiralTargets, getWaveTargets];
+      let sceneIndex = 0;
+      let sceneTime = 0;
+      const SCENE_DURATION = 4.0;
+
+      const initFrame = getSMarkTargets(0);
+      for (let s = 0; s < STROKES; s++) {
+        curWidth[s] = initFrame.widths[s];
+        targetWidth[s] = initFrame.widths[s];
+        for (let k = 0; k < N; k++) {
+          const idx = (s * N + k) * 2;
+          pos[idx] = initFrame.strokes[s][k][0];
+          pos[idx + 1] = initFrame.strokes[s][k][1];
+          vel[idx] = 0;
+          vel[idx + 1] = 0;
+        }
+      }
+
+      function impulse(strength) {
+        strength = strength || 1;
+        for (let s = 0; s < STROKES; s++) {
+          const kick = (95 + 30 * s) * strength;
+          const spin = (s - 1) * 55 * strength;
+          for (let k = 0; k < N; k++) {
+            const i = (s * N + k) * 2;
+            const dx = pos[i] - CX;
+            const dy = pos[i + 1] - CY;
+            const len = Math.hypot(dx, dy) || 1;
+            vel[i] += (dx / len) * kick - (dy / len) * spin;
+            vel[i + 1] += (dy / len) * kick + (dx / len) * spin;
+          }
+        }
+      }
+
+      container.addEventListener('click', function() {
+        impulse(1.3);
+        sceneIndex = (sceneIndex + 1) % scenes.length;
+        sceneTime = 0;
+      });
+
+      container.addEventListener('mouseenter', function() {
+        impulse(0.5);
+      });
+
+      let lastTime = performance.now();
+      function tick(now) {
+        const dt = Math.min((now - lastTime) / 1000, 0.05);
+        lastTime = now;
+
+        if (!document.hidden) {
+          sceneTime += dt;
+          if (sceneTime >= SCENE_DURATION) {
+            sceneTime = 0;
+            sceneIndex = (sceneIndex + 1) % scenes.length;
+          }
+
+          const activeFn = scenes[sceneIndex];
+          const frame = activeFn(sceneTime);
+
+          for (let s = 0; s < STROKES; s++) {
+            targetWidth[s] = frame.widths[s];
+            curWidth[s] += (targetWidth[s] - curWidth[s]) * Math.min(1, dt * 10);
+
+            for (let k = 0; k < N; k++) {
+              const idx = (s * N + k) * 2;
+              targetPts[idx] = frame.strokes[s][k][0];
+              targetPts[idx + 1] = frame.strokes[s][k][1];
+            }
+          }
+
+          const OMEGA = 14;
+          const DAMPING = 2 * OMEGA;
+          const steps = 2;
+          const h = dt / steps;
+
+          for (let step = 0; step < steps; step++) {
+            for (let i = 0; i < STROKES * N * 2; i += 2) {
+              const fx = OMEGA * OMEGA * (targetPts[i] - pos[i]) - DAMPING * vel[i];
+              const fy = OMEGA * OMEGA * (targetPts[i + 1] - pos[i + 1]) - DAMPING * vel[i + 1];
+
+              vel[i] += fx * h;
+              vel[i + 1] += fy * h;
+
+              pos[i] += vel[i] * h;
+              pos[i + 1] += vel[i + 1] * h;
+            }
+          }
+
+          for (let s = 0; s < STROKES; s++) {
+            let d = '';
+            for (let k = 0; k < N; k++) {
+              const i = (s * N + k) * 2;
+              d += (k === 0 ? 'M' : 'L') + pos[i].toFixed(2) + ' ' + pos[i + 1].toFixed(2);
+            }
+            paths[s].setAttribute('d', d);
+            paths[s].setAttribute('stroke-width', curWidth[s].toFixed(2));
+          }
+        }
+
+        requestAnimationFrame(tick);
+      }
+
+      requestAnimationFrame(tick);
     }
 
     // Keyboard navigation in lightbox
@@ -1304,7 +1787,8 @@ export function getWebManagerHtml(serverName: string): string {
       if (e.key === 'ArrowRight') nextImage();
     });
 
-    // Initial load
+    // Initialize Animated Logo & Initial Load
+    initSmaranDots();
     loadFiles();
   </script>
 </body>
