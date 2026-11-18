@@ -4,6 +4,18 @@ Gentle reminders for Windows: type what to remember and when, and Smaran shows i
 notification card at the right time. Lives in the tray.
 Automations can also lock, sleep, sign out or shut down the PC, and open apps, files, scripts
 and links: at a time, at startup or sign-in, or on Windows events such as lock, unlock and wake.
+
+### Smaran HFS (Self-Hosted HTTP File Server)
+Smaran includes its own built-in HTTP File Server engine (inspired by Rejetto HFS) to share files and folders over Wi-Fi and local networks:
+- **Zero External Dependencies**: Embedded directly into Smaran's native Node.js process.
+- **LAN Web File Manager**: Responsive, dark-themed web browser interface accessible to phones, tablets, and laptops on the same network (`http://<LAN-IP>:5900`).
+- **In-App Management**: Complete server control panel (start/stop/restart, LAN URLs, QR codes, active transfer monitor, speed gauges, audit logs).
+- **File Explorer**: Upload, download, create folders, rename, move, delete, and drag-and-drop file transfers.
+- **Streaming & HTTP Range**: Resumable downloads and streaming with `206 Partial Content`.
+- **Users & Permissions**: Role-based access control (Admin, User, Guest), per-user permissions (read, upload, delete), and password-protected folders.
+- **Share Links**: Secure tokenized sharing links with expiration, maximum download limits, and QR code sharing.
+- **Reminder Integration**: Attach files from your file server directly to reminders.
+
 Electron + React + TypeScript. `docs/DESIGN.md` explains how reminders behave and why; `RELEASE_NOTES.md` lists what changed.
 The original build plan (`Smaran Reminder v2 — Electron Build Plan.md`) describes 2.0 and is kept for history.
 

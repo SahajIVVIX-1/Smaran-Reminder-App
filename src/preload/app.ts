@@ -14,6 +14,16 @@ import type {
   Route,
   SaveResult,
 } from '@shared/ipc';
+import type {
+  ActiveTransfer,
+  DirectoryListing,
+  FileServerSettings,
+  ServerLogEntry,
+  ServerStatus,
+  ShareLink,
+  TransferHistoryEntry,
+  UserAccount,
+} from '@shared/fileserver';
 import type { FontCatalog } from '@shared/fonts';
 import type { LicenseImportResult, LicenseInfo } from '@shared/license/info';
 import type { LogoState } from '@shared/logoState';
@@ -94,6 +104,80 @@ const api = {
     export: (): Promise<BackupResult> => ipcRenderer.invoke(IPC.backupExport),
     import: (mode: 'replace' | 'add'): Promise<BackupResult> =>
       ipcRenderer.invoke(IPC.backupImport, { mode }),
+  },
+  fileserver: {
+    status: (): Promise<ServerStatus> => ipcRenderer.invoke(IPC.fileserverStatus),
+    start: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke(IPC.fileserverStart),
+    stop: (): Promise<void> => ipcRenderer.invoke(IPC.fileserverStop),
+    restart: (): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverRestart),
+    getSettings: (): Promise<FileServerSettings> =>
+      ipcRenderer.invoke(IPC.fileserverSettingsGet),
+    saveSettings: (patch: Partial<FileServerSettings>): Promise<FileServerSettings> =>
+      ipcRenderer.invoke(IPC.fileserverSettingsSave, patch),
+    pickRootDir: (): Promise<string | null> => ipcRenderer.invoke(IPC.fileserverPickRootDir),
+    listDir: (relPath = ''): Promise<DirectoryListing | null> =>
+      ipcRenderer.invoke(IPC.fileserverListDir, relPath),
+    mkdir: (parentRel: string, name: string): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverMkdir, { path: parentRel, name }),
+    delete: (relPath: string): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverDelete, relPath),
+    rename: (relPath: string, newName: string): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverRename, { path: relPath, newName }),
+    move: (srcPath: string, destFolder: string): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverMove, { srcPath, destFolder }),
+    openFolder: (relPath?: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.fileserverOpenFolder, relPath),
+    users: {
+      list: (): Promise<UserAccount[]> => ipcRenderer.invoke(IPC.fileserverUsersList),
+      save: (user: {
+        id?: string;
+        username: string;
+        password?: string;
+        role: 'admin' | 'user' | 'guest';
+        permissions: {
+          read: boolean;
+          upload: boolean;
+          delete: boolean;
+          rename: boolean;
+          mkdir: boolean;
+        };
+        allowedFolders?: string[];
+      }): Promise<UserAccount> => ipcRenderer.invoke(IPC.fileserverUsersSave, user),
+      delete: (id: string): Promise<void> => ipcRenderer.invoke(IPC.fileserverUsersDelete, id),
+    },
+    shares: {
+      list: (): Promise<ShareLink[]> => ipcRenderer.invoke(IPC.fileserverSharesList),
+      create: (payload: {
+        relativePath: string;
+        permission: 'read' | 'upload' | 'download' | 'full';
+        password?: string;
+        expiresAt?: string | null;
+        maxDownloads?: number | null;
+      }): Promise<ShareLink> => ipcRenderer.invoke(IPC.fileserverSharesCreate, payload),
+      revoke: (id: string): Promise<void> => ipcRenderer.invoke(IPC.fileserverSharesRevoke, id),
+    },
+    transfers: {
+      active: (): Promise<ActiveTransfer[]> => ipcRenderer.invoke(IPC.fileserverTransfersActive),
+      cancel: (id: string): Promise<boolean> =>
+        ipcRenderer.invoke(IPC.fileserverTransfersCancel, id),
+      history: (): Promise<TransferHistoryEntry[]> =>
+        ipcRenderer.invoke(IPC.fileserverTransfersHistory),
+      clearHistory: (): Promise<void> =>
+        ipcRenderer.invoke(IPC.fileserverTransfersClearHistory),
+    },
+    logs: {
+      get: (): Promise<ServerLogEntry[]> => ipcRenderer.invoke(IPC.fileserverLogsGet),
+      clear: (): Promise<void> => ipcRenderer.invoke(IPC.fileserverLogsClear),
+    },
+    generateQr: (url: string): Promise<string> =>
+      ipcRenderer.invoke(IPC.fileserverQrGenerate, url),
+    onStatusChanged: (listener: (status: ServerStatus) => void): (() => void) =>
+      subscribe(IPC.fileserverStatusChanged, listener),
+    onTransfersUpdated: (listener: (transfers: ActiveTransfer[]) => void): (() => void) =>
+      subscribe(IPC.fileserverTransfersUpdated, listener),
+    onLogAdded: (listener: (log: ServerLogEntry) => void): (() => void) =>
+      subscribe(IPC.fileserverLogAdded, listener),
   },
 };
 

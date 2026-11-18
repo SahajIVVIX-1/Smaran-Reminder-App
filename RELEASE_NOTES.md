@@ -1,3 +1,15 @@
+# Smaran 3.1.0
+
+- **Smaran HFS (Self-Hosted HTTP File Server Engine):** Built a complete, native HTTP file server engine inside Smaran Reminder, inspired by Rejetto HFS. Operates independently with zero external installations or services required.
+- **LAN Web File Manager:** A responsive, dark-mode web file manager served directly over Wi-Fi and LAN (`http://<LAN-IP>:5900`). Any phone, tablet, or PC on the same network can browse shared files, upload, download, and manage folders without installing Smaran.
+- **In-App Server Control Dashboard:** Added a dedicated "File Server" navigation section in Smaran Reminder featuring Overview (live status, LAN URLs, QR code scanner for mobile, bandwidth gauges), in-app File Manager, Active Transfers monitor, Shared Links manager, Users & Permissions matrix, Server Settings, and live Audit Logs.
+- **HTTP Range Requests & Resumable Downloads:** Full support for RFC 7233 byte-range requests (`206 Partial Content`), enabling large file streaming (video/audio playback) and resumable multi-gigabyte downloads.
+- **Secure Link Sharing:** Generate tokenized share links with custom permissions (download, stream, upload), expiration deadlines, maximum download counts, and optional password protection.
+- **Multi-User Authentication & Role Permissions:** Configurable guest access, user accounts (Admin, User, Guest), and granular per-user permissions (read, upload, delete, rename, folder creation).
+- **Reminder Attachment Integration:** Users can now attach documents, spreadsheets, media, and scripts from their internal File Server directly to any reminder.
+
+---
+
 # Smaran 3.0.2
 
 - **Fixed Screen Border Light Visibility:** Resolved an issue where the screen border light overlay remained invisible. Restored the IPC fade-in / fade-out bindings (`window.__borderFadeIn` and `window.__borderFadeOut`), added resilient multi-selector element lookup for the border container, and ensured the animation loop starts immediately on display.

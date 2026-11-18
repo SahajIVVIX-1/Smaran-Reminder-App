@@ -24,14 +24,17 @@ import {
   BellIcon,
   ClockIcon,
   CopyIcon,
+  DownloadIcon,
   FileIcon,
+  PlusIcon,
   SendIcon,
+  ServerIcon,
   SparkIcon,
   TrashIcon,
   XIcon,
 } from '../icons';
 import { useApp } from '../store';
-import { Button, IconButton, Input, NumberField, Segmented, Switch, TextArea } from '../ui';
+import { Button, Dialog, IconButton, Input, NumberField, Segmented, Switch, TextArea } from '../ui';
 import { getScene, type SceneKey } from '@shared/dots/dotsScenes';
 import { SmaranDots } from '../../dots';
 import { RichText } from '../../RichText';
@@ -41,7 +44,7 @@ import { Select } from './Select';
 import { AnimationBrowser } from './LogoSettings';
 import { ScheduleEditor } from './ScheduleEditor';
 
-type ReminderTab = 'details' | 'timing' | 'notification' | 'lines';
+type ReminderTab = 'details' | 'timing' | 'notification' | 'lines' | 'attachments';
 
 interface ReminderTabItem {
   id: ReminderTab;
@@ -54,6 +57,7 @@ const REMINDER_TABS: readonly ReminderTabItem[] = [
   { id: 'timing', label: 'Timing', icon: ClockIcon },
   { id: 'notification', label: 'Notification', icon: BellIcon },
   { id: 'lines', label: 'Lines', icon: SparkIcon },
+  { id: 'attachments', label: 'Files', icon: ServerIcon },
 ];
 
 const STAY_PRESETS = [5, 8, 12, 20, 30, 60, 120];
@@ -724,6 +728,21 @@ export function ReminderEditor() {
               </Section>
             </div>
           )}
+
+          {/* Tab 5: Attachments (File Server) */}
+          {tab === 'attachments' && (
+            <div className="pt-2">
+              <Section
+                title="Files & Attachments"
+                hint="Attach documents, scripts, media or spreadsheets from Smaran HFS."
+              >
+                <ReminderAttachmentsEditor
+                  attachments={form.attachments ?? []}
+                  onChange={(attachments) => change({ attachments })}
+                />
+              </Section>
+            </div>
+          )}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -892,6 +911,133 @@ function FormatBar({ onFormat }: { onFormat: (mark: RichMark) => void }) {
       <span className="ml-1.5 text-[11.5px] text-faint">
         Select text in the title or note to style it
       </span>
+    </div>
+  );
+}
+
+function ReminderAttachmentsEditor({
+  attachments,
+  onChange,
+}: {
+  attachments: { id: string; name: string; size: number; relativePath: string; mimeType: string; addedAt: string }[];
+  onChange: (attachments: { id: string; name: string; size: number; relativePath: string; mimeType: string; addedAt: string }[]) => void;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [serverFiles, setServerFiles] = useState<{ name: string; size: number; relativePath: string; isDirectory: boolean; mimeType: string }[]>([]);
+
+  const openPicker = async () => {
+    const list = await window.smaran.fileserver.listDir('');
+    if (list) {
+      setServerFiles(list.items.filter((i) => !i.isDirectory));
+    }
+    setPickerOpen(true);
+  };
+
+  const addAttachment = (file: { name: string; size: number; relativePath: string; mimeType: string }) => {
+    if (attachments.some((a) => a.relativePath === file.relativePath)) {
+      setPickerOpen(false);
+      return;
+    }
+    const newAtt = {
+      id: crypto.randomUUID(),
+      name: file.name,
+      size: file.size,
+      relativePath: file.relativePath,
+      mimeType: file.mimeType || 'application/octet-stream',
+      addedAt: new Date().toISOString(),
+    };
+    onChange([...attachments, newAtt]);
+    setPickerOpen(false);
+  };
+
+  const removeAttachment = (id: string) => {
+    onChange(attachments.filter((a) => a.id !== id));
+  };
+
+  const formatSize = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + (sizes[i] || 'B');
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-between items-center">
+        <span className="text-[12.5px] text-muted">
+          {attachments.length === 0
+            ? 'No attachments selected'
+            : `${attachments.length} attachment${attachments.length > 1 ? 's' : ''}`}
+        </span>
+        <Button size="sm" variant="secondary" onClick={openPicker}>
+          <PlusIcon size={13} />
+          Attach from File Server
+        </Button>
+      </div>
+
+      {attachments.length > 0 && (
+        <div className="space-y-1.5 divide-y divide-line rounded-lg border border-line bg-surface p-2">
+          {attachments.map((a) => (
+            <div key={a.id} className="flex items-center justify-between pt-1.5 first:pt-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <FileIcon size={15} className="text-muted shrink-0" />
+                <span className="truncate text-[13px] font-medium">{a.name}</span>
+                <span className="font-mono text-[11px] text-faint">({formatSize(a.size)})</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <IconButton
+                  aria-label="Download"
+                  title="Open / Download"
+                  onClick={() => window.smaran.fileserver.openFolder(a.relativePath)}
+                >
+                  <DownloadIcon size={14} />
+                </IconButton>
+                <IconButton
+                  aria-label="Remove"
+                  title="Remove"
+                  onClick={() => removeAttachment(a.id)}
+                >
+                  <TrashIcon size={14} className="text-danger" />
+                </IconButton>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {pickerOpen && (
+        <Dialog
+          open={pickerOpen}
+          title="Select File from Smaran HFS"
+          onClose={() => setPickerOpen(false)}
+          actions={
+            <Button variant="secondary" onClick={() => setPickerOpen(false)}>
+              Cancel
+            </Button>
+          }
+        >
+          <div className="max-h-72 overflow-y-auto space-y-1 py-1">
+            {serverFiles.length === 0 ? (
+              <p className="py-6 text-center text-muted font-serif italic text-[13px]">
+                No files found in root storage. Upload some in the File Server section first.
+              </p>
+            ) : (
+              serverFiles.map((file) => (
+                <button
+                  key={file.relativePath}
+                  type="button"
+                  onClick={() => addAttachment(file)}
+                  className="w-full flex items-center justify-between p-2 rounded-lg text-left text-[13px] hover:bg-hover transition-colors"
+                >
+                  <span className="truncate font-medium">{file.name}</span>
+                  <span className="font-mono text-[11.5px] text-muted">{formatSize(file.size)}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </Dialog>
+      )}
     </div>
   );
 }

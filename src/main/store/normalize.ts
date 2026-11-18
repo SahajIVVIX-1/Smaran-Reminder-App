@@ -27,6 +27,7 @@ const REMINDER_DEFAULTS = {
   color: 'clay',
   sound: 'default',
   animation: 'auto',
+  attachments: [],
 };
 
 const AUTOMATION_DEFAULTS = { enabled: true, warnSec: 30, respectPause: false };
