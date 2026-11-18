@@ -1,3 +1,10 @@
+# Smaran 2.16.12
+
+- **Crisp Rectangular Corner Tracking:** Completely eliminated the corner shape warping ("freaking out"). The border light now tracks the true rectangular edges of your screen all the way into the corners with exact 90-degree miter turns, removing artificial inward rounding, diagonal chord-cutting, and corner jitter.
+- **Dynamic "Loading" Rhythm & Kinetics:** Instead of moving like a rigid flat bar, the border light now behaves like an authentic modern loading indicator. Features dynamic breathing beam length (elastic expansion from 9% up to 30% of perimeter during surges), accelerated forward surges, rapid tail catch-up, and pulsating luminescence.
+
+---
+
 # Smaran 2.16.11
 
 - **Fixed Screen Border Settings Layout:** Resolved UI text overlapping and layout collision in Settings › Notifications. Each setting (Screen border light toggle + preview, Border thickness presets + slider, Border brightness) is now cleanly organized into its own structured, perfectly aligned row matching the application's design system.

@@ -371,11 +371,12 @@ export function Settings() {
                             key={preset.px}
                             type="button"
                             onClick={() => setN({ borderLightThickness: preset.px })}
-                            className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
+                            className={cx(
+                              'rounded-lg px-2.5 py-1 text-xs font-medium transition-all duration-150',
                               active
-                                ? 'bg-accent text-accent-contrast shadow-sm'
-                                : 'bg-surface-variant text-text-muted hover:text-text'
-                            }`}
+                                ? 'bg-accent text-on-accent shadow-sm'
+                                : 'bg-raised text-muted hover:bg-hover hover:text-ink ring-1 ring-line',
+                            )}
                           >
                             {preset.label}
                           </button>

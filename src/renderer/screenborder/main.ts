@@ -1,6 +1,6 @@
 // Screen border illumination renderer
 // Smooth, antialiased, hardware-accelerated Canvas 2D engine
-// Zero pixelation, zero square blocks, true thin-to-thick scaling
+// Zero corner cutting, zero shape warping, dynamic loading motion
 
 declare global {
   interface Window {
@@ -17,8 +17,8 @@ const ctx = canvas?.getContext('2d', { alpha: true });
 let currentThickness = 3;
 let currentBrightness = 150;
 let animationFrameId: number | null = null;
-let headDistance = 0;
 let lastTimestamp = 0;
+let elapsedTime = 0;
 let isAnimating = false;
 
 interface ColorStop {
@@ -63,106 +63,112 @@ function sampleColor(u: number, brightnessFactor: number): string {
   return `rgba(${r}, ${g}, ${b}, ${a.toFixed(3)})`;
 }
 
-interface PerimeterPoint {
+interface Point {
   x: number;
   y: number;
 }
 
-class PerimeterPath {
-  private width = 0;
-  private height = 0;
-  private radius = 8;
-  private inset = 2;
+/**
+ * Exact rectangular perimeter of the screen.
+ * Traces the true outer edges of the monitor without cutting corners or curving inward.
+ */
+class PerimeterRect {
+  width = 0;
+  height = 0;
+  inset = 1;
+  w = 0;
+  h = 0;
   totalLength = 0;
 
-  private l1 = 0;
-  private l2 = 0;
-  private l3 = 0;
-  private l4 = 0;
-  private l5 = 0;
-  private l6 = 0;
-  private l7 = 0;
-  private l8 = 0;
+  // 4 corner vertices:
+  // v0: Top-Left (inset, inset)
+  // v1: Top-Right (inset + w, inset)
+  // v2: Bottom-Right (inset + w, inset + h)
+  // v3: Bottom-Left (inset, inset + h)
+  v0: Point = { x: 0, y: 0 };
+  v1: Point = { x: 0, y: 0 };
+  v2: Point = { x: 0, y: 0 };
+  v3: Point = { x: 0, y: 0 };
 
-  update(w: number, h: number, thickness: number) {
-    this.width = w;
-    this.height = h;
-    // Inset perimeter by half thickness so the stroke never clips outside screen bounds
+  // Cumulative distance along the perimeter to each corner
+  k0 = 0;
+  k1 = 0;
+  k2 = 0;
+  k3 = 0;
+  k4 = 0;
+
+  update(screenW: number, screenH: number, thickness: number) {
+    this.width = screenW;
+    this.height = screenH;
+    // Inset by half-thickness so strokes sit flush inside the window bounds
     this.inset = Math.max(0.5, thickness / 2);
-    // Smooth corner radius to avoid sharp square turns
-    this.radius = Math.max(6, Math.min(14, thickness * 2));
 
-    const effW = Math.max(1, w - this.inset * 2);
-    const effH = Math.max(1, h - this.inset * 2);
-    const r = Math.min(this.radius, effW / 2, effH / 2);
-    this.radius = r;
+    this.w = Math.max(1, screenW - this.inset * 2);
+    this.h = Math.max(1, screenH - this.inset * 2);
 
-    const arcLen = (Math.PI / 2) * r;
-    this.l1 = effW - r * 2; // top
-    this.l2 = arcLen; // TR
-    this.l3 = effH - r * 2; // right
-    this.l4 = arcLen; // BR
-    this.l5 = effW - r * 2; // bottom
-    this.l6 = arcLen; // BL
-    this.l7 = effH - r * 2; // left
-    this.l8 = arcLen; // TL
+    this.v0 = { x: this.inset, y: this.inset };
+    this.v1 = { x: this.inset + this.w, y: this.inset };
+    this.v2 = { x: this.inset + this.w, y: this.inset + this.h };
+    this.v3 = { x: this.inset, y: this.inset + this.h };
 
-    this.totalLength = this.l1 + this.l2 + this.l3 + this.l4 + this.l5 + this.l6 + this.l7 + this.l8;
+    this.k0 = 0;
+    this.k1 = this.w; // TR corner
+    this.k2 = this.w + this.h; // BR corner
+    this.k3 = this.w * 2 + this.h; // BL corner
+    this.k4 = this.w * 2 + this.h * 2; // TL corner (end of loop)
+    this.totalLength = this.k4;
   }
 
-  getPoint(dist: number): PerimeterPoint {
+  getPoint(dist: number): Point {
     if (this.totalLength <= 0) return { x: 0, y: 0 };
     const d = ((dist % this.totalLength) + this.totalLength) % this.totalLength;
-    const r = this.radius;
-    const ins = this.inset;
-    const w = this.width - ins * 2;
-    const h = this.height - ins * 2;
 
-    // 1. Top edge: from (ins + r, ins) to (ins + w - r, ins)
-    if (d <= this.l1) {
-      return { x: ins + r + d, y: ins };
+    // Edge 0 (Top): from v0 to v1
+    if (d < this.k1) {
+      return { x: this.v0.x + d, y: this.v0.y };
     }
-    // 2. Top-Right Arc: center (ins + w - r, ins + r), angle from -PI/2 to 0
-    let rem = d - this.l1;
-    if (rem <= this.l2) {
-      const angle = -Math.PI / 2 + rem / r;
-      return { x: ins + w - r + r * Math.cos(angle), y: ins + r + r * Math.sin(angle) };
+    // Edge 1 (Right): from v1 to v2
+    if (d < this.k2) {
+      return { x: this.v1.x, y: this.v1.y + (d - this.k1) };
     }
-    // 3. Right edge: from (ins + w, ins + r) to (ins + w, ins + h - r)
-    rem -= this.l2;
-    if (rem <= this.l3) {
-      return { x: ins + w, y: ins + r + rem };
+    // Edge 2 (Bottom): from v2 to v3
+    if (d < this.k3) {
+      return { x: this.v2.x - (d - this.k2), y: this.v2.y };
     }
-    // 4. Bottom-Right Arc: center (ins + w - r, ins + h - r), angle from 0 to PI/2
-    rem -= this.l3;
-    if (rem <= this.l4) {
-      const angle = rem / r;
-      return { x: ins + w - r + r * Math.cos(angle), y: ins + h - r + r * Math.sin(angle) };
+    // Edge 3 (Left): from v3 to v0
+    return { x: this.v3.x, y: this.v3.y - (d - this.k3) };
+  }
+
+  /**
+   * If any corner vertex lies strictly between dA and dB, return it.
+   * This guarantees that when a micro-segment turns a corner, it traces the exact
+   * corner vertex instead of cutting across diagonally and glitching its shape.
+   */
+  getCornerBetween(dA: number, dB: number): Point | null {
+    if (this.totalLength <= 0) return null;
+    const L = this.totalLength;
+    const a = ((dA % L) + L) % L;
+    let b = ((dB % L) + L) % L;
+    if (b <= a) b += L; // unroll forward
+
+    const corners = [
+      { k: this.k1, pt: this.v1 },
+      { k: this.k2, pt: this.v2 },
+      { k: this.k3, pt: this.v3 },
+      { k: this.k4, pt: this.v0 },
+      { k: this.k4 + this.k1, pt: this.v1 },
+    ];
+
+    for (const c of corners) {
+      if (c.k > a && c.k < b) {
+        return c.pt;
+      }
     }
-    // 5. Bottom edge: from (ins + w - r, ins + h) to (ins + r, ins + h)
-    rem -= this.l4;
-    if (rem <= this.l5) {
-      return { x: ins + w - r - rem, y: ins + h };
-    }
-    // 6. Bottom-Left Arc: center (ins + r, ins + h - r), angle from PI/2 to PI
-    rem -= this.l5;
-    if (rem <= this.l6) {
-      const angle = Math.PI / 2 + rem / r;
-      return { x: ins + r + r * Math.cos(angle), y: ins + h - r + r * Math.sin(angle) };
-    }
-    // 7. Left edge: from (ins, ins + h - r) to (ins, ins + r)
-    rem -= this.l6;
-    if (rem <= this.l7) {
-      return { x: ins, y: ins + h - r - rem };
-    }
-    // 8. Top-Left Arc: center (ins + r, ins + r), angle from PI to 3*PI/2
-    rem -= this.l7;
-    const angle = Math.PI + rem / r;
-    return { x: ins + r + r * Math.cos(angle), y: ins + r + r * Math.sin(angle) };
+    return null;
   }
 }
 
-const perimeter = new PerimeterPath();
+const perimeter = new PerimeterRect();
 
 function resizeCanvas() {
   if (!canvas) return;
@@ -183,12 +189,33 @@ function drawFrame(timestamp: number) {
   if (!lastTimestamp) lastTimestamp = timestamp;
   const dt = Math.min(0.1, (timestamp - lastTimestamp) / 1000);
   lastTimestamp = timestamp;
+  elapsedTime += dt;
 
-  // Move beam around perimeter smoothly (750 pixels per second)
-  const speed = 750;
-  if (perimeter.totalLength > 0) {
-    headDistance = (headDistance + speed * dt) % perimeter.totalLength;
-  }
+  const L = perimeter.totalLength;
+  if (L <= 0) return;
+
+  // ---------- Dynamic "Loading" Rhythm & Kinetics ----------
+  // Cycle period: 2.4s per stretch-and-contract surge cycle
+  const cyclePeriod = 2.4;
+  const cyclePhase = (elapsedTime % cyclePeriod) / cyclePeriod; // 0 to 1
+
+  // Base steady forward drift (circles the entire perimeter in ~5.5 seconds)
+  const baseSpeed = L / 5.5;
+  const baseTravel = baseSpeed * elapsedTime;
+
+  // Eased surge offset: the head surges forward during the first half of the cycle
+  const surgeOffset = (L * 0.07) * Math.sin(cyclePhase * Math.PI * 2 - Math.PI / 2);
+  const headDistance = (baseTravel + surgeOffset) % L;
+
+  // Dynamic breathing beam length: stretches long during acceleration, compresses during catch-up
+  // Scales smoothly from ~9% of perimeter (compact) up to ~30% of perimeter (surge)
+  const minBeamLen = Math.max(160, L * 0.09);
+  const maxBeamLen = Math.max(380, L * 0.30);
+  const lengthFactor = (1 - Math.cos(cyclePhase * Math.PI * 2)) / 2;
+  const beamLength = minBeamLen + (maxBeamLen - minBeamLen) * lengthFactor;
+
+  // Luminescence surge factor: brightness gently breathes with the loading rhythm
+  const surgeLuminance = 1 + 0.22 * Math.sin(cyclePhase * Math.PI * 2);
 
   const dpr = window.devicePixelRatio || 1;
   ctx.save();
@@ -196,64 +223,54 @@ function drawFrame(timestamp: number) {
   ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
   const thickness = currentThickness;
-  const brightness = currentBrightness / 100;
+  const brightness = (currentBrightness / 100) * surgeLuminance;
 
-  // 1. Draw subtle hairline edge track (crisp, zero square pixels)
-  ctx.strokeStyle = `rgba(255, 255, 255, ${Math.min(0.15, 0.06 * brightness)})`;
+  // 1. Draw subtle rectangular perimeter track (crisp, zero square pixels)
+  ctx.strokeStyle = `rgba(255, 255, 255, ${Math.min(0.12, 0.05 * brightness)})`;
   ctx.lineWidth = Math.min(1, Math.max(0.5, thickness * 0.3));
-  ctx.beginPath();
-  const trackInset = Math.max(0.5, thickness / 2);
-  const trackR = Math.max(4, Math.min(10, thickness * 1.5));
-  if (typeof ctx.roundRect === 'function') {
-    ctx.roundRect(
-      trackInset,
-      trackInset,
-      window.innerWidth - trackInset * 2,
-      window.innerHeight - trackInset * 2,
-      trackR,
-    );
-  } else {
-    ctx.rect(
-      trackInset,
-      trackInset,
-      window.innerWidth - trackInset * 2,
-      window.innerHeight - trackInset * 2,
-    );
-  }
-  ctx.stroke();
+  ctx.strokeRect(
+    perimeter.v0.x,
+    perimeter.v0.y,
+    perimeter.w,
+    perimeter.h,
+  );
 
-  // 2. Draw animated light beam
-  const beamLength = Math.max(350, perimeter.totalLength * 0.22);
-  const steps = 80; // 80 smooth micro-segments
-
-  const points: PerimeterPoint[] = [];
+  // 2. Sample points along the loading beam
+  const steps = 80;
+  const samplePoints: { pt: Point; dist: number }[] = [];
   for (let i = 0; i <= steps; i++) {
     const u = i / steps; // 0 (tail) to 1 (head)
     const d = headDistance - beamLength * (1 - u);
-    points.push(perimeter.getPoint(d));
+    samplePoints.push({ pt: perimeter.getPoint(d), dist: d });
   }
 
   // --- PASS 1: Ambient Glow ---
-  // Glow width scales strictly with thickness
-  // At 1px, glow is minimal (only 2px wide); at 14px+, glow is wide
+  // Glow width scales strictly with thickness (at 1px, glow is minimal; at 14px+, glow is wide)
   const glowWidth = thickness <= 2 ? thickness * 1.8 : thickness * 2.6;
   const glowBlur = thickness <= 2 ? thickness * 1.4 : thickness * 2.2;
   ctx.lineWidth = glowWidth;
   ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
+  ctx.lineJoin = 'miter';
+  ctx.miterLimit = 3;
   ctx.shadowBlur = glowBlur * brightness;
 
   for (let i = 0; i < steps; i++) {
-    const p0 = points[i];
-    const p1 = points[i + 1];
-    if (!p0 || !p1) continue;
+    const sA = samplePoints[i];
+    const sB = samplePoints[i + 1];
+    if (!sA || !sB) continue;
+
     const u = i / steps;
     const color = sampleColor(u, brightness);
     ctx.strokeStyle = color;
     ctx.shadowColor = color;
+
+    const corner = perimeter.getCornerBetween(sA.dist, sB.dist);
     ctx.beginPath();
-    ctx.moveTo(p0.x, p0.y);
-    ctx.lineTo(p1.x, p1.y);
+    ctx.moveTo(sA.pt.x, sA.pt.y);
+    if (corner) {
+      ctx.lineTo(corner.x, corner.y); // Turn the exact 90-degree corner
+    }
+    ctx.lineTo(sB.pt.x, sB.pt.y);
     ctx.stroke();
   }
 
@@ -261,19 +278,26 @@ function drawFrame(timestamp: number) {
   ctx.shadowBlur = Math.min(6, thickness * 1.2);
   ctx.lineWidth = thickness;
   ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
+  ctx.lineJoin = 'miter';
+  ctx.miterLimit = 3;
 
   for (let i = 0; i < steps; i++) {
-    const p0 = points[i];
-    const p1 = points[i + 1];
-    if (!p0 || !p1) continue;
+    const sA = samplePoints[i];
+    const sB = samplePoints[i + 1];
+    if (!sA || !sB) continue;
+
     const u = i / steps;
     const color = sampleColor(u, brightness);
     ctx.strokeStyle = color;
     ctx.shadowColor = color;
+
+    const corner = perimeter.getCornerBetween(sA.dist, sB.dist);
     ctx.beginPath();
-    ctx.moveTo(p0.x, p0.y);
-    ctx.lineTo(p1.x, p1.y);
+    ctx.moveTo(sA.pt.x, sA.pt.y);
+    if (corner) {
+      ctx.lineTo(corner.x, corner.y);
+    }
+    ctx.lineTo(sB.pt.x, sB.pt.y);
     ctx.stroke();
   }
 
@@ -284,14 +308,21 @@ function drawFrame(timestamp: number) {
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = Math.max(1, thickness * 0.65);
   ctx.lineCap = 'round';
+  ctx.lineJoin = 'miter';
+  ctx.miterLimit = 3;
 
   for (let i = sparkStart; i < steps; i++) {
-    const p0 = points[i];
-    const p1 = points[i + 1];
-    if (!p0 || !p1) continue;
+    const sA = samplePoints[i];
+    const sB = samplePoints[i + 1];
+    if (!sA || !sB) continue;
+
+    const corner = perimeter.getCornerBetween(sA.dist, sB.dist);
     ctx.beginPath();
-    ctx.moveTo(p0.x, p0.y);
-    ctx.lineTo(p1.x, p1.y);
+    ctx.moveTo(sA.pt.x, sA.pt.y);
+    if (corner) {
+      ctx.lineTo(corner.x, corner.y);
+    }
+    ctx.lineTo(sB.pt.x, sB.pt.y);
     ctx.stroke();
   }
 
