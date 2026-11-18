@@ -408,6 +408,43 @@ describe('content', () => {
     });
   });
 
+  it('supports permanent display time via global settings or per-reminder 0', () => {
+    const t = setup([reminder('g', { kind: 'interval', everyMs: HOUR })], (c) => {
+      c.settings.notification.hideAfterSec = null;
+    });
+    t.engine.start();
+    t.engine.showNow('g');
+    expect(t.last().hideAfterSec).toBeNull();
+
+    const t2 = setup([
+      reminder('p', { kind: 'interval', everyMs: HOUR }, { hideAfterSec: 0 }),
+      reminder('c', { kind: 'interval', everyMs: HOUR }, { hideAfterSec: 25 }),
+    ]);
+    t2.engine.start();
+    t2.engine.showNow('p');
+    expect(t2.last().hideAfterSec).toBeNull();
+
+    t2.engine.showNow('c');
+    expect(t2.last().hideAfterSec).toBe(25);
+  });
+
+  it('forwards custom reminder motion and card shape to notifier', () => {
+    const customMotion = {
+      type: 'bounce' as const,
+      fadeCycle: { visibleSec: 4, fadeSec: 0.8, minOpacity: 0.2 },
+      bounce: { energy: 'energetic' as const, repeat: true },
+      pulse: { speed: 'rapid' as const, glow: true },
+      wiggle: { intervalSec: 5, strength: 'pronounced' as const },
+      slide: { speed: 'snappy' as const },
+    };
+    const t = setup([
+      reminder('m', { kind: 'interval', everyMs: HOUR }, { motion: customMotion }),
+    ]);
+    t.engine.start();
+    t.engine.showNow('m');
+    expect(t.last().motion).toEqual(customMotion);
+  });
+
   it('showNow without an id shows the next reminder; false when there is none', () => {
     const t = setup([reminder('d', { kind: 'daily', times: ['09:00'] })]);
     t.engine.start();

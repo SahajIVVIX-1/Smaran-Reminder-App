@@ -151,7 +151,7 @@ export function CardShape({
 }
 
 /** Live interactive preview of the initial unhovered notification that expands on hover. */
-function CardPreview({
+export function CardPreview({
   customWidth,
   presetWidth,
   customHeight,

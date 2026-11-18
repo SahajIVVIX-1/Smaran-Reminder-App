@@ -10,7 +10,7 @@ import { NotificationMotionSettings } from '../components/NotificationMotionSett
 import { Select } from '../components/Select';
 import { LogoSettingsCard } from '../components/LogoSettings';
 import { TimeField } from '../components/TimeField';
-import { Button, Card, Row, Segmented, Switch } from '../ui';
+import { Button, Card, NumberField, Row, Segmented, Switch } from '../ui';
 import { BellIcon, FileIcon, GearIcon, MoonIcon, SparkIcon } from '../icons';
 
 const CORNER_LABEL: Record<SettingsT['notification']['corner'], string> = {
@@ -78,12 +78,20 @@ function CornerPicker({
   );
 }
 
+const STAY_PRESETS = [5, 8, 12, 20, 30, 60, 120];
+
 export function Settings() {
   const config = useApp((s) => s.config);
   const { setSettings } = useApp.getState();
   const [tab, setTab] = useState<SettingsTab>('general');
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [backupMsg, setBackupMsg] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+  const [customHideSec, setCustomHideSec] = useState(
+    () =>
+      config?.settings.notification.hideAfterSec !== null &&
+      config?.settings.notification.hideAfterSec !== undefined &&
+      !STAY_PRESETS.includes(config.settings.notification.hideAfterSec),
+  );
 
   useEffect(() => {
     void window.smaran.app.info().then(setInfo);
@@ -240,22 +248,67 @@ export function Settings() {
             />
             <CardShape n={n} onChange={(card) => setN({ card })} />
             <Row
-              label="Stay on screen for"
-              hint="Normal reminders. Important ones stay until you act."
-              htmlFor="set-hide"
+              label="Stay on screen"
+              hint={
+                n.hideAfterSec === null
+                  ? 'Notifications stay until you click Dismiss, Snooze, or Done.'
+                  : 'Normal reminders hide after this time. Important ones stay until you act.'
+              }
             >
-              <Select
-                id="set-hide"
-                className="w-36"
-                value={n.hideAfterSec}
-                options={[...new Set([5, 8, 12, 20, 30, 60, 120, n.hideAfterSec])]
-                  .sort((a, b) => a - b)
-                  .map((sec) => ({
-                    value: sec,
-                    label: sec < 60 ? `${sec} seconds` : `${sec / 60} minute${sec === 60 ? '' : 's'}`,
-                  }))}
-                onChange={(hideAfterSec) => setN({ hideAfterSec })}
-              />
+              <div className="flex flex-col gap-2.5">
+                <Segmented<'timed' | 'permanent'>
+                  label="Display duration mode"
+                  value={n.hideAfterSec === null ? 'permanent' : 'timed'}
+                  options={[
+                    { value: 'timed', label: 'Timed' },
+                    { value: 'permanent', label: 'Permanent' },
+                  ]}
+                  onChange={(mode) =>
+                    setN({ hideAfterSec: mode === 'permanent' ? null : 8 })
+                  }
+                />
+                {n.hideAfterSec !== null && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Select<number>
+                      id="set-hide"
+                      className="w-36"
+                      value={
+                        customHideSec || !STAY_PRESETS.includes(n.hideAfterSec)
+                          ? -1
+                          : n.hideAfterSec
+                      }
+                      options={[
+                        { value: 5, label: '5 seconds' },
+                        { value: 8, label: '8 seconds' },
+                        { value: 12, label: '12 seconds' },
+                        { value: 20, label: '20 seconds' },
+                        { value: 30, label: '30 seconds' },
+                        { value: 60, label: '1 minute' },
+                        { value: 120, label: '2 minutes' },
+                        { value: -1, label: 'Custom…' },
+                      ]}
+                      onChange={(sec) => {
+                        if (sec === -1) {
+                          setCustomHideSec(true);
+                        } else {
+                          setCustomHideSec(false);
+                          setN({ hideAfterSec: sec });
+                        }
+                      }}
+                    />
+                    {(customHideSec || !STAY_PRESETS.includes(n.hideAfterSec)) && (
+                      <NumberField
+                        label="Seconds on screen"
+                        value={n.hideAfterSec}
+                        min={3}
+                        max={600}
+                        suffix="seconds"
+                        onChange={(hideAfterSec) => setN({ hideAfterSec })}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
             </Row>
             <Row label="Sound" hint="A soft chime when a reminder appears." htmlFor="set-sound">
               <Switch

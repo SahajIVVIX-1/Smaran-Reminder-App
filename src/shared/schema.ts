@@ -83,8 +83,8 @@ export type CardShape = z.infer<typeof CardShapeSchema>;
 export const NotificationMotionSchema = z.object({
   type: z.enum(['fade-cycle', 'bounce', 'pulse', 'wiggle', 'slide']),
   fadeCycle: z.object({
-    visibleSec: z.number().min(1).max(10),
-    fadeSec: z.number().min(0.2).max(2),
+    visibleSec: z.number().min(1).max(60),
+    fadeSec: z.number().min(0.2).max(5),
     minOpacity: z.number().min(0).max(0.6),
   }),
   bounce: z.object({
@@ -146,8 +146,8 @@ export const ReminderSchema = z.object({
   enabled: z.boolean(),
   rule: RuleSchema,
   priority: z.enum(['normal', 'important']),
-  /** Seconds a normal notification stays before hiding itself; null = the app default. */
-  hideAfterSec: z.number().int().min(3).max(600).nullable(),
+  /** Seconds a normal notification stays before hiding itself; null = app default, 0 = permanent until dismissed. */
+  hideAfterSec: z.number().int().min(0).max(600).nullable(),
   /** If ignored, remind again every `everyMin` minutes, at most `times` more times. */
   followUp: z.object({
     enabled: z.boolean(),
@@ -218,7 +218,7 @@ export const SettingsSchema = z.object({
     screen: z.enum(['primary', 'cursor']),
     size: z.enum(['compact', 'comfortable', 'large']),
     sound: z.boolean(),
-    hideAfterSec: z.number().int().min(3).max(600),
+    hideAfterSec: z.number().int().min(3).max(600).nullable(),
     /** Every notification card's shape (a reminder can override it). */
     card: CardShapeSchema,
     /** Motion / animation style for how notifications appear and stay attention-grabbing. */

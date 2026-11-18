@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import type { MotionType, NotificationMotion } from '@shared/schema';
-import { Row, Segmented, Switch } from '../ui';
+import { NumberField, Row, Segmented, Slider, Switch } from '../ui';
 import { Select } from './Select';
 
 const MOTION_DESCRIPTIONS: Record<MotionType, string> = {
@@ -9,6 +10,9 @@ const MOTION_DESCRIPTIONS: Record<MotionType, string> = {
   wiggle: 'Shakes periodically like a bell to draw your attention.',
   slide: 'Calm, smooth entrance sliding in from the screen edge.',
 };
+
+const FADE_VISIBLE_PRESETS = [2, 3, 4, 5, 8, 10];
+const FADE_SPEED_PRESETS = [0.4, 0.6, 1.0];
 
 /**
  * Configure attention-grabbing motion styles for notifications:
@@ -22,6 +26,13 @@ export function NotificationMotionSettings({
   motion: NotificationMotion;
   onChange: (patch: NotificationMotion) => void;
 }) {
+  const [customVisible, setCustomVisible] = useState(
+    () => !FADE_VISIBLE_PRESETS.includes(motion.fadeCycle.visibleSec),
+  );
+  const [customFadeSpeed, setCustomFadeSpeed] = useState(
+    () => !FADE_SPEED_PRESETS.includes(motion.fadeCycle.fadeSec),
+  );
+
   const setType = (type: MotionType) => onChange({ ...motion, type });
 
   const setFadeCycle = (patch: Partial<NotificationMotion['fadeCycle']>) =>
@@ -69,30 +80,81 @@ export function NotificationMotionSettings({
             hint="How long the card stays shown before fading out."
             htmlFor="set-fade-visible"
           >
-            <Select<number>
-              id="set-fade-visible"
-              className="w-36"
-              value={motion.fadeCycle.visibleSec}
-              options={[
-                { value: 2, label: '2 seconds' },
-                { value: 3, label: '3 seconds' },
-                { value: 4, label: '4 seconds' },
-                { value: 5, label: '5 seconds' },
-              ]}
-              onChange={(visibleSec: number) => setFadeCycle({ visibleSec })}
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Select<number>
+                id="set-fade-visible"
+                className="w-36"
+                value={
+                  customVisible || !FADE_VISIBLE_PRESETS.includes(motion.fadeCycle.visibleSec)
+                    ? -1
+                    : motion.fadeCycle.visibleSec
+                }
+                options={[
+                  { value: 2, label: '2 seconds' },
+                  { value: 3, label: '3 seconds' },
+                  { value: 4, label: '4 seconds' },
+                  { value: 5, label: '5 seconds' },
+                  { value: 8, label: '8 seconds' },
+                  { value: 10, label: '10 seconds' },
+                  { value: -1, label: 'Custom…' },
+                ]}
+                onChange={(val: number) => {
+                  if (val === -1) {
+                    setCustomVisible(true);
+                  } else {
+                    setCustomVisible(false);
+                    setFadeCycle({ visibleSec: val });
+                  }
+                }}
+              />
+              {(customVisible || !FADE_VISIBLE_PRESETS.includes(motion.fadeCycle.visibleSec)) && (
+                <NumberField
+                  label="Visible duration"
+                  value={motion.fadeCycle.visibleSec}
+                  min={1}
+                  max={60}
+                  suffix="seconds"
+                  onChange={(visibleSec: number) => setFadeCycle({ visibleSec })}
+                />
+              )}
+            </div>
           </Row>
           <Row label="Fade transition" hint="How fast the card fades in and out.">
-            <Segmented<string>
-              label="Fade transition speed"
-              value={String(motion.fadeCycle.fadeSec)}
-              onChange={(val) => setFadeCycle({ fadeSec: Number(val) })}
-              options={[
-                { value: '0.4', label: 'Fast (0.4s)' },
-                { value: '0.6', label: 'Smooth (0.6s)' },
-                { value: '1', label: 'Gentle (1.0s)' },
-              ]}
-            />
+            <div className="flex flex-col gap-2">
+              <Segmented<string>
+                label="Fade transition speed"
+                value={
+                  customFadeSpeed || !FADE_SPEED_PRESETS.includes(motion.fadeCycle.fadeSec)
+                    ? 'custom'
+                    : String(motion.fadeCycle.fadeSec)
+                }
+                onChange={(val) => {
+                  if (val === 'custom') {
+                    setCustomFadeSpeed(true);
+                  } else {
+                    setCustomFadeSpeed(false);
+                    setFadeCycle({ fadeSec: Number(val) });
+                  }
+                }}
+                options={[
+                  { value: '0.4', label: 'Fast (0.4s)' },
+                  { value: '0.6', label: 'Smooth (0.6s)' },
+                  { value: '1', label: 'Gentle (1.0s)' },
+                  { value: 'custom', label: 'Custom…' },
+                ]}
+              />
+              {(customFadeSpeed || !FADE_SPEED_PRESETS.includes(motion.fadeCycle.fadeSec)) && (
+                <Slider
+                  label="Fade transition duration"
+                  value={motion.fadeCycle.fadeSec}
+                  min={0.2}
+                  max={3.0}
+                  step={0.1}
+                  suffix="s"
+                  onChange={(val) => setFadeCycle({ fadeSec: Number(val.toFixed(1)) })}
+                />
+              )}
+            </div>
           </Row>
           <Row label="Fade to" hint="Dim level while faded between cycles.">
             <Segmented<string>
@@ -103,6 +165,7 @@ export function NotificationMotionSettings({
                 { value: '0', label: 'Vanish (0%)' },
                 { value: '0.1', label: 'Ghost (10%)' },
                 { value: '0.25', label: 'Dim (25%)' },
+                { value: '0.4', label: 'Subtle (40%)' },
               ]}
             />
           </Row>

@@ -1,3 +1,12 @@
+# Smaran 2.16.6
+
+- **Permanent & custom duration for notifications:** Notifications can now be set to stay on screen permanently until you dismiss or snooze them, or for any custom number of seconds you choose.
+- **Global and per-reminder control:** Configure notification stay-duration and attention motion/fade styles globally in Settings or override them per reminder.
+- **Custom fade settings:** Fine-tune the fade visible duration and transition speeds with presets or exact custom seconds.
+- **Tabbed navigation in reminder settings:** The reminder editor is now organized into four focused tabs (Details, Timing, Notification, Lines) with live card previews, eliminating endless vertical scrolling.
+
+---
+
 # Smaran 2.16.5
 
 - **Attention-grabbing notification motions.** Choose how notifications announce themselves:

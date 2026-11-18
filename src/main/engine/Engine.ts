@@ -502,10 +502,13 @@ export class Engine {
       label,
       hideAfterSec: important
         ? null
-        : (reminder.hideAfterSec ?? settings.notification.hideAfterSec),
+        : reminder.hideAfterSec === 0
+          ? null
+          : (reminder.hideAfterSec ?? settings.notification.hideAfterSec),
       sound: reminder.sound === 'default' ? settings.notification.sound : reminder.sound === 'on',
       animation: reminder.animation,
       ...(reminder.card ? { card: reminder.card } : {}),
+      ...(reminder.motion ? { motion: reminder.motion } : {}),
     });
   }
 
