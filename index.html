@@ -37,6 +37,7 @@
         </a>
         <nav class="nav" aria-label="Sections">
           <a href="#features">Features</a>
+          <a href="#fileserver">File Server</a>
           <a href="#automations">Automations</a>
           <a href="#how">How it works</a>
           <a href="#download">Download</a>
@@ -58,17 +59,16 @@
             <p class="lede">
               Type what to remember and when, the way you’d say it. At the right moment Smaran
               slides in a small, calm card: press <strong>Done</strong>, or
-              <strong>Snooze</strong> for later. It lives quietly in the Windows tray, and now it can
-              run your PC’s routines too.
+              <strong>Snooze</strong> for later. It lives quietly in the Windows tray, runs your PC’s routines, and hosts your own local HTTP File Server &amp; WebDAV engine.
             </p>
             <div class="cta">
-              <a class="btn btn-primary" href="https://github.com/SahajIVVIX-1/Smaran-Reminder-App/releases/latest">
+              <a class="btn btn-primary" href="#download">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>
-                Download for Windows
+                Download for Windows (v3.3.0)
               </a>
               <a class="btn btn-secondary" href="#features">See what it does</a>
             </div>
-            <p class="fine">Installer or portable exe · Windows · Version 2.14.0</p>
+            <p class="fine">Installer or portable exe · Windows · Version 3.3.0</p>
           </div>
 
           <div class="stage" aria-label="A Smaran notification, live">
@@ -169,7 +169,51 @@
         </div>
       </section>
 
-      <section class="block alt" id="automations">
+      <section class="block alt" id="fileserver">
+        <div class="wrap">
+          <div class="reveal">
+            <p class="eyebrow">New in 3.3</p>
+            <h2><em>Smaran HFS.</em> Self-hosted HTTP File Server &amp; WebDAV.</h2>
+            <p class="intro">
+              Turn your PC into a high-concurrency local file server with zero external dependencies. Share files over Wi-Fi, mount network drives in Windows Explorer, and administer everything remotely from your browser.
+            </p>
+          </div>
+          <div class="grid">
+            <article class="feature reveal">
+              <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg></span>
+              <h3>Full Web Admin Control</h3>
+              <p>Configure server ports, connection limits, user accounts, granular permissions, and VFS mounts directly in your browser. Protected by mandatory authentication with first-run password update.</p>
+            </article>
+            <article class="feature reveal">
+              <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 17l6-6-6-6M12 19h8" /></svg></span>
+              <h3>Native WebDAV Drive Mounting</h3>
+              <p>Map Smaran HFS straight into Windows File Explorer (<code>net use Z: http://&lt;IP&gt;:5900/</code>) or macOS Finder. Add, edit, or delete files with live two-way filesystem sync.</p>
+            </article>
+            <article class="feature reveal">
+              <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" /></svg></span>
+              <h3>Folder Drag-and-Drop</h3>
+              <p>Drag files directly onto target folders with glowing drop targets. Track real-time upload speed (MB/s), overall percentage, and dynamic ETA in a floating dock.</p>
+            </article>
+            <article class="feature reveal">
+              <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 14 14" /></svg></span>
+              <h3>LAN &amp; Internet Speed Test</h3>
+              <p>Benchmark your local Wi-Fi transfer speed, download/upload throughput (Mbps), and internet connectivity directly inside the web and in-app dashboards.</p>
+            </article>
+            <article class="feature reveal">
+              <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg></span>
+              <h3>High Concurrency Engine</h3>
+              <p>Tuned socket architecture built to effortlessly serve thousands of simultaneous connected devices across your home, office, or local area network.</p>
+            </article>
+            <article class="feature reveal">
+              <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg></span>
+              <h3>1-Click LAN Links &amp; QR Codes</h3>
+              <p>Generate shareable LAN links for any file or folder with one click. Scan QR codes with your phone or tablet to download or stream instantly.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="block" id="automations">
         <div class="wrap">
           <div class="reveal">
             <p class="eyebrow">New in 2.14</p>
@@ -250,17 +294,24 @@
 
       <section class="block alt download" id="download">
         <div class="wrap reveal">
-          <p class="eyebrow">Download</p>
+          <p class="eyebrow">Download Smaran 3.3.0</p>
           <h2>Get <em>Smaran</em> for Windows.</h2>
           <p class="intro">One installer, or a portable exe that keeps its data beside it.</p>
-          <div class="cta">
-            <a class="btn btn-primary" href="https://github.com/SahajIVVIX-1/Smaran-Reminder-App/releases/latest">Download the latest release</a>
+          <div class="cta" style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;">
+            <a class="btn btn-primary" href="https://github.com/SahajIVVIX-1/Smaran-Reminder-App/releases/download/v3.3.0/Smaran-Setup-3.3.0.exe">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>
+              Download Installer (v3.3.0)
+            </a>
+            <a class="btn btn-secondary" href="https://github.com/SahajIVVIX-1/Smaran-Reminder-App/releases/download/v3.3.0/Smaran-3.3.0-portable.exe">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>
+              Download Portable (v3.3.0)
+            </a>
           </div>
           <div class="dl-notes">
             <div>
               <strong>Installer</strong>
               Installs for your user, adds Start menu and desktop shortcuts, and updates over an
-              earlier version keeping your reminders and settings.
+              earlier version keeping your reminders, fileserver data, and settings.
             </div>
             <div>
               <strong>Portable</strong>
@@ -281,7 +332,7 @@
       <div class="wrap">
         <a class="brand" href="#top"><svg data-dots="smark" width="22" height="22"></svg><em>Smaran</em></a>
         <span>Gentle reminders, on your schedule.</span>
-        <span>Version 2.14.0</span>
+        <span>Version 3.3.0</span>
         <a href="https://github.com/SahajIVVIX-1/Smaran-Reminder-App/releases">Releases</a>
         <span style="margin-left: auto">© 2026 SahajS</span>
       </div>
