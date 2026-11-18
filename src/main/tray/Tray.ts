@@ -1,6 +1,13 @@
 import { join } from 'node:path';
-import { app, nativeImage, nativeTheme, Tray, type NativeImage } from 'electron';
-import { separator, type MenuEntry } from '@shared/menu';
+import {
+  app,
+  Menu,
+  nativeImage,
+  nativeTheme,
+  Tray,
+  type MenuItemConstructorOptions,
+  type NativeImage,
+} from 'electron';
 import { taskbarIsLight } from './taskbarTheme';
 import { tooltipFor, type TrayState } from './tooltip';
 
@@ -30,7 +37,7 @@ export function trayIconPath(lightTaskbar: boolean): string {
   return resource('tray', lightTaskbar ? 'tray-light.ico' : 'tray-dark.ico');
 }
 
-/** Tray icon: click opens Smaran; right-click opens Smaran's themed menu. */
+/** Tray icon: click opens Smaran; right-click opens native context menu. */
 export class AppTray {
   private readonly tray: Tray;
   private state: TrayState = { pausedUntil: null, next: null };
@@ -39,7 +46,6 @@ export class AppTray {
 
   constructor(
     private readonly actions: TrayActions,
-    private readonly menu: (items: MenuEntry[]) => Promise<string | null>,
     private readonly onHover: () => void = () => undefined,
   ) {
     // First guess from the app theme; refreshIcon() reads the taskbar's own setting.
@@ -48,7 +54,7 @@ export class AppTray {
     nativeTheme.on('updated', () => void this.refreshIcon());
     void this.refreshIcon();
     this.tray.on('click', () => this.actions.open());
-    this.tray.on('right-click', () => void this.openMenu());
+    this.tray.on('right-click', () => this.openMenu());
     this.tray.on('mouse-enter', () => this.onHover());
     this.tray.setToolTip(tooltipFor(this.state));
   }
@@ -85,41 +91,39 @@ export class AppTray {
     this.tray.destroy();
   }
 
-  private async openMenu(): Promise<void> {
+  private openMenu(): void {
     const paused = this.state.pausedUntil !== null && new Date(this.state.pausedUntil) > new Date();
-    const items: MenuEntry[] = [
-      { kind: 'item', id: 'open', label: 'Open Smaran' },
-      { kind: 'item', id: 'new', label: 'New Reminder…' },
-      separator,
-      {
-        kind: 'item',
-        id: 'show',
-        label: 'Show Next Reminder Now',
-        disabled: this.state.next === null,
-      },
-      separator,
-      ...(paused
-        ? [{ kind: 'item', id: 'resume', label: 'Resume Reminders' } as const]
-        : ([
-            { kind: 'heading', label: 'Pause Reminders' },
-            { kind: 'item', id: 'pause-30', label: 'For 30 Minutes' },
-            { kind: 'item', id: 'pause-60', label: 'For 1 Hour' },
-            { kind: 'item', id: 'pause-180', label: 'For 3 Hours' },
-            { kind: 'item', id: 'pause', label: 'Until I Resume' },
-          ] as const)),
-      separator,
-      { kind: 'item', id: 'about', label: 'About Smaran' },
-      { kind: 'item', id: 'quit', label: 'Quit Smaran' },
-    ];
-    const id = await this.menu(items);
     const a = this.actions;
-    if (id === 'open') a.open();
-    else if (id === 'new') a.newReminder();
-    else if (id === 'show') a.showNow();
-    else if (id === 'resume') a.resume();
-    else if (id === 'pause') a.pause();
-    else if (id?.startsWith('pause-')) a.pause(Number(id.slice(6)));
-    else if (id === 'about') a.about();
-    else if (id === 'quit') a.quit();
+    const template: MenuItemConstructorOptions[] = [
+      { label: 'Open Smaran', click: () => a.open() },
+      { label: 'New Reminder…', click: () => a.newReminder() },
+      { type: 'separator' },
+      {
+        label: 'Show Next Reminder Now',
+        enabled: this.state.next !== null,
+        click: () => a.showNow(),
+      },
+      { type: 'separator' },
+      ...(paused
+        ? [
+            {
+              label: 'Resume Reminders',
+              click: () => a.resume(),
+            },
+          ]
+        : [
+            { label: 'Pause Reminders', enabled: false },
+            { label: 'For 30 Minutes', click: () => a.pause(30) },
+            { label: 'For 1 Hour', click: () => a.pause(60) },
+            { label: 'For 3 Hours', click: () => a.pause(180) },
+            { label: 'Until I Resume', click: () => a.pause() },
+          ]),
+      { type: 'separator' },
+      { label: 'About Smaran', click: () => a.about() },
+      { label: 'Quit Smaran', click: () => a.quit() },
+    ];
+
+    const menu = Menu.buildFromTemplate(template);
+    this.tray.popUpContextMenu(menu);
   }
 }

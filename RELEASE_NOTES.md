@@ -1,3 +1,12 @@
+# Smaran 2.16.10
+
+- **Native Windows System Tray Menu:** Right-clicking the system tray icon now opens a seamless native Windows context menu powered directly by Windows shell integration. The system tray overflow area (`^`) stays open properly without collapsing prematurely.
+- **Zero Floating Window Glitches:** Completely eliminates the issue where custom popup windows got stuck floating on screen after the system tray closed.
+- **Instant Click-Away Dismissal:** Clicking anywhere outside immediately and smoothly dismisses the context menu without any lag or delay.
+- **Full Native Accessibility:** Supports native keyboard navigation (`Up`, `Down`, `Enter`, `Escape`) and Windows high-contrast / dark mode themes.
+
+---
+
 # Smaran 2.16.9
 
 - **True Hairline-to-Thick Precision:** Screen border light now scales with genuine visual fidelity from an ultra-thin 1px laser hairline up to 24px thick. Glow dispersion scales proportionally with thickness so thin lines stay truly thin without spreading across the screen.

@@ -112,7 +112,6 @@ export class SmaranApp {
         about: () => this.about(),
         quit: () => app.quit(),
       },
-      (items) => this.menu.popup(items),
       () => this.logo?.flourish(true),
     );
     this.menu.warm();

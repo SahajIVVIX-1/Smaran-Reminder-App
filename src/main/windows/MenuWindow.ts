@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, nativeTheme, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeTheme, screen } from 'electron';
 import { IPC, MeasuredSchema } from '@shared/ipc';
 import type { CustomFont } from '@shared/fonts';
 import { MenuEntriesSchema, MenuPickSchema, type MenuEntry, type MenuInit } from '@shared/menu';
@@ -9,7 +9,7 @@ import { menuPosition } from './placement';
 /** Transparent room round the panel for its shadow (matches PAD in the menu renderer). */
 const PAD = 10;
 /** If Windows won't give the menu focus, it closes once the pointer has been away this long. */
-const AWAY_CLOSE_MS = 1200;
+const AWAY_CLOSE_MS = 250;
 
 /**
  * Smaran's own right-click menu, drawn in its theme instead of the plain Windows one. One small
@@ -40,6 +40,7 @@ export class MenuWindow {
       win.setBounds({ x, y, width, height });
       win.setAlwaysOnTop(true, 'pop-up-menu');
       win.show();
+      app.focus({ steal: true });
       win.focus();
       this.watchPointer(win);
     });
