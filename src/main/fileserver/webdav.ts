@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import type { UserAccount } from '@shared/fileserver';
 import type { VfsManager } from './vfs/VfsManager';
 import { lookupMime } from './mime';
 import { resolveSafePath } from './security';
@@ -31,6 +32,7 @@ export class WebDavHandler {
     req: http.IncomingMessage,
     res: http.ServerResponse,
     _clientIp: string,
+    user?: UserAccount | null,
   ): Promise<boolean> {
     const method = req.method || 'GET';
     const rawUrl = req.url || '/';
@@ -52,26 +54,51 @@ export class WebDavHandler {
     }
 
     if (method === 'PROPFIND') {
+      if (user && !user.permissions.read) {
+        res.writeHead(403);
+        res.end('Permission denied: read access required');
+        return true;
+      }
       await this.handlePropfind(pathname, req, res);
       return true;
     }
 
     if (method === 'MKCOL') {
+      if (user && !user.permissions.mkdir) {
+        res.writeHead(403);
+        res.end('Permission denied: folder creation required');
+        return true;
+      }
       await this.handleMkcol(pathname, req, res);
       return true;
     }
 
     if (method === 'DELETE') {
+      if (user && !user.permissions.delete) {
+        res.writeHead(403);
+        res.end('Permission denied: delete access required');
+        return true;
+      }
       await this.handleDelete(pathname, req, res);
       return true;
     }
 
     if (method === 'MOVE') {
+      if (user && !user.permissions.rename) {
+        res.writeHead(403);
+        res.end('Permission denied: rename access required');
+        return true;
+      }
       await this.handleMove(pathname, req, res);
       return true;
     }
 
     if (method === 'COPY') {
+      if (user && !user.permissions.upload) {
+        res.writeHead(403);
+        res.end('Permission denied: upload access required');
+        return true;
+      }
       await this.handleCopy(pathname, req, res);
       return true;
     }
@@ -87,6 +114,11 @@ export class WebDavHandler {
     }
 
     if (method === 'PUT') {
+      if (user && !user.permissions.upload) {
+        res.writeHead(403);
+        res.end('Permission denied: upload access required');
+        return true;
+      }
       await this.handlePut(pathname, req, res);
       return true;
     }

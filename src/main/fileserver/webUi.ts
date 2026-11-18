@@ -1,9 +1,3 @@
-/**
- * Generates the self-contained Web File Manager HTML/CSS/JS served to LAN clients.
- * Zero external dependencies: works offline on any Wi-Fi or airgapped LAN.
- * Features: Rich Media Lightbox, Video/Audio Player, Code/Text Viewer,
- * Streaming ZIP Downloads, Batch Multi-Select, List & Grid Views, WebDAV Guide, File Comments.
- */
 export function getWebManagerHtml(serverName: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -11,6 +5,7 @@ export function getWebManagerHtml(serverName: string): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(serverName)} - Smaran HFS</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='20' cy='32' r='7' fill='%23eaeaea'/%3E%3Ccircle cx='32' cy='32' r='7' fill='%23e06c43'/%3E%3Ccircle cx='44' cy='32' r='7' fill='%23f59f00'/%3E%3C/svg%3E">
   <style>
     :root {
       --bg: #121214;
@@ -88,6 +83,42 @@ export function getWebManagerHtml(serverName: string): string {
       color: var(--accent);
       font-weight: 500;
     }
+    .context-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--line);
+      font-size: 11.5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: var(--muted);
+      user-select: all;
+    }
+    .context-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--ok);
+      box-shadow: 0 0 6px var(--ok);
+      flex-shrink: 0;
+    }
+    .session-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text);
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    .session-badge:hover {
+      border-color: var(--muted);
+    }
     .toolbar {
       display: flex;
       align-items: center;
@@ -153,7 +184,7 @@ export function getWebManagerHtml(serverName: string): string {
     .nav-controls {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
     }
     .search-box {
       background: var(--card);
@@ -162,40 +193,45 @@ export function getWebManagerHtml(serverName: string): string {
       padding: 6px 12px;
       color: var(--text);
       font-size: 13px;
-      width: 200px;
       outline: none;
+      width: 200px;
+      transition: border-color 0.15s;
     }
     .search-box:focus { border-color: var(--accent); }
     .view-toggle {
-      display: inline-flex;
+      display: flex;
       border: 1px solid var(--line);
       border-radius: 6px;
       overflow: hidden;
-      background: var(--card);
     }
     .view-toggle button {
       border: none;
       border-radius: 0;
       padding: 6px 10px;
-      background: transparent;
+      background: var(--card);
     }
     .view-toggle button.active {
-      background: var(--card-hover);
-      color: var(--accent);
+      background: var(--accent);
+      color: #fff;
     }
     .dropzone {
       border: 2px dashed var(--line);
-      border-radius: 10px;
-      padding: 20px;
+      border-radius: 8px;
+      padding: 24px;
       text-align: center;
-      margin-bottom: 18px;
-      background: rgba(27, 27, 30, 0.4);
+      margin-bottom: 20px;
       transition: all 0.2s;
       cursor: pointer;
     }
     .dropzone.dragover {
       border-color: var(--accent);
       background: var(--accent-soft);
+    }
+    .folder-drop-hover {
+      outline: 2px dashed var(--accent) !important;
+      outline-offset: -2px;
+      background: rgba(224, 108, 67, 0.16) !important;
+      transition: all 0.15s ease;
     }
     .file-table {
       width: 100%;
@@ -252,12 +288,12 @@ export function getWebManagerHtml(serverName: string): string {
       align-items: center;
       justify-content: flex-end;
       gap: 5px;
+      flex-wrap: wrap;
     }
     .action-btn {
       padding: 4px 7px;
       font-size: 12px;
     }
-    /* Grid View styles */
     .file-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -315,13 +351,19 @@ export function getWebManagerHtml(serverName: string): string {
       display: flex;
       justify-content: space-between;
     }
+    .grid-card .card-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
+      margin-top: 4px;
+    }
     .grid-checkbox {
       position: absolute;
       top: 10px;
       left: 10px;
       z-index: 2;
     }
-    /* Floating Batch Action Dock */
     .batch-dock {
       position: fixed;
       bottom: 24px;
@@ -342,45 +384,55 @@ export function getWebManagerHtml(serverName: string): string {
       from { transform: translate(-50%, 20px); opacity: 0; }
       to { transform: translate(-50%, 0); opacity: 1; }
     }
-    .progress-list {
-      margin-bottom: 18px;
+    .upload-dock {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 320px;
+      background: #18181b;
+      border: 1px solid var(--accent);
+      border-radius: 12px;
+      padding: 14px 16px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7);
+      z-index: 120;
       display: flex;
       flex-direction: column;
       gap: 8px;
+      animation: smaranModalIn 0.2s ease-out;
     }
-    .progress-card {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      padding: 10px 14px;
+    .upload-dock-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text);
     }
-    .progress-bar-bg {
+    .upload-dock-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    }
+    .upload-dock-bar {
       height: 6px;
       background: var(--line);
       border-radius: 999px;
       overflow: hidden;
-      margin-top: 6px;
     }
-    .progress-bar-fill {
+    .upload-dock-fill {
       height: 100%;
       background: var(--accent);
-      transition: width 0.2s;
+      width: 0%;
+      transition: width 0.15s ease;
     }
-    /* Modals, Popups & Dialogs */
     @keyframes smaranModalIn {
-      from {
-        opacity: 0;
-        transform: scale(0.95) translateY(6px);
-      }
-      to {
-        opacity: 1;
-        transform: scale(1) translateY(0);
-      }
+      from { opacity: 0; transform: scale(0.95) translateY(6px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
     }
-    @keyframes smaranFadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
+    @keyframes smaranFadeIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes smaranShake {
       0%, 100% { transform: translateX(0); }
       20%, 60% { transform: translateX(-5px); }
@@ -404,7 +456,9 @@ export function getWebManagerHtml(serverName: string): string {
       border-radius: 16px;
       padding: 24px;
       width: 92%;
-      max-width: 440px;
+      max-width: 460px;
+      max-height: 90vh;
+      overflow-y: auto;
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75);
       animation: smaranModalIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
       position: relative;
@@ -441,7 +495,7 @@ export function getWebManagerHtml(serverName: string): string {
       font-family: inherit;
       outline: none;
       transition: all 0.15s ease;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
       box-sizing: border-box;
     }
     .modal-input:focus {
@@ -460,6 +514,60 @@ export function getWebManagerHtml(serverName: string): string {
       margin-bottom: 14px;
       animation: smaranShake 0.4s ease;
     }
+    .st-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin: 16px 0;
+    }
+    @media (min-width: 600px) {
+      .st-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+    .st-tile {
+      background: #121214;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+    }
+    .st-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 500; }
+    .st-value { font-size: 18px; font-weight: 700; font-family: ui-monospace, SFMono-Regular, monospace; margin-top: 4px; color: var(--text); }
+    .admin-nav {
+      display: flex;
+      gap: 6px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 16px;
+      padding-bottom: 6px;
+      overflow-x: auto;
+    }
+    .admin-nav-btn {
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .admin-nav-btn.active {
+      background: rgba(224, 108, 67, 0.15);
+      color: var(--accent);
+    }
+    .admin-pane { display: none; }
+    .admin-pane.active { display: block; }
+    .admin-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+    .admin-table th, .admin-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+    }
+    .admin-table th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
     .lightbox-img-wrap {
       display: flex;
       align-items: center;
@@ -496,42 +604,31 @@ export function getWebManagerHtml(serverName: string): string {
       white-space: pre-wrap;
       word-break: break-word;
     }
-    input[type="text"], input[type="password"] {
-      width: 100%;
-      background: var(--bg);
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      padding: 8px 12px;
-      color: var(--text);
-      font-size: 14px;
-      outline: none;
-    }
-    input[type="text"]:focus, input[type="password"]:focus {
-      border-color: var(--accent);
-    }
     .toast {
       position: fixed;
       bottom: 24px;
-      right: 24px;
+      left: 24px;
       background: var(--card);
-      border: 1px solid var(--line);
+      border: 1px solid var(--accent);
       padding: 10px 16px;
       border-radius: 8px;
-      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5);
+      box-shadow: 0 10px 25px -3px rgba(0,0,0,0.6);
       z-index: 200;
       font-size: 13px;
+      animation: smaranFadeIn 0.2s ease;
     }
     .empty-state {
       padding: 48px 16px;
       text-align: center;
       color: var(--muted);
     }
-    @media (max-width: 640px) {
-      .hide-mobile { display: none; }
-      header { padding: 10px 16px; }
-      main { padding: 16px 16px 80px 16px; }
-      .search-box { width: 140px; }
-      .batch-dock { width: 90%; justify-content: space-between; }
+    @media (max-width: 768px) {
+      .hide-mobile { display: none !important; }
+      header { padding: 10px 14px; }
+      main { padding: 14px 14px 80px 14px; }
+      .search-box { width: 130px; }
+      .batch-dock { width: 92%; justify-content: space-between; }
+      .upload-dock { width: 90%; right: 5%; left: 5%; }
     }
   </style>
 </head>
@@ -540,24 +637,40 @@ export function getWebManagerHtml(serverName: string): string {
     <div class="brand">
       <div class="smaran-brand-logo" id="smaran-brand-dots" title="Smaran"></div>
       <span>${escapeHtml(serverName)}</span>
-      <span class="badge">LAN File Server</span>
+      <span class="badge hide-mobile">LAN File Server</span>
+      <div id="context-pill" class="context-pill" title="Client Context Identity">
+        <span class="context-dot"></span>
+        <span id="context-label">Loading...</span>
+      </div>
     </div>
     <div class="toolbar">
+      <button onclick="showSpeedTestModal()" title="Network & LAN Data Transfer Benchmark">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <span class="hide-mobile">Speed Test</span>
+      </button>
+      <button id="btn-admin-panel" style="display:none;" onclick="showAdminModal()" title="File Server Administration Panel">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span class="hide-mobile">Admin Panel</span>
+      </button>
       <button class="primary" id="btn-upload" onclick="triggerFileInput()">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        Upload
+        <span>Upload</span>
       </button>
       <button onclick="promptNewFolder()">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
-        New Folder
+        <span class="hide-mobile">New Folder</span>
       </button>
       <button onclick="downloadCurrentFolderZip()" title="Download current folder as ZIP">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-        Folder ZIP
+        <span class="hide-mobile">Folder ZIP</span>
       </button>
       <button onclick="showWebDavHelp()" title="Mount as Windows Network Drive">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-        WebDAV
+        <span class="hide-mobile">WebDAV</span>
+      </button>
+      <button id="btn-session" class="session-badge" onclick="showSessionMenu()" title="User Account & Session">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span id="session-username">Sign In</span>
       </button>
       <button onclick="loadFiles()" class="icon-only" title="Refresh">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
@@ -582,10 +695,8 @@ export function getWebManagerHtml(serverName: string): string {
       </div>
     </div>
 
-    <div class="progress-list" id="progress-container"></div>
-
     <div class="dropzone" id="dropzone" onclick="triggerFileInput()">
-      <p style="font-weight: 500;">Drag and drop files anywhere to upload</p>
+      <p style="font-weight: 500;">Drag and drop files anywhere (or onto a folder) to upload</p>
       <p style="font-size: 12px; color: var(--muted); margin-top: 4px;">or click here to browse files</p>
     </div>
 
@@ -597,7 +708,7 @@ export function getWebManagerHtml(serverName: string): string {
           <th>Name</th>
           <th class="hide-mobile">Size</th>
           <th class="hide-mobile">Modified</th>
-          <th style="text-align: right;">Actions</th>
+          <th style="text-align: right; min-width: 220px;">Actions</th>
         </tr>
       </thead>
       <tbody id="file-list"></tbody>
@@ -621,6 +732,21 @@ export function getWebManagerHtml(serverName: string): string {
     <button onclick="clearSelection()" class="icon-only" title="Clear selection">✕</button>
   </div>
 
+  <!-- Floating Upload Progress Dock -->
+  <div class="upload-dock" id="upload-dock" style="display:none;">
+    <div class="upload-dock-header">
+      <span id="upload-dock-filename" style="max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Uploading...</span>
+      <span id="upload-dock-pct" style="color:var(--accent);">0%</span>
+    </div>
+    <div class="upload-dock-bar">
+      <div class="upload-dock-fill" id="upload-dock-fill"></div>
+    </div>
+    <div class="upload-dock-meta">
+      <span id="upload-dock-speed">0.0 MB/s</span>
+      <span id="upload-dock-eta">ETA: --</span>
+    </div>
+  </div>
+
   <div id="modal-container"></div>
   <div id="toast-container"></div>
 
@@ -633,6 +759,11 @@ export function getWebManagerHtml(serverName: string): string {
     let imageFiles = [];
     let zoomLevel = 1;
     let rotation = 0;
+    let currentUser = null;
+    let clientIp = '127.0.0.1';
+    let activeUploadCount = 0;
+    let idleSeconds = 0;
+    const SESSION_MAX_IDLE = 15 * 60; // 15 minutes
 
     function escapeHtml(str) {
       return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -659,6 +790,128 @@ export function getWebManagerHtml(serverName: string): string {
       div.innerText = msg;
       tc.appendChild(div);
       setTimeout(() => div.remove(), duration);
+    }
+
+    /* Client Inactivity & Session Monitor */
+    function resetIdleTimer() {
+      idleSeconds = 0;
+    }
+    ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(evt => {
+      window.addEventListener(evt, resetIdleTimer, { passive: true });
+    });
+
+    setInterval(() => {
+      idleSeconds++;
+      if (idleSeconds === SESSION_MAX_IDLE - 60) {
+        showToast('Session expiring in 60s due to inactivity...', 5000);
+      }
+      if (idleSeconds >= SESSION_MAX_IDLE) {
+        // If active transfers are underway, grant transfer exemption
+        if (activeUploadCount > 0) {
+          idleSeconds = 0;
+          return;
+        }
+        idleSeconds = 0;
+        fetch('/api/logout', { method: 'POST' }).finally(() => {
+          currentUser = null;
+          updateSessionUI();
+          smaranAlert({
+            title: 'Session Expired',
+            message: 'You have been logged out after 15 minutes of inactivity for security.',
+            tone: 'warning'
+          }).then(() => showLoginModal());
+        });
+      }
+    }, 1000);
+
+    window.addEventListener('beforeunload', (e) => {
+      if (activeUploadCount > 0) {
+        e.preventDefault();
+        e.returnValue = 'File uploads are currently in progress. Leaving will cancel them.';
+      }
+    });
+
+    async function checkSession() {
+      try {
+        const res = await fetch('/api/session');
+        if (res.ok) {
+          const data = await res.json();
+          clientIp = data.clientIp || '127.0.0.1';
+          currentUser = data.user;
+          updateContextPill();
+          updateSessionUI();
+
+          if (data.authenticated && data.user && data.user.mustChangePassword) {
+            showCompulsoryPasswordModal();
+          } else if (!data.authenticated && data.authEnabled && !data.guestAccess) {
+            showLoginModal();
+          }
+        }
+      } catch (err) {
+        console.error('Session check failed', err);
+      }
+    }
+
+    function updateContextPill() {
+      const uName = currentUser ? currentUser.username : 'visitor';
+      const label = document.getElementById('context-label');
+      if (label) label.innerText = uName + '@' + clientIp;
+
+      // Sync URL without refreshing: /?context=user@ip
+      const contextStr = uName + '@' + clientIp;
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('context') !== contextStr) {
+        url.searchParams.set('context', contextStr);
+        window.history.replaceState(null, '', url.pathname + url.search);
+      }
+    }
+
+    function updateSessionUI() {
+      const btn = document.getElementById('session-username');
+      const adminBtn = document.getElementById('btn-admin-panel');
+      if (currentUser) {
+        if (btn) btn.innerText = currentUser.username;
+        if (adminBtn) adminBtn.style.display = currentUser.role === 'admin' ? 'inline-flex' : 'none';
+      } else {
+        if (btn) btn.innerText = 'Sign In';
+        if (adminBtn) adminBtn.style.display = 'none';
+      }
+    }
+
+    function showSessionMenu() {
+      if (!currentUser) {
+        showLoginModal();
+        return;
+      }
+      const mc = document.getElementById('modal-container');
+      mc.innerHTML = \`
+        <div class="modal-overlay" onclick="closeModal()">
+          <div class="modal-box" onclick="event.stopPropagation()">
+            <div class="modal-title">
+              <span>Account: \${escapeHtml(currentUser.username)}</span>
+              <button onclick="closeModal()" class="icon-only" style="border:none;background:transparent;cursor:pointer;">✕</button>
+            </div>
+            <div class="modal-body">
+              <p class="modal-message">Role: <strong>\${escapeHtml(currentUser.role)}</strong></p>
+              <p class="modal-message" style="margin-top:-8px; font-size:12px;">Connected from IP: \${escapeHtml(clientIp)}</p>
+              <div style="display:flex; flex-direction:column; gap:8px; margin-top:16px;">
+                <button onclick="closeModal(); showCompulsoryPasswordModal(false);" style="justify-content:center;">Change Password</button>
+                <button class="danger" onclick="doLogout()" style="justify-content:center;">Log Out</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      \`;
+    }
+
+    async function doLogout() {
+      closeModal();
+      await fetch('/api/logout', { method: 'POST' });
+      currentUser = null;
+      updateContextPill();
+      updateSessionUI();
+      showToast('Logged out');
+      loadFiles();
     }
 
     function setViewMode(mode) {
@@ -712,23 +965,19 @@ export function getWebManagerHtml(serverName: string): string {
     }
 
     function isImageFile(name) {
-      return /\\.(jpg|jpeg|png|gif|webp|svg|bmp|avif)$/i.test(name);
+      return /[.](jpg|jpeg|png|gif|webp|svg|bmp|avif)$/i.test(name);
     }
-
     function isVideoFile(name) {
-      return /\\.(mp4|webm|ogv|mov|mkv)$/i.test(name);
+      return /[.](mp4|webm|ogv|mov|mkv)$/i.test(name);
     }
-
     function isAudioFile(name) {
-      return /\\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(name);
+      return /[.](mp3|wav|ogg|m4a|aac|flac)$/i.test(name);
     }
-
     function isTextFile(name) {
-      return /\\.(txt|md|json|js|ts|py|html|css|xml|yml|yaml|log|sh|bat|ini|conf)$/i.test(name);
+      return /[.](txt|md|json|js|ts|py|html|css|xml|yml|yaml|log|sh|bat|ini|conf)$/i.test(name);
     }
-
     function isPdfFile(name) {
-      return /\\.pdf$/i.test(name);
+      return /[.]pdf$/i.test(name);
     }
 
     function openItem(item) {
@@ -751,9 +1000,20 @@ export function getWebManagerHtml(serverName: string): string {
       }
     }
 
+    function copyItemLink(item) {
+      const origin = window.location.origin;
+      const url = item.isDirectory
+        ? origin + '/?path=' + encodeURIComponent(item.relativePath)
+        : origin + '/download/' + encodeURIComponent(item.relativePath);
+      navigator.clipboard.writeText(url).then(() => {
+        showToast('Direct LAN Link copied to clipboard!');
+      }).catch(() => {
+        prompt('Copy link:', url);
+      });
+    }
+
     function renderFiles(items) {
       imageFiles = items.filter(i => !i.isDirectory && isImageFile(i.name));
-
       if (viewMode === 'list') {
         renderTableView(items);
       } else {
@@ -774,6 +1034,28 @@ export function getWebManagerHtml(serverName: string): string {
         const isSelected = selectedPaths.has(item.relativePath);
         const tr = document.createElement('tr');
         if (isSelected) tr.className = 'selected';
+
+        // Folder drag & drop hover
+        if (item.isDirectory) {
+          tr.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            tr.classList.add('folder-drop-hover');
+          });
+          tr.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            tr.classList.remove('folder-drop-hover');
+          });
+          tr.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            tr.classList.remove('folder-drop-hover');
+            if (e.dataTransfer && e.dataTransfer.files) {
+              handleFileSelect(e.dataTransfer.files, item.relativePath);
+            }
+          });
+        }
 
         // Checkbox cell
         const tdCb = document.createElement('td');
@@ -816,6 +1098,14 @@ export function getWebManagerHtml(serverName: string): string {
         const divActions = document.createElement('div');
         divActions.className = 'file-actions';
 
+        // 1-Click Copy Link Button
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'action-btn';
+        copyBtn.title = 'Copy Direct LAN Link';
+        copyBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Link';
+        copyBtn.onclick = (e) => { e.stopPropagation(); copyItemLink(item); };
+        divActions.appendChild(copyBtn);
+
         if (item.isDirectory) {
           const zipBtn = document.createElement('a');
           zipBtn.className = 'btn action-btn';
@@ -829,28 +1119,28 @@ export function getWebManagerHtml(serverName: string): string {
           dlBtn.href = '/download/' + encodeURIComponent(item.relativePath);
           dlBtn.download = item.name;
           dlBtn.title = 'Download file';
-          dlBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+          dlBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
           divActions.appendChild(dlBtn);
         }
 
         const commentBtn = document.createElement('button');
         commentBtn.className = 'action-btn';
         commentBtn.title = 'Edit description';
-        commentBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+        commentBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
         commentBtn.onclick = (e) => { e.stopPropagation(); promptComment(item); };
         divActions.appendChild(commentBtn);
 
         const renameBtn = document.createElement('button');
         renameBtn.className = 'action-btn';
         renameBtn.title = 'Rename';
-        renameBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>';
+        renameBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>';
         renameBtn.onclick = (e) => { e.stopPropagation(); promptRename(item); };
         divActions.appendChild(renameBtn);
 
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'action-btn danger';
         deleteBtn.title = 'Delete';
-        deleteBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>';
+        deleteBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>';
         deleteBtn.onclick = (e) => { e.stopPropagation(); confirmDelete(item); };
         divActions.appendChild(deleteBtn);
 
@@ -878,6 +1168,27 @@ export function getWebManagerHtml(serverName: string): string {
         const isSelected = selectedPaths.has(item.relativePath);
         const card = document.createElement('div');
         card.className = 'grid-card' + (isSelected ? ' selected' : '');
+
+        if (item.isDirectory) {
+          card.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            card.classList.add('folder-drop-hover');
+          });
+          card.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            card.classList.remove('folder-drop-hover');
+          });
+          card.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            card.classList.remove('folder-drop-hover');
+            if (e.dataTransfer && e.dataTransfer.files) {
+              handleFileSelect(e.dataTransfer.files, item.relativePath);
+            }
+          });
+        }
 
         const cb = document.createElement('input');
         cb.type = 'checkbox';
@@ -920,6 +1231,16 @@ export function getWebManagerHtml(serverName: string): string {
         meta.innerHTML = '<span>' + (item.isDirectory ? 'Folder' : formatBytes(item.size)) + '</span>';
         card.appendChild(meta);
 
+        const cActions = document.createElement('div');
+        cActions.className = 'card-actions';
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'action-btn';
+        copyBtn.title = 'Copy Link';
+        copyBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Link';
+        copyBtn.onclick = (e) => { e.stopPropagation(); copyItemLink(item); };
+        cActions.appendChild(copyBtn);
+        card.appendChild(cActions);
+
         card.onclick = () => openItem(item);
         grid.appendChild(card);
       });
@@ -955,219 +1276,135 @@ export function getWebManagerHtml(serverName: string): string {
     function updateBatchDock() {
       const dock = document.getElementById('batch-dock');
       const countEl = document.getElementById('batch-count');
-      if (selectedPaths.size > 0) {
+      const count = selectedPaths.size;
+      if (count > 0) {
         dock.style.display = 'flex';
-        countEl.innerText = selectedPaths.size + (selectedPaths.size === 1 ? ' item selected' : ' items selected');
+        countEl.innerText = count + ' item' + (count > 1 ? 's' : '') + ' selected';
       } else {
         dock.style.display = 'none';
       }
     }
 
-    function downloadCurrentFolderZip() {
-      const url = '/api/zip?path=' + encodeURIComponent(currentPath);
-      window.location.href = url;
-    }
-
     function downloadSelectedZip() {
       if (selectedPaths.size === 0) return;
-      const list = Array.from(selectedPaths).join(';');
-      window.location.href = '/api/zip-selection?items=' + encodeURIComponent(list);
-    }
-
-    /* Custom Smaran Dialogs (Confirm, Prompt, Alert) */
-    let activeDialogCleanup = null;
-
-    function smaranConfirm(options) {
-      return new Promise(function(resolve) {
-        if (activeDialogCleanup) activeDialogCleanup(false);
-        const mc = document.getElementById('modal-container');
-        const title = options.title || 'Confirm';
-        const message = options.message || '';
-        const confirmText = options.confirmText || 'Confirm';
-        const cancelText = options.cancelText || 'Cancel';
-        const isDanger = !!options.isDanger;
-
-        mc.innerHTML = '<div class="modal-overlay" id="smaran-dialog-overlay">' +
-          '<div class="modal-box" onclick="event.stopPropagation()">' +
-            '<div class="modal-title">' + escapeHtml(title) + '</div>' +
-            '<div class="modal-message">' + escapeHtml(message) + '</div>' +
-            '<div class="modal-actions">' +
-              '<button type="button" id="smaran-dialog-cancel">' + escapeHtml(cancelText) + '</button>' +
-              '<button type="button" class="' + (isDanger ? 'danger' : 'primary') + '" id="smaran-dialog-confirm">' + escapeHtml(confirmText) + '</button>' +
-            '</div>' +
-          '</div>' +
-        '</div>';
-
-        const overlay = document.getElementById('smaran-dialog-overlay');
-        const cancelBtn = document.getElementById('smaran-dialog-cancel');
-        const confirmBtn = document.getElementById('smaran-dialog-confirm');
-
-        function cleanup(result) {
-          document.removeEventListener('keydown', handleKey);
-          activeDialogCleanup = null;
-          mc.innerHTML = '';
-          resolve(result);
-        }
-        function handleKey(e) {
-          if (e.key === 'Escape') { e.preventDefault(); cleanup(false); }
-          else if (e.key === 'Enter') { e.preventDefault(); cleanup(true); }
-        }
-        activeDialogCleanup = cleanup;
-        overlay.onclick = function() { cleanup(false); };
-        cancelBtn.onclick = function() { cleanup(false); };
-        confirmBtn.onclick = function() { cleanup(true); };
-        document.addEventListener('keydown', handleKey);
-        confirmBtn.focus();
-      });
-    }
-
-    function smaranPrompt(options) {
-      return new Promise(function(resolve) {
-        if (activeDialogCleanup) activeDialogCleanup(null);
-        const mc = document.getElementById('modal-container');
-        const title = options.title || 'Input';
-        const message = options.message || '';
-        const defaultValue = options.defaultValue || '';
-        const placeholder = options.placeholder || '';
-        const confirmText = options.confirmText || 'Save';
-        const cancelText = options.cancelText || 'Cancel';
-        const isDanger = !!options.isDanger;
-
-        mc.innerHTML = '<div class="modal-overlay" id="smaran-dialog-overlay">' +
-          '<div class="modal-box" onclick="event.stopPropagation()">' +
-            '<div class="modal-title">' + escapeHtml(title) + '</div>' +
-            '<div class="modal-message">' + escapeHtml(message) + '</div>' +
-            '<input type="text" class="modal-input" id="smaran-dialog-input" value="' + escapeHtml(defaultValue) + '" placeholder="' + escapeHtml(placeholder) + '" />' +
-            '<div class="modal-actions">' +
-              '<button type="button" id="smaran-dialog-cancel">' + escapeHtml(cancelText) + '</button>' +
-              '<button type="button" class="' + (isDanger ? 'danger' : 'primary') + '" id="smaran-dialog-confirm">' + escapeHtml(confirmText) + '</button>' +
-            '</div>' +
-          '</div>' +
-        '</div>';
-
-        const overlay = document.getElementById('smaran-dialog-overlay');
-        const cancelBtn = document.getElementById('smaran-dialog-cancel');
-        const confirmBtn = document.getElementById('smaran-dialog-confirm');
-        const input = document.getElementById('smaran-dialog-input');
-
-        function cleanup(result) {
-          document.removeEventListener('keydown', handleKey);
-          activeDialogCleanup = null;
-          mc.innerHTML = '';
-          resolve(result);
-        }
-        function handleKey(e) {
-          if (e.key === 'Escape') { e.preventDefault(); cleanup(null); }
-          else if (e.key === 'Enter') { e.preventDefault(); cleanup(input.value); }
-        }
-        activeDialogCleanup = cleanup;
-        overlay.onclick = function() { cleanup(null); };
-        cancelBtn.onclick = function() { cleanup(null); };
-        confirmBtn.onclick = function() { cleanup(input.value); };
-        document.addEventListener('keydown', handleKey);
-        input.focus();
-        input.select();
-      });
-    }
-
-    function smaranAlert(options) {
-      return new Promise(function(resolve) {
-        if (activeDialogCleanup) activeDialogCleanup(undefined);
-        const mc = document.getElementById('modal-container');
-        const title = options.title || 'Notice';
-        const message = options.message || '';
-        const confirmText = options.confirmText || 'OK';
-        const tone = options.tone || 'neutral';
-
-        mc.innerHTML = '<div class="modal-overlay" id="smaran-dialog-overlay">' +
-          '<div class="modal-box" onclick="event.stopPropagation()">' +
-            '<div class="modal-title" style="' + (tone === 'error' ? 'color:var(--danger);' : '') + '">' + escapeHtml(title) + '</div>' +
-            '<div class="modal-message">' + escapeHtml(message) + '</div>' +
-            '<div class="modal-actions">' +
-              '<button type="button" class="primary" id="smaran-dialog-confirm">' + escapeHtml(confirmText) + '</button>' +
-            '</div>' +
-          '</div>' +
-        '</div>';
-
-        const overlay = document.getElementById('smaran-dialog-overlay');
-        const confirmBtn = document.getElementById('smaran-dialog-confirm');
-
-        function cleanup() {
-          document.removeEventListener('keydown', handleKey);
-          activeDialogCleanup = null;
-          mc.innerHTML = '';
-          resolve();
-        }
-        function handleKey(e) {
-          if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); cleanup(); }
-        }
-        activeDialogCleanup = cleanup;
-        overlay.onclick = function() { cleanup(); };
-        confirmBtn.onclick = function() { cleanup(); };
-        document.addEventListener('keydown', handleKey);
-        confirmBtn.focus();
-      });
+      const param = Array.from(selectedPaths).join(';');
+      window.location.href = '/api/zip-selection?items=' + encodeURIComponent(param);
     }
 
     async function deleteSelected() {
-      if (selectedPaths.size === 0) return;
       const count = selectedPaths.size;
+      if (count === 0) return;
       const ok = await smaranConfirm({
         title: 'Delete Selected Items',
-        message: 'Are you sure you want to permanently delete ' + count + ' selected item' + (count > 1 ? 's' : '') + '? This action cannot be undone.',
-        confirmText: 'Delete ' + count + ' Item' + (count > 1 ? 's' : ''),
+        message: 'Are you sure you want to permanently delete ' + count + ' selected item' + (count > 1 ? 's' : '') + '?',
+        confirmText: 'Delete All',
         isDanger: true
       });
       if (!ok) return;
-      for (const p of selectedPaths) {
+
+      for (const rel of selectedPaths) {
         await fetch('/api/delete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: p })
+          body: JSON.stringify({ path: rel })
         });
       }
-      clearSelection();
-      showToast(count + ' item' + (count > 1 ? 's' : '') + ' deleted');
+      showToast('Deleted ' + count + ' items');
       loadFiles();
     }
 
-    /* Lightbox & Media Players */
-    function openImageLightbox(item) {
-      lightboxIndex = imageFiles.findIndex(f => f.relativePath === item.relativePath);
-      if (lightboxIndex === -1) lightboxIndex = 0;
-      zoomLevel = 1;
-      rotation = 0;
-      showLightboxModal();
+    function downloadCurrentFolderZip() {
+      window.location.href = '/api/zip?path=' + encodeURIComponent(currentPath);
     }
 
-    function showLightboxModal() {
-      const cur = imageFiles[lightboxIndex];
-      if (!cur) return;
-
+    function showWebDavHelp() {
+      const host = window.location.host;
+      const webdavUrl = window.location.origin + '/webdav';
       const mc = document.getElementById('modal-container');
       mc.innerHTML = \`
         <div class="modal-overlay" onclick="closeModal()">
           <div class="modal-box large" onclick="event.stopPropagation()">
             <div class="modal-title">
-              <span>\${escapeHtml(cur.name)} (\${formatBytes(cur.size)})</span>
-              <button class="icon-only" onclick="closeModal()">✕</button>
+              <span>Mount as Network Drive (WebDAV)</span>
+              <button onclick="closeModal()" class="icon-only" style="border:none;background:transparent;cursor:pointer;">✕</button>
             </div>
-            <div class="modal-body" style="margin-bottom:0;">
-              <div class="lightbox-img-wrap">
-                <img id="lb-image" class="lightbox-img" src="/raw/\${encodeURIComponent(cur.relativePath)}" style="transform: scale(\${zoomLevel}) rotate(\${rotation}deg);">
+            <div class="modal-body">
+              <p class="modal-message">Mount this file server directly inside Windows File Explorer, macOS Finder, or Linux to edit files as a native local drive.</p>
+              <div style="background:#111; padding:12px; border-radius:6px; border:1px solid var(--line); font-family:monospace; margin-bottom:16px; word-break:break-all;">
+                \${webdavUrl}
               </div>
-              <div class="lightbox-toolbar">
-                <div style="display:flex; gap:6px;">
-                  <button onclick="prevImage()" \${imageFiles.length <= 1 ? 'disabled' : ''}>← Prev</button>
-                  <button onclick="nextImage()" \${imageFiles.length <= 1 ? 'disabled' : ''}>Next →</button>
-                  <span style="align-self:center; font-size:12px; color:var(--muted); margin-left:6px;">\${lightboxIndex + 1} / \${imageFiles.length}</span>
-                </div>
-                <div style="display:flex; gap:6px;">
-                  <button onclick="rotateImage()">Rotate</button>
-                  <button onclick="zoomImage(0.2)">Zoom +</button>
-                  <button onclick="zoomImage(-0.2)">Zoom -</button>
-                  <a class="btn primary" href="/download/\${encodeURIComponent(cur.relativePath)}" download="\${escapeHtml(cur.name)}">Download</a>
-                </div>
+              <h4 style="margin-bottom:8px; font-size:13px; color:var(--text);">Windows Setup:</h4>
+              <ol style="margin-left:20px; color:var(--muted); font-size:12.5px; line-height:1.7;">
+                <li>Open <strong>This PC</strong> in File Explorer.</li>
+                <li>Click <strong>Map network drive</strong> on the top menu bar.</li>
+                <li>Enter the WebDAV URL above in the <em>Folder</em> field.</li>
+                <li>Check <em>Connect using different credentials</em>, then sign in with your Smaran username and password.</li>
+              </ol>
+            </div>
+            <div class="modal-actions">
+              <button class="primary" onclick="navigator.clipboard.writeText('\${webdavUrl}'); showToast('WebDAV URL copied!');">Copy WebDAV URL</button>
+              <button onclick="closeModal()">Close</button>
+            </div>
+          </div>
+        </div>
+      \`;
+    }
+
+    async function promptComment(item) {
+      const current = item.comment || '';
+      const comment = await smaranPrompt({
+        title: 'File Description (descript.ion)',
+        message: 'Enter description or note for "' + item.name + '":',
+        defaultValue: current,
+        placeholder: 'e.g. Project backup 2026',
+        confirmText: 'Save Note'
+      });
+      if (comment === null) return;
+      fetch('/api/comment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: item.relativePath, comment: comment.trim() })
+      }).then(res => {
+        if (!res.ok) throw new Error('Could not save note');
+        showToast('Description updated');
+        loadFiles();
+      }).catch(err => smaranAlert({ title: 'Error', message: err.message, tone: 'error' }));
+    }
+
+    // Lightbox & Viewers
+    function openImageLightbox(item) {
+      lightboxIndex = imageFiles.findIndex(i => i.relativePath === item.relativePath);
+      if (lightboxIndex === -1) lightboxIndex = 0;
+      zoomLevel = 1;
+      rotation = 0;
+      renderLightbox();
+    }
+
+    function renderLightbox() {
+      const item = imageFiles[lightboxIndex];
+      if (!item) return;
+      const rawUrl = '/raw/' + encodeURIComponent(item.relativePath);
+      const mc = document.getElementById('modal-container');
+      mc.innerHTML = \`
+        <div class="modal-overlay" onclick="closeModal()">
+          <div class="modal-box large" onclick="event.stopPropagation()">
+            <div class="modal-title">
+              <span>\${escapeHtml(item.name)} (\${lightboxIndex + 1} of \${imageFiles.length})</span>
+              <button onclick="closeModal()" class="icon-only" style="border:none;background:transparent;cursor:pointer;">✕</button>
+            </div>
+            <div class="lightbox-img-wrap">
+              <img id="lb-image" class="lightbox-img" src="\${rawUrl}" style="transform: scale(\${zoomLevel}) rotate(\${rotation}deg);">
+            </div>
+            <div class="lightbox-toolbar">
+              <div style="display:flex; gap:6px;">
+                <button onclick="prevImage()" \${lightboxIndex === 0 ? 'disabled' : ''}>← Prev</button>
+                <button onclick="nextImage()" \${lightboxIndex === imageFiles.length - 1 ? 'disabled' : ''}>Next →</button>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button onclick="zoomIn()">Zoom +</button>
+                <button onclick="zoomOut()">Zoom -</button>
+                <button onclick="rotateImage()">Rotate</button>
+                <a class="btn primary" href="/download/\${encodeURIComponent(item.relativePath)}" download="\${escapeHtml(item.name)}">Download</a>
               </div>
             </div>
           </div>
@@ -1176,49 +1413,53 @@ export function getWebManagerHtml(serverName: string): string {
     }
 
     function prevImage() {
-      if (imageFiles.length === 0) return;
-      lightboxIndex = (lightboxIndex - 1 + imageFiles.length) % imageFiles.length;
-      zoomLevel = 1;
-      rotation = 0;
-      showLightboxModal();
+      if (lightboxIndex > 0) {
+        lightboxIndex--;
+        zoomLevel = 1;
+        rotation = 0;
+        renderLightbox();
+      }
     }
-
     function nextImage() {
-      if (imageFiles.length === 0) return;
-      lightboxIndex = (lightboxIndex + 1) % imageFiles.length;
-      zoomLevel = 1;
-      rotation = 0;
-      showLightboxModal();
+      if (lightboxIndex < imageFiles.length - 1) {
+        lightboxIndex++;
+        zoomLevel = 1;
+        rotation = 0;
+        renderLightbox();
+      }
     }
-
-    function zoomImage(delta) {
-      zoomLevel = Math.max(0.5, Math.min(3, zoomLevel + delta));
-      const img = document.getElementById('lb-image');
-      if (img) img.style.transform = \`scale(\${zoomLevel}) rotate(\${rotation}deg)\`;
+    function zoomIn() {
+      zoomLevel = Math.min(zoomLevel + 0.25, 3);
+      updateLightboxTransform();
     }
-
+    function zoomOut() {
+      zoomLevel = Math.max(zoomLevel - 0.25, 0.5);
+      updateLightboxTransform();
+    }
     function rotateImage() {
       rotation = (rotation + 90) % 360;
+      updateLightboxTransform();
+    }
+    function updateLightboxTransform() {
       const img = document.getElementById('lb-image');
-      if (img) img.style.transform = \`scale(\${zoomLevel}) rotate(\${rotation}deg)\`;
+      if (img) img.style.transform = 'scale(' + zoomLevel + ') rotate(' + rotation + 'deg)';
     }
 
     function openVideoPlayer(item) {
+      const rawUrl = '/raw/' + encodeURIComponent(item.relativePath);
       const mc = document.getElementById('modal-container');
       mc.innerHTML = \`
         <div class="modal-overlay" onclick="closeModal()">
           <div class="modal-box large" onclick="event.stopPropagation()">
             <div class="modal-title">
               <span>\${escapeHtml(item.name)}</span>
-              <button class="icon-only" onclick="closeModal()">✕</button>
+              <button onclick="closeModal()" class="icon-only" style="border:none;background:transparent;cursor:pointer;">✕</button>
             </div>
-            <div class="modal-body" style="text-align:center;">
-              <video controls autoplay playsinline style="max-width:100%; max-height:70vh; border-radius:6px; background:#000;">
-                <source src="/raw/\${encodeURIComponent(item.relativePath)}">
-                Your browser does not support HTML5 video playback.
-              </video>
-            </div>
-            <div class="modal-actions">
+            <video controls autoplay style="width:100%; max-height:70vh; border-radius:6px; background:#000;">
+              <source src="\${rawUrl}">
+              Your browser does not support video playback.
+            </video>
+            <div style="display:flex; justify-content:flex-end; margin-top:12px;">
               <a class="btn primary" href="/download/\${encodeURIComponent(item.relativePath)}" download="\${escapeHtml(item.name)}">Download Video</a>
             </div>
           </div>
@@ -1227,20 +1468,22 @@ export function getWebManagerHtml(serverName: string): string {
     }
 
     function openAudioPlayer(item) {
+      const rawUrl = '/raw/' + encodeURIComponent(item.relativePath);
       const mc = document.getElementById('modal-container');
       mc.innerHTML = \`
         <div class="modal-overlay" onclick="closeModal()">
           <div class="modal-box" onclick="event.stopPropagation()">
             <div class="modal-title">
               <span>\${escapeHtml(item.name)}</span>
-              <button class="icon-only" onclick="closeModal()">✕</button>
+              <button onclick="closeModal()" class="icon-only" style="border:none;background:transparent;cursor:pointer;">✕</button>
             </div>
-            <div class="modal-body" style="text-align:center; padding:18px 0;">
+            <div style="padding:20px 0;">
               <audio controls autoplay style="width:100%;">
-                <source src="/raw/\${encodeURIComponent(item.relativePath)}">
+                <source src="\${rawUrl}">
+                Your browser does not support audio playback.
               </audio>
             </div>
-            <div class="modal-actions">
+            <div style="display:flex; justify-content:flex-end; margin-top:12px;">
               <a class="btn primary" href="/download/\${encodeURIComponent(item.relativePath)}" download="\${escapeHtml(item.name)}">Download Audio</a>
             </div>
           </div>
@@ -1252,101 +1495,129 @@ export function getWebManagerHtml(serverName: string): string {
       try {
         const res = await fetch('/raw/' + encodeURIComponent(item.relativePath));
         const text = await res.text();
-        window._activePreviewText = text;
         const mc = document.getElementById('modal-container');
         mc.innerHTML = \`
           <div class="modal-overlay" onclick="closeModal()">
             <div class="modal-box large" onclick="event.stopPropagation()">
               <div class="modal-title">
-                <span>\${escapeHtml(item.name)} (\${formatBytes(item.size)})</span>
-                <button class="icon-only" onclick="closeModal()">✕</button>
+                <span>\${escapeHtml(item.name)}</span>
+                <button onclick="closeModal()" class="icon-only" style="border:none;background:transparent;cursor:pointer;">✕</button>
               </div>
-              <div class="modal-body">
-                <pre class="code-view"><code>\${escapeHtml(text)}</code></pre>
-              </div>
-              <div class="modal-actions">
-                <button onclick="copyPreviewText()">Copy Text</button>
-                <a class="btn primary" href="/download/\${encodeURIComponent(item.relativePath)}" download="\${escapeHtml(item.name)}">Download</a>
+              <pre class="code-view">\${escapeHtml(text)}</pre>
+              <div style="display:flex; justify-content:flex-end; margin-top:12px;">
+                <a class="btn primary" href="/download/\${encodeURIComponent(item.relativePath)}" download="\${escapeHtml(item.name)}">Download File</a>
               </div>
             </div>
           </div>
         \`;
       } catch (err) {
-        showToast('Failed to load file preview: ' + err.message);
-      }
-    }
-
-    function copyPreviewText() {
-      if (window._activePreviewText) {
-        navigator.clipboard.writeText(window._activePreviewText);
-        showToast('Copied to clipboard');
+        showToast('Error loading file: ' + err.message);
       }
     }
 
     function openPdfViewer(item) {
+      const rawUrl = '/raw/' + encodeURIComponent(item.relativePath);
       const mc = document.getElementById('modal-container');
       mc.innerHTML = \`
         <div class="modal-overlay" onclick="closeModal()">
           <div class="modal-box large" style="height:85vh; display:flex; flex-direction:column;" onclick="event.stopPropagation()">
             <div class="modal-title">
               <span>\${escapeHtml(item.name)}</span>
-              <button class="icon-only" onclick="closeModal()">✕</button>
+              <button onclick="closeModal()" class="icon-only" style="border:none;background:transparent;cursor:pointer;">✕</button>
             </div>
-            <div class="modal-body" style="flex:1; margin-bottom:0;">
-              <iframe src="/raw/\${encodeURIComponent(item.relativePath)}" style="width:100%; height:100%; border:none; border-radius:6px; background:#fff;"></iframe>
-            </div>
+            <iframe src="\${rawUrl}" style="flex:1; width:100%; border:none; border-radius:6px; background:#fff;"></iframe>
           </div>
         </div>
       \`;
     }
 
-    function showWebDavHelp() {
-      const host = window.location.host;
-      const proto = window.location.protocol;
-      const davUrl = proto + '//' + host + '/';
-      const mc = document.getElementById('modal-container');
-      mc.innerHTML = \`
-        <div class="modal-overlay" onclick="closeModal()">
-          <div class="modal-box" onclick="event.stopPropagation()">
-            <div class="modal-title">
-              <span>Map as Windows Network Drive</span>
-              <button class="icon-only" onclick="closeModal()">✕</button>
-            </div>
-            <div class="modal-body" style="font-size:13px; color:var(--text); line-height:1.6;">
-              <p style="margin-bottom:10px;">You can mount this Smaran File Server directly inside Windows File Explorer as a drive letter (e.g. <code>Z:</code>) or inside macOS Finder.</p>
-              <div style="background:#0d0d0f; border:1px solid var(--line); border-radius:6px; padding:10px; margin-bottom:12px; font-family:monospace; font-size:12px; word-break:break-all;">
-                net use Z: \${davUrl}
+    let activeDialogCleanup = null;
+    function smaranAlert(opts) {
+      return new Promise((resolve) => {
+        const mc = document.getElementById('modal-container');
+        const title = opts.title || 'Notice';
+        const message = opts.message || '';
+        const tone = opts.tone || 'neutral';
+        mc.innerHTML = \`
+          <div class="modal-overlay">
+            <div class="modal-box" onclick="event.stopPropagation()">
+              <div class="modal-title">\${escapeHtml(title)}</div>
+              <div class="modal-body">
+                <p class="modal-message">\${escapeHtml(message)}</p>
               </div>
-              <p style="font-size:12px; color:var(--muted);"><strong>In Windows Explorer:</strong> Right click "This PC" → "Map network drive" → enter <code>\${davUrl}</code> → click Finish.</p>
-              <p style="font-size:12px; color:var(--muted); margin-top:6px;"><strong>In macOS:</strong> Finder → Go → Connect to Server → enter <code>\${davUrl}</code>.</p>
-            </div>
-            <div class="modal-actions">
-              <button class="primary" onclick="navigator.clipboard.writeText('net use Z: ' + '\${davUrl}'); showToast('Command copied!');">Copy Command</button>
+              <div class="modal-actions">
+                <button class="primary" id="btn-dialog-ok">OK</button>
+              </div>
             </div>
           </div>
-        </div>
-      \`;
+        \`;
+        activeDialogCleanup = () => { mc.innerHTML = ''; activeDialogCleanup = null; resolve(true); };
+        document.getElementById('btn-dialog-ok').onclick = activeDialogCleanup;
+      });
     }
 
-    async function promptComment(item) {
-      const current = item.comment || '';
-      const text = await smaranPrompt({
-        title: 'File Description',
-        message: 'Enter a description or comment for "' + item.name + '":',
-        defaultValue: current,
-        placeholder: 'Enter notes or description...',
-        confirmText: 'Save Description'
+    function smaranConfirm(opts) {
+      return new Promise((resolve) => {
+        const mc = document.getElementById('modal-container');
+        const title = opts.title || 'Confirm';
+        const message = opts.message || '';
+        const confirmText = opts.confirmText || 'Confirm';
+        const isDanger = opts.isDanger || false;
+        mc.innerHTML = \`
+          <div class="modal-overlay">
+            <div class="modal-box" onclick="event.stopPropagation()">
+              <div class="modal-title">\${escapeHtml(title)}</div>
+              <div class="modal-body">
+                <p class="modal-message">\${escapeHtml(message)}</p>
+              </div>
+              <div class="modal-actions">
+                <button id="btn-dialog-cancel">Cancel</button>
+                <button class="\${isDanger ? 'danger' : 'primary'}" id="btn-dialog-confirm">\${escapeHtml(confirmText)}</button>
+              </div>
+            </div>
+          </div>
+        \`;
+        const cleanup = (val) => { mc.innerHTML = ''; activeDialogCleanup = null; resolve(val); };
+        activeDialogCleanup = () => cleanup(false);
+        document.getElementById('btn-dialog-cancel').onclick = () => cleanup(false);
+        document.getElementById('btn-dialog-confirm').onclick = () => cleanup(true);
       });
-      if (text === null) return;
-      fetch('/api/comment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: item.relativePath, comment: text.trim() })
-      }).then(res => {
-        if (!res.ok) throw new Error('Could not update description');
-        showToast('Description updated');
-        loadFiles();
-      }).catch(err => smaranAlert({ title: 'Error', message: err.message, tone: 'error' }));
+    }
+
+    function smaranPrompt(opts) {
+      return new Promise((resolve) => {
+        const mc = document.getElementById('modal-container');
+        const title = opts.title || 'Input Required';
+        const message = opts.message || '';
+        const placeholder = opts.placeholder || '';
+        const defaultValue = opts.defaultValue || '';
+        const confirmText = opts.confirmText || 'Save';
+        mc.innerHTML = \`
+          <div class="modal-overlay">
+            <div class="modal-box" onclick="event.stopPropagation()">
+              <div class="modal-title">\${escapeHtml(title)}</div>
+              <div class="modal-body">
+                <p class="modal-message">\${escapeHtml(message)}</p>
+                <input type="text" class="modal-input" id="dialog-prompt-input" value="\${escapeHtml(defaultValue)}" placeholder="\${escapeHtml(placeholder)}" autofocus />
+              </div>
+              <div class="modal-actions">
+                <button id="btn-dialog-cancel">Cancel</button>
+                <button class="primary" id="btn-dialog-confirm">\${escapeHtml(confirmText)}</button>
+              </div>
+            </div>
+          </div>
+        \`;
+        const input = document.getElementById('dialog-prompt-input');
+        const cleanup = (val) => { mc.innerHTML = ''; activeDialogCleanup = null; resolve(val); };
+        activeDialogCleanup = () => cleanup(null);
+        document.getElementById('btn-dialog-cancel').onclick = () => cleanup(null);
+        document.getElementById('btn-dialog-confirm').onclick = () => cleanup(input.value);
+        input.onkeydown = (e) => {
+          if (e.key === 'Enter') cleanup(input.value);
+          if (e.key === 'Escape') cleanup(null);
+        };
+        setTimeout(() => input.focus(), 50);
+      });
     }
 
     function closeModal() {
@@ -1371,59 +1642,81 @@ export function getWebManagerHtml(serverName: string): string {
       document.getElementById('file-input').click();
     }
 
-    async function handleFileSelect(files) {
+    async function handleFileSelect(files, targetFolder = currentPath) {
       if (!files || files.length === 0) return;
       for (const file of files) {
-        await uploadFile(file);
+        await uploadFile(file, targetFolder);
       }
       document.getElementById('file-input').value = '';
       loadFiles();
     }
 
-    function uploadFile(file) {
+    function uploadFile(file, targetFolder = currentPath) {
       return new Promise((resolve) => {
-        const pc = document.getElementById('progress-container');
-        const card = document.createElement('div');
-        card.className = 'progress-card';
-        card.innerHTML = \`
-          <div style="display:flex; justify-content:space-between; font-size:12px;">
-            <span>\${escapeHtml(file.name)} (\${formatBytes(file.size)})</span>
-            <span class="pct">0%</span>
-          </div>
-          <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:0%"></div></div>
-        \`;
-        pc.appendChild(card);
+        activeUploadCount++;
+        const dock = document.getElementById('upload-dock');
+        const dockName = document.getElementById('upload-dock-filename');
+        const dockPct = document.getElementById('upload-dock-pct');
+        const dockFill = document.getElementById('upload-dock-fill');
+        const dockSpeed = document.getElementById('upload-dock-speed');
+        const dockEta = document.getElementById('upload-dock-eta');
 
-        const fill = card.querySelector('.progress-bar-fill');
-        const pct = card.querySelector('.pct');
+        dock.style.display = 'flex';
+        dockName.innerText = file.name;
+        dockPct.innerText = '0%';
+        dockFill.style.width = '0%';
+        dockSpeed.innerText = 'Starting...';
+        dockEta.innerText = 'ETA: --';
 
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', '/api/upload?path=' + encodeURIComponent(currentPath) + '&name=' + encodeURIComponent(file.name));
+        xhr.open('POST', '/api/upload?path=' + encodeURIComponent(targetFolder) + '&name=' + encodeURIComponent(file.name));
+
+        let lastLoaded = 0;
+        let lastTime = performance.now();
 
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
             const p = Math.round((e.loaded / e.total) * 100);
-            fill.style.width = p + '%';
-            pct.innerText = p + '%';
+            dockFill.style.width = p + '%';
+            dockPct.innerText = p + '%';
+
+            const now = performance.now();
+            const dtSec = (now - lastTime) / 1000;
+            if (dtSec >= 0.3) {
+              const speedBps = (e.loaded - lastLoaded) / dtSec;
+              lastLoaded = e.loaded;
+              lastTime = now;
+              dockSpeed.innerText = formatBytes(speedBps) + '/s';
+              const remaining = Math.max(0, e.total - e.loaded);
+              const etaSec = speedBps > 0 ? Math.ceil(remaining / speedBps) : 0;
+              dockEta.innerText = 'ETA: ' + (etaSec < 60 ? etaSec + 's' : Math.floor(etaSec / 60) + 'm ' + (etaSec % 60) + 's');
+            }
           }
         };
 
         xhr.onload = () => {
+          activeUploadCount = Math.max(0, activeUploadCount - 1);
           if (xhr.status >= 200 && xhr.status < 300) {
-            pct.innerText = 'Done';
-            pct.style.color = 'var(--ok)';
+            dockPct.innerText = 'Done';
+            dockFill.style.width = '100%';
+            showToast('Uploaded: ' + file.name);
           } else {
-            pct.innerText = 'Failed';
-            pct.style.color = 'var(--danger)';
+            dockPct.innerText = 'Failed';
+            showToast('Upload failed for ' + file.name);
           }
-          setTimeout(() => card.remove(), 2500);
+          setTimeout(() => {
+            if (activeUploadCount === 0) dock.style.display = 'none';
+          }, 2000);
           resolve();
         };
 
         xhr.onerror = () => {
-          pct.innerText = 'Error';
-          pct.style.color = 'var(--danger)';
-          setTimeout(() => card.remove(), 2500);
+          activeUploadCount = Math.max(0, activeUploadCount - 1);
+          dockPct.innerText = 'Error';
+          showToast('Network error uploading ' + file.name);
+          setTimeout(() => {
+            if (activeUploadCount === 0) dock.style.display = 'none';
+          }, 2000);
           resolve();
         };
 
@@ -1431,7 +1724,7 @@ export function getWebManagerHtml(serverName: string): string {
       });
     }
 
-    // Drag and drop handling
+    // Drag and drop handling on window/dropzone
     const dz = document.getElementById('dropzone');
     ['dragenter', 'dragover'].forEach(name => {
       window.addEventListener(name, (e) => { e.preventDefault(); dz.classList.add('dragover'); });
@@ -1450,7 +1743,7 @@ export function getWebManagerHtml(serverName: string): string {
     async function promptNewFolder() {
       const name = await smaranPrompt({
         title: 'New Folder',
-        message: 'Create a new folder in ' + (currentPath === '/' ? 'the root directory' : currentPath) + ':',
+        message: 'Create a new folder in ' + (currentPath === '/' || !currentPath ? 'the root directory' : currentPath) + ':',
         placeholder: 'Folder name',
         confirmText: 'Create Folder'
       });
@@ -1511,15 +1804,15 @@ export function getWebManagerHtml(serverName: string): string {
           <div class="modal-box" onclick="event.stopPropagation()">
             <div class="modal-title">Sign In</div>
             <div class="modal-body">
-              <p class="modal-message">This server requires authentication to access and manage files.</p>
+              <p class="modal-message">Sign in to access your Smaran HFS storage. Default administrator credentials: <strong>smaran</strong> / <strong>smaran@123</strong></p>
               <div id="login-error-msg" class="login-error-alert" style="display:none;"></div>
               <div style="margin-bottom:12px;">
                 <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:5px; font-weight:500;">Username</label>
-                <input type="text" class="modal-input" id="login-user" style="margin-bottom:0;" autofocus />
+                <input type="text" class="modal-input" id="login-user" value="smaran" style="margin-bottom:0;" autofocus />
               </div>
               <div>
                 <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:5px; font-weight:500;">Password</label>
-                <input type="password" class="modal-input" id="login-pass" style="margin-bottom:0;" />
+                <input type="password" class="modal-input" id="login-pass" value="smaran@123" style="margin-bottom:0;" />
               </div>
             </div>
             <div class="modal-actions">
@@ -1535,7 +1828,7 @@ export function getWebManagerHtml(serverName: string): string {
       };
       if (uInput) uInput.addEventListener('keydown', handleKey);
       if (pInput) pInput.addEventListener('keydown', handleKey);
-      if (uInput) uInput.focus();
+      if (pInput) pInput.focus();
     }
 
     async function doLogin() {
@@ -1551,26 +1844,534 @@ export function getWebManagerHtml(serverName: string): string {
           body: JSON.stringify({ username: u, password: p })
         });
         if (res.ok) {
+          const data = await res.json();
+          currentUser = data.user;
           document.getElementById('modal-container').innerHTML = '';
-          loadFiles();
+          updateContextPill();
+          updateSessionUI();
+          if (data.mustChangePassword) {
+            showCompulsoryPasswordModal(true);
+          } else {
+            showToast('Signed in as ' + currentUser.username);
+            loadFiles();
+          }
         } else {
           const errData = await res.json().catch(() => ({}));
           const msg = errData.error || 'Invalid username or password';
           if (errEl) {
             errEl.textContent = msg;
             errEl.style.display = 'block';
-          } else {
-            smaranAlert({ title: 'Sign In Failed', message: msg, tone: 'error' });
           }
         }
       } catch (err) {
         if (errEl) {
           errEl.textContent = 'Server connection failed';
           errEl.style.display = 'block';
-        } else {
-          smaranAlert({ title: 'Network Error', message: 'Could not connect to the file server', tone: 'error' });
         }
       }
+    }
+
+    function showCompulsoryPasswordModal(isCompulsory = true) {
+      const mc = document.getElementById('modal-container');
+      mc.innerHTML = \`
+        <div class="modal-overlay" style="z-index: 250;">
+          <div class="modal-box" onclick="event.stopPropagation()">
+            <div class="modal-title">
+              <span>\${isCompulsory ? 'Compulsory Password Change' : 'Change Password'}</span>
+              \${!isCompulsory ? '<button onclick="closeModal()" class="icon-only" style="border:none;background:transparent;cursor:pointer;">✕</button>' : ''}
+            </div>
+            <div class="modal-body">
+              <p class="modal-message">
+                \${isCompulsory ? 'Welcome to Smaran HFS! You are using default credentials. You must update your password before proceeding.' : 'Update your administrator password:'}
+              </p>
+              <div id="pw-error-msg" class="login-error-alert" style="display:none;"></div>
+              <div style="margin-bottom:12px;">
+                <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:5px; font-weight:500;">Username (Locked)</label>
+                <input type="text" class="modal-input" value="\${escapeHtml(currentUser?.username || 'smaran')}" disabled style="background:#202024; color:var(--muted); cursor:not-allowed; margin-bottom:4px;" />
+                <span style="font-size:11px; color:var(--faint);">The default username 'smaran' is permanent and cannot be modified.</span>
+              </div>
+              <div style="margin-bottom:12px;">
+                <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:5px; font-weight:500;">Current Password</label>
+                <input type="password" class="modal-input" id="cpw-current" value="\${isCompulsory ? 'smaran@123' : ''}" style="margin-bottom:0;" />
+              </div>
+              <div style="margin-bottom:12px;">
+                <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:5px; font-weight:500;">New Password (min 6 characters)</label>
+                <input type="password" class="modal-input" id="cpw-new" placeholder="Enter new password" style="margin-bottom:0;" />
+              </div>
+              <div>
+                <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:5px; font-weight:500;">Confirm New Password</label>
+                <input type="password" class="modal-input" id="cpw-confirm" placeholder="Repeat new password" style="margin-bottom:0;" />
+              </div>
+            </div>
+            <div class="modal-actions">
+              \${!isCompulsory ? '<button onclick="closeModal()">Cancel</button>' : ''}
+              <button class="primary" id="btn-change-pw-submit" onclick="doChangePassword()">Save Password</button>
+            </div>
+          </div>
+        </div>
+      \`;
+    }
+
+    async function doChangePassword() {
+      const cur = document.getElementById('cpw-current').value;
+      const nw = document.getElementById('cpw-new').value;
+      const cnf = document.getElementById('cpw-confirm').value;
+      const errEl = document.getElementById('pw-error-msg');
+      if (errEl) errEl.style.display = 'none';
+
+      if (!cur || !nw) {
+        if (errEl) { errEl.innerText = 'Please fill all password fields'; errEl.style.display = 'block'; }
+        return;
+      }
+      if (nw !== cnf) {
+        if (errEl) { errEl.innerText = 'New password and confirmation do not match'; errEl.style.display = 'block'; }
+        return;
+      }
+      if (nw.length < 6) {
+        if (errEl) { errEl.innerText = 'Password must be at least 6 characters long'; errEl.style.display = 'block'; }
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/change-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currentPassword: cur, newPassword: nw })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          if (currentUser) currentUser.mustChangePassword = false;
+          document.getElementById('modal-container').innerHTML = '';
+          showToast('Password changed successfully!');
+          loadFiles();
+        } else {
+          if (errEl) { errEl.innerText = data.error || 'Failed to update password'; errEl.style.display = 'block'; }
+        }
+      } catch (err) {
+        if (errEl) { errEl.innerText = 'Network error: ' + err.message; errEl.style.display = 'block'; }
+      }
+    }
+
+    /* Speed Test Benchmark Modal */
+    function showSpeedTestModal() {
+      const mc = document.getElementById('modal-container');
+      mc.innerHTML = \`
+        <div class="modal-overlay" onclick="closeModal()">
+          <div class="modal-box large" onclick="event.stopPropagation()">
+            <div class="modal-title">
+              <span>Network & LAN Speed Test Benchmark</span>
+              <button onclick="closeModal()" class="icon-only" style="border:none;background:transparent;cursor:pointer;">✕</button>
+            </div>
+            <div class="modal-body">
+              <p class="modal-message">Benchmark latency and real throughput between your client device and the file server.</p>
+              <div class="st-grid">
+                <div class="st-tile">
+                  <div class="st-label">LAN Latency</div>
+                  <div class="st-value" id="st-ping">-- ms</div>
+                </div>
+                <div class="st-tile">
+                  <div class="st-label">LAN Download</div>
+                  <div class="st-value" id="st-down" style="color:var(--accent);">-- Mbps</div>
+                </div>
+                <div class="st-tile">
+                  <div class="st-label">LAN Upload</div>
+                  <div class="st-value" id="st-up" style="color:var(--ok);">-- Mbps</div>
+                </div>
+                <div class="st-tile">
+                  <div class="st-label">Internet Status</div>
+                  <div class="st-value" id="st-internet" style="font-size:15px;">--</div>
+                </div>
+              </div>
+              <div style="background:var(--line); height:6px; border-radius:999px; overflow:hidden; margin:16px 0;">
+                <div id="st-progress" style="background:var(--accent); width:0%; height:100%; transition:width 0.2s;"></div>
+              </div>
+              <p id="st-status-msg" style="font-size:12.5px; color:var(--muted); font-style:italic;">Ready to benchmark.</p>
+            </div>
+            <div class="modal-actions">
+              <button class="primary" id="btn-start-st" onclick="runSpeedTest()">Run Speed Test</button>
+              <button onclick="closeModal()">Close</button>
+            </div>
+          </div>
+        </div>
+      \`;
+    }
+
+    async function runSpeedTest() {
+      const btn = document.getElementById('btn-start-st');
+      const pEl = document.getElementById('st-ping');
+      const dEl = document.getElementById('st-down');
+      const uEl = document.getElementById('st-up');
+      const iEl = document.getElementById('st-internet');
+      const bar = document.getElementById('st-progress');
+      const msg = document.getElementById('st-status-msg');
+
+      if (btn) btn.disabled = true;
+      pEl.innerText = '-- ms';
+      dEl.innerText = '-- Mbps';
+      uEl.innerText = '-- Mbps';
+      iEl.innerText = '--';
+
+      try {
+        // 1. LAN Ping
+        msg.innerText = '1/3 Measuring LAN ping latency...';
+        bar.style.width = '20%';
+        const pings = [];
+        for (let i = 0; i < 3; i++) {
+          const t0 = performance.now();
+          await fetch('/api/speedtest/ping', { cache: 'no-store' });
+          pings.push(performance.now() - t0);
+        }
+        const avgPing = Math.round((pings.reduce((a, b) => a + b, 0) / pings.length) * 10) / 10;
+        pEl.innerText = avgPing + ' ms';
+
+        // 2. LAN Download (10 MB stream)
+        msg.innerText = '2/3 Measuring LAN Download throughput (10 MB stream)...';
+        bar.style.width = '55%';
+        const tStartDl = performance.now();
+        const resDl = await fetch('/api/speedtest/download?sizeMb=10', { cache: 'no-store' });
+        const blob = await resDl.blob();
+        const dtDl = Math.max(0.001, (performance.now() - tStartDl) / 1000);
+        const dlMbps = Math.round(((blob.size * 8) / dtDl / 1_000_000) * 10) / 10;
+        dEl.innerText = dlMbps + ' Mbps';
+
+        // 3. LAN Upload (8 MB payload)
+        msg.innerText = '3/3 Measuring LAN Upload throughput (8 MB stream)...';
+        bar.style.width = '85%';
+        const buffer = new Uint8Array(8 * 1024 * 1024);
+        const resUp = await fetch('/api/speedtest/upload', {
+          method: 'POST',
+          body: buffer,
+          headers: { 'Content-Type': 'application/octet-stream' }
+        });
+        const upData = await resUp.json();
+        uEl.innerText = upData.speedMbps + ' Mbps';
+
+        // 4. Internet status
+        bar.style.width = '100%';
+        try {
+          const tNet = performance.now();
+          await fetch('https://www.google.com/generate_204', { mode: 'no-cors', cache: 'no-store' });
+          const netMs = Math.round(performance.now() - tNet);
+          iEl.innerText = 'Online (' + netMs + ' ms)';
+        } catch {
+          iEl.innerText = navigator.onLine ? 'Connected' : 'Offline';
+        }
+        msg.innerText = 'Benchmark complete!';
+      } catch (err) {
+        msg.innerText = 'Benchmark error: ' + err.message;
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    /* Web Admin Panel */
+    async function showAdminModal() {
+      if (!currentUser || currentUser.role !== 'admin') {
+        smaranAlert({ title: 'Access Denied', message: 'Administrator role required.', tone: 'error' });
+        return;
+      }
+
+      const mc = document.getElementById('modal-container');
+      mc.innerHTML = \`
+        <div class="modal-overlay" onclick="closeModal()">
+          <div class="modal-box large" onclick="event.stopPropagation()">
+            <div class="modal-title">
+              <span>Smaran HFS Web Administration Panel</span>
+              <button onclick="closeModal()" class="icon-only" style="border:none;background:transparent;cursor:pointer;">✕</button>
+            </div>
+            <div class="admin-nav">
+              <button class="admin-nav-btn active" onclick="switchAdminTab('settings')">Settings</button>
+              <button class="admin-nav-btn" onclick="switchAdminTab('users')">User Accounts</button>
+              <button class="admin-nav-btn" onclick="switchAdminTab('vfs')">VFS Mounts</button>
+              <button class="admin-nav-btn" onclick="switchAdminTab('logs')">Audit Logs</button>
+            </div>
+            <div class="modal-body" style="min-height:360px;">
+              <div id="admin-pane-settings" class="admin-pane active">Loading settings...</div>
+              <div id="admin-pane-users" class="admin-pane">Loading users...</div>
+              <div id="admin-pane-vfs" class="admin-pane">Loading VFS mounts...</div>
+              <div id="admin-pane-logs" class="admin-pane">Loading audit logs...</div>
+            </div>
+          </div>
+        </div>
+      \`;
+
+      loadAdminSettings();
+    }
+
+    function switchAdminTab(name) {
+      document.querySelectorAll('.admin-nav-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+      document.querySelectorAll('.admin-pane').forEach(p => p.classList.remove('active'));
+      const activePane = document.getElementById('admin-pane-' + name);
+      if (activePane) activePane.classList.add('active');
+
+      if (name === 'settings') loadAdminSettings();
+      if (name === 'users') loadAdminUsers();
+      if (name === 'vfs') loadAdminVfs();
+      if (name === 'logs') loadAdminLogs();
+    }
+
+    async function loadAdminSettings() {
+      const pane = document.getElementById('admin-pane-settings');
+      try {
+        const res = await fetch('/api/admin/settings');
+        const s = await res.json();
+        pane.innerHTML = \`
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div>
+              <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Server Name</label>
+              <input type="text" class="modal-input" id="adm-set-name" value="\${escapeHtml(s.serverName)}" style="margin-bottom:0;" />
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              <div>
+                <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Port</label>
+                <input type="number" class="modal-input" id="adm-set-port" value="\${s.port}" style="margin-bottom:0;" />
+              </div>
+              <div>
+                <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Max Connections</label>
+                <input type="number" class="modal-input" id="adm-set-maxconns" value="\${s.maxConnections || 2048}" style="margin-bottom:0;" />
+              </div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              <div>
+                <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Upload Limit (MB)</label>
+                <input type="number" class="modal-input" id="adm-set-uploadlimit" value="\${s.uploadLimitMb || 4096}" style="margin-bottom:0;" />
+              </div>
+              <div>
+                <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Rate Limit / min</label>
+                <input type="number" class="modal-input" id="adm-set-ratelimit" value="\${s.rateLimitPerMin || 600}" style="margin-bottom:0;" />
+              </div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; margin-top:14px;">
+              <button class="primary" onclick="saveAdminSettings()">Save Server Settings</button>
+            </div>
+          </div>
+        \`;
+      } catch (err) {
+        pane.innerHTML = '<p style="color:var(--danger)">Failed to load settings: ' + escapeHtml(err.message) + '</p>';
+      }
+    }
+
+    async function saveAdminSettings() {
+      const serverName = document.getElementById('adm-set-name').value;
+      const port = Number(document.getElementById('adm-set-port').value);
+      const maxConnections = Number(document.getElementById('adm-set-maxconns').value);
+      const uploadLimitMb = Number(document.getElementById('adm-set-uploadlimit').value);
+      const rateLimitPerMin = Number(document.getElementById('adm-set-ratelimit').value);
+
+      const res = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ serverName, port, maxConnections, uploadLimitMb, rateLimitPerMin })
+      });
+      if (res.ok) {
+        showToast('Settings saved!');
+      } else {
+        smaranAlert({ title: 'Error', message: 'Could not update settings', tone: 'error' });
+      }
+    }
+
+    async function loadAdminUsers() {
+      const pane = document.getElementById('admin-pane-users');
+      try {
+        const res = await fetch('/api/admin/users');
+        const data = await res.json();
+        const users = data.users || [];
+        let html = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">'
+          + '<span style="font-weight:600; font-size:13px;">Configured User Accounts</span>'
+          + '<button class="primary" onclick="promptAddUserModal()">+ Add User</button>'
+          + '</div>'
+          + '<table class="admin-table">'
+          + '<thead><tr><th>Username</th><th>Role</th><th>Permissions</th><th>Actions</th></tr></thead>'
+          + '<tbody>';
+        for (const u of users) {
+          const perms = ['Read'];
+          if (u.permissions && u.permissions.upload) perms.push('Upload');
+          if (u.permissions && u.permissions.delete) perms.push('Delete');
+          if (u.permissions && u.permissions.rename) perms.push('Rename');
+          if (u.permissions && u.permissions.mkdir) perms.push('Mkdir');
+          const isSmaran = u.username.toLowerCase() === 'smaran';
+          html += '<tr>'
+            + '<td><strong>' + escapeHtml(u.username) + '</strong> ' + (isSmaran ? '<span class="badge">System</span>' : '') + '</td>'
+            + '<td>' + escapeHtml(u.role) + '</td>'
+            + '<td style="font-size:11px; color:var(--muted);">' + perms.join(', ') + '</td>'
+            + '<td>' + (!isSmaran && !u.isSystem ? '<button class="danger action-btn" data-user-id="' + escapeHtml(u.id) + '" onclick="deleteAdminUser(this.dataset.userId)">Delete</button>' : '<span style="font-size:11px; color:var(--muted);">Permanent</span>') + '</td>'
+            + '</tr>';
+        }
+        html += '</tbody></table>';
+        pane.innerHTML = html;
+      } catch (err) {
+        pane.innerHTML = '<p style="color:var(--danger)">Error loading users: ' + escapeHtml(err.message) + '</p>';
+      }
+    }
+
+    function promptAddUserModal() {
+      const mc = document.createElement('div');
+      mc.id = 'sub-modal';
+      mc.innerHTML = \`
+        <div class="modal-overlay" style="z-index:160;">
+          <div class="modal-box" onclick="event.stopPropagation()">
+            <div class="modal-title">Add New User Account</div>
+            <div class="modal-body">
+              <p class="modal-message">All permissions are enabled by default for new accounts.</p>
+              <div style="margin-bottom:10px;">
+                <label style="font-size:12px; color:var(--muted);">Username</label>
+                <input type="text" class="modal-input" id="new-u-name" placeholder="Username" style="margin-bottom:0;" />
+              </div>
+              <div style="margin-bottom:10px;">
+                <label style="font-size:12px; color:var(--muted);">Password</label>
+                <input type="password" class="modal-input" id="new-u-pass" placeholder="Password" style="margin-bottom:0;" />
+              </div>
+              <div style="margin-bottom:12px;">
+                <label style="font-size:12px; color:var(--muted);">Role</label>
+                <select id="new-u-role" class="modal-input" style="margin-bottom:0;">
+                  <option value="user" selected>Standard User</option>
+                  <option value="admin">Administrator</option>
+                  <option value="guest">Guest</option>
+                </select>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:6px; font-size:12.5px; margin-top:8px;">
+                <label><input type="checkbox" id="perm-read" checked /> Read Files & Folders</label>
+                <label><input type="checkbox" id="perm-upload" checked /> Upload Files</label>
+                <label><input type="checkbox" id="perm-delete" checked /> Delete Files & Folders</label>
+                <label><input type="checkbox" id="perm-rename" checked /> Rename Files</label>
+                <label><input type="checkbox" id="perm-mkdir" checked /> Create New Folders</label>
+                <label><input type="checkbox" id="perm-comment" checked /> Edit Descriptions</label>
+                <label><input type="checkbox" id="perm-vfs" /> Manage VFS Mounts</label>
+                <label><input type="checkbox" id="perm-zip" checked /> Download ZIP Archives</label>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button onclick="document.getElementById('sub-modal').remove()">Cancel</button>
+              <button class="primary" onclick="submitCreateUser()">Save User</button>
+            </div>
+          </div>
+        </div>
+      \`;
+      document.body.appendChild(mc);
+    }
+
+    async function submitCreateUser() {
+      const username = document.getElementById('new-u-name').value.trim();
+      const password = document.getElementById('new-u-pass').value.trim();
+      const role = document.getElementById('new-u-role').value;
+      if (!username || !password) {
+        alert('Username and password are required');
+        return;
+      }
+      const permissions = {
+        read: document.getElementById('perm-read').checked,
+        upload: document.getElementById('perm-upload').checked,
+        delete: document.getElementById('perm-delete').checked,
+        rename: document.getElementById('perm-rename').checked,
+        mkdir: document.getElementById('perm-mkdir').checked,
+        comment: document.getElementById('perm-comment').checked,
+        vfs: document.getElementById('perm-vfs').checked,
+        zip: document.getElementById('perm-zip').checked,
+      };
+      const res = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, role, permissions })
+      });
+      if (res.ok) {
+        document.getElementById('sub-modal').remove();
+        showToast('User ' + username + ' created');
+        loadAdminUsers();
+      } else {
+        alert('Could not save user');
+      }
+    }
+
+    async function deleteAdminUser(id) {
+      if (!confirm('Are you sure you want to delete this user?')) return;
+      const res = await fetch('/api/admin/users/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      if (res.ok) {
+        showToast('User deleted');
+        loadAdminUsers();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Cannot delete user');
+      }
+    }
+
+    async function loadAdminVfs() {
+      const pane = document.getElementById('admin-pane-vfs');
+      try {
+        const res = await fetch('/api/admin/vfs');
+        const data = await res.json();
+        const nodes = data.nodes || [];
+        let html = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">'
+          + '<span style="font-weight:600; font-size:13px;">Virtual File System Mounts</span>'
+          + '</div>';
+        if (nodes.length === 0) {
+          html += '<p style="color:var(--muted); font-size:13px;">Default storage root mounted at /</p>';
+        } else {
+          html += '<table class="admin-table">'
+            + '<thead><tr><th>Virtual Path</th><th>Name</th><th>Type</th><th>Actions</th></tr></thead><tbody>';
+          for (const n of nodes) {
+            html += '<tr>'
+              + '<td style="font-family:monospace;">' + escapeHtml(n.vfsPath) + '</td>'
+              + '<td>' + escapeHtml(n.name) + '</td>'
+              + '<td><span class="badge">' + escapeHtml(n.type) + '</span></td>'
+              + '<td><button class="danger action-btn" data-vfs-id="' + escapeHtml(n.id) + '" onclick="deleteAdminVfs(this.dataset.vfsId)">Delete</button></td>'
+              + '</tr>';
+          }
+          html += '</tbody></table>';
+        }
+        pane.innerHTML = html;
+      } catch (err) {
+        pane.innerHTML = '<p style="color:var(--danger)">Error: ' + escapeHtml(err.message) + '</p>';
+      }
+    }
+
+    async function deleteAdminVfs(id) {
+      if (!confirm('Remove this VFS mount?')) return;
+      await fetch('/api/admin/vfs/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      loadAdminVfs();
+    }
+
+    async function loadAdminLogs() {
+      const pane = document.getElementById('admin-pane-logs');
+      try {
+        const res = await fetch('/api/admin/logs');
+        const data = await res.json();
+        const logs = data.logs || [];
+        let html = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">'
+          + '<span style="font-weight:600; font-size:13px;">Server Audit Log (' + logs.length + ' entries)</span>'
+          + '<button class="danger action-btn" onclick="clearAdminLogs()">Clear Logs</button>'
+          + '</div>'
+          + '<div style="max-height:300px; overflow-y:auto; border:1px solid var(--line); border-radius:6px;">'
+          + '<table class="admin-table">'
+          + '<thead><tr><th>Time</th><th>IP</th><th>Action</th><th>Status</th></tr></thead><tbody>';
+        for (const l of logs) {
+          const badgeStyle = (l.status >= 400) ? 'color:var(--danger); background:rgba(239,68,68,0.15);' : '';
+          html += '<tr>'
+            + '<td style="font-size:11px; color:var(--muted); white-space:nowrap;">' + formatDate(l.timestamp) + '</td>'
+            + '<td style="font-family:monospace; font-size:11.5px;">' + escapeHtml(l.clientIp || '') + '</td>'
+            + '<td style="font-size:12px;">' + escapeHtml(l.message || '') + '</td>'
+            + '<td style="font-size:11px;"><span class="badge" style="' + badgeStyle + '">' + (l.status || 200) + '</span></td>'
+            + '</tr>';
+        }
+        html += '</tbody></table></div>';
+        pane.innerHTML = html;
+      } catch (err) {
+        pane.innerHTML = '<p style="color:var(--danger)">Error: ' + escapeHtml(err.message) + '</p>';
+      }
+    }
+
+    async function clearAdminLogs() {
+      if (!confirm('Clear all audit logs?')) return;
+      await fetch('/api/admin/logs/clear', { method: 'POST' });
+      loadAdminLogs();
     }
 
     /* Smaran Animated Dots Logo Engine */
@@ -1787,9 +2588,11 @@ export function getWebManagerHtml(serverName: string): string {
       if (e.key === 'ArrowRight') nextImage();
     });
 
-    // Initialize Animated Logo & Initial Load
+    // Initialize Animated Logo, Session & Initial Load
     initSmaranDots();
-    loadFiles();
+    checkSession().finally(() => {
+      loadFiles();
+    });
   </script>
 </body>
 </html>`;

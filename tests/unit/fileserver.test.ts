@@ -135,23 +135,34 @@ describe('FileServerStore', () => {
 
   it('handles user accounts CRUD', () => {
     const store = new FileServerStore(tmpStoreDir);
+    // Initial users contain default system admin 'smaran'
+    expect(store.getUsers()).toHaveLength(1);
+    expect(store.findUserByUsername('smaran')).toBeDefined();
+
     const user = {
       id: 'u1',
       username: 'alice',
       passwordHash: hashPassword('secret'),
       role: 'admin' as const,
-      permissions: { read: true, upload: true, delete: true, rename: true, mkdir: true },
+      permissions: { read: true, upload: true, delete: true, rename: true, mkdir: true, comment: true, vfs: true, zip: true },
       allowedFolders: [],
+      mustChangePassword: false,
+      isSystem: false,
       createdAt: new Date().toISOString(),
     };
 
     store.saveUser(user);
-    expect(store.getUsers()).toHaveLength(1);
+    expect(store.getUsers()).toHaveLength(2);
     expect(store.findUserByUsername('alice')).toBeDefined();
     expect(store.findUserByUsername('ALICE')).toBeDefined(); // Case-insensitive lookup
 
     store.deleteUser('u1');
-    expect(store.getUsers()).toHaveLength(0);
+    expect(store.getUsers()).toHaveLength(1);
+    expect(store.findUserByUsername('smaran')).toBeDefined();
+
+    // Verify system admin 'smaran' cannot be deleted
+    const smaranUser = store.findUserByUsername('smaran')!;
+    expect(() => store.deleteUser(smaranUser.id)).toThrow();
   });
 
   it('handles shares, transfers, and logs', () => {

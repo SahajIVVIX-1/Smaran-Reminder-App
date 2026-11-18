@@ -5,10 +5,13 @@ export type UserRole = z.infer<typeof UserRoleSchema>;
 
 export const PermissionsSchema = z.object({
   read: z.boolean().default(true),
-  upload: z.boolean().default(false),
-  delete: z.boolean().default(false),
-  rename: z.boolean().default(false),
-  mkdir: z.boolean().default(false),
+  upload: z.boolean().default(true),
+  delete: z.boolean().default(true),
+  rename: z.boolean().default(true),
+  mkdir: z.boolean().default(true),
+  comment: z.boolean().default(true),
+  vfs: z.boolean().default(false),
+  zip: z.boolean().default(true),
 });
 export type Permissions = z.infer<typeof PermissionsSchema>;
 
@@ -19,6 +22,8 @@ export const UserAccountSchema = z.object({
   role: UserRoleSchema,
   permissions: PermissionsSchema,
   allowedFolders: z.array(z.string()).default([]),
+  mustChangePassword: z.boolean().default(false),
+  isSystem: z.boolean().default(false),
   createdAt: z.string(),
 });
 export type UserAccount = z.infer<typeof UserAccountSchema>;
@@ -99,11 +104,11 @@ export const FileServerSettingsSchema = z.object({
   port: z.number().int().min(1).max(65535).default(5900),
   bindAddress: z.string().default('0.0.0.0'),
   rootDir: z.string(),
-  maxConnections: z.number().int().min(1).max(1000).default(50),
+  maxConnections: z.number().int().min(1).max(10000).default(2048),
   uploadLimitMb: z.number().int().min(1).max(102400).default(4096), // 4GB default
   rateLimitPerMin: z.number().int().min(10).max(10000).default(600),
-  authEnabled: z.boolean().default(false),
-  guestAccess: z.boolean().default(true),
+  authEnabled: z.boolean().default(true),
+  guestAccess: z.boolean().default(false),
   allowPublicUploads: z.boolean().default(false),
   enableRangeRequests: z.boolean().default(true),
   httpsEnabled: z.boolean().default(false),

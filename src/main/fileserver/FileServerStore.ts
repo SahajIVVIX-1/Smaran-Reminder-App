@@ -10,6 +10,7 @@ import type {
   VfsNode,
   VirtualFolder,
 } from '@shared/fileserver';
+import { hashPassword } from './security';
 
 const FILE_SERVER_STORE_NAME = 'fileserver.json';
 const MAX_LOGS = 1000;
@@ -51,11 +52,11 @@ export class FileServerStore {
       port: 5900,
       bindAddress: '0.0.0.0',
       rootDir: this.getDefaultRootDir(),
-      maxConnections: 50,
+      maxConnections: 2048,
       uploadLimitMb: 4096,
       rateLimitPerMin: 600,
-      authEnabled: false,
-      guestAccess: true,
+      authEnabled: true,
+      guestAccess: false,
       allowPublicUploads: false,
       enableRangeRequests: true,
       httpsEnabled: false,
@@ -75,12 +76,37 @@ export class FileServerStore {
       bruteForceProtection: true,
     };
 
+    const createDefaultAdmin = (): UserAccount => ({
+      id: 'user_smaran_system',
+      username: 'smaran',
+      passwordHash: hashPassword('smaran@123'),
+      role: 'admin',
+      permissions: {
+        read: true,
+        upload: true,
+        delete: true,
+        rename: true,
+        mkdir: true,
+        comment: true,
+        vfs: true,
+        zip: true,
+      },
+      allowedFolders: [],
+      mustChangePassword: true,
+      isSystem: true,
+      createdAt: new Date().toISOString(),
+    });
+
     if (fs.existsSync(this.filePath)) {
       try {
         const raw = JSON.parse(fs.readFileSync(this.filePath, 'utf8'));
+        const users: UserAccount[] = Array.isArray(raw.users) ? raw.users : [];
+        if (!users.some((u) => u.username.toLowerCase() === 'smaran')) {
+          users.unshift(createDefaultAdmin());
+        }
         return {
           settings: { ...defaultSettings, ...(raw.settings || {}) },
-          users: Array.isArray(raw.users) ? raw.users : [],
+          users,
           shares: Array.isArray(raw.shares) ? raw.shares : [],
           virtualFolders: Array.isArray(raw.virtualFolders) ? raw.virtualFolders : [],
           vfsNodes: Array.isArray(raw.vfsNodes) ? raw.vfsNodes : [],
@@ -93,7 +119,7 @@ export class FileServerStore {
 
     return {
       settings: defaultSettings,
-      users: [],
+      users: [createDefaultAdmin()],
       shares: [],
       virtualFolders: [],
       vfsNodes: [],
@@ -150,6 +176,14 @@ export class FileServerStore {
   }
 
   saveUser(user: UserAccount): void {
+    const existing = this.data.users.find(
+      (u) => u.id === user.id || u.username.toLowerCase() === user.username.toLowerCase(),
+    );
+    if (existing && existing.username.toLowerCase() === 'smaran') {
+      user.username = 'smaran';
+      user.role = 'admin';
+      user.isSystem = true;
+    }
     const idx = this.data.users.findIndex((u) => u.id === user.id);
     if (idx >= 0) {
       this.data.users[idx] = user;
@@ -160,8 +194,23 @@ export class FileServerStore {
   }
 
   deleteUser(id: string): void {
+    const user = this.data.users.find((u) => u.id === id);
+    if (user && (user.username.toLowerCase() === 'smaran' || user.isSystem)) {
+      throw new Error("Default system administrator 'smaran' cannot be deleted");
+    }
     this.data.users = this.data.users.filter((u) => u.id !== id);
     this.save();
+  }
+
+  updateUserPassword(username: string, newPasswordHash: string): boolean {
+    const user = this.data.users.find(
+      (u) => u.username.toLowerCase() === username.trim().toLowerCase(),
+    );
+    if (!user) return false;
+    user.passwordHash = newPasswordHash;
+    user.mustChangePassword = false;
+    this.save();
+    return true;
   }
 
   findUserByUsername(username: string): UserAccount | undefined {

@@ -6,17 +6,21 @@ import { randomUUID } from 'node:crypto';
 import type { Socket } from 'node:net';
 import type {
   ActiveTransfer,
+  FileServerSettings,
   LiveConnection,
   ServerLogEntry,
   ServerStatus,
   TransferHistoryEntry,
   UserAccount,
+  UserRole,
+  VfsNode,
 } from '@shared/fileserver';
 import type { FileServerStore } from './FileServerStore';
 import { lookupMime } from './mime';
 import { buildServerUrls, getLanIps } from './network';
 import {
   BruteForceLimiter,
+  hashPassword,
   isIpAllowed,
   resolveSafePath,
   verifyPassword,
@@ -47,11 +51,22 @@ interface SocketTracker {
   lastActivity: number;
 }
 
+interface SessionInfo {
+  id: string;
+  username: string;
+  role: 'admin' | 'user' | 'guest';
+  clientIp: string;
+  createdAt: number;
+  lastActivity: number;
+}
+
 export class HttpServer {
   private server: http.Server | https.Server | null = null;
   private startedAt: number | null = null;
   private socketMap = new Map<Socket, SocketTracker>();
   private activeTransfers = new Map<string, ActiveTransfer>();
+  private sessions = new Map<string, SessionInfo>();
+  private readonly SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15-minute inactivity timeout
   private totalBytesUploaded = 0;
   private totalBytesDownloaded = 0;
   private currentUploadSpeedBps = 0;
@@ -109,7 +124,14 @@ export class HttpServer {
           this.server = http.createServer(requestHandler);
         }
 
+        // Concurrency & keep-alive tuning for high-volume LAN clients (1000s of PCs)
+        this.server.maxConnections = settings.maxConnections || 2048;
+        this.server.keepAliveTimeout = 65000;
+        this.server.headersTimeout = 66000;
+
         this.server.on('connection', (socket: Socket) => {
+          socket.setNoDelay(true);
+          socket.setKeepAlive(true, 15000);
           const clientIp = socket.remoteAddress || '127.0.0.1';
           const tracker: SocketTracker = {
             id: randomUUID(),
@@ -331,10 +353,61 @@ export class HttpServer {
     return entry.count <= maxPerMin;
   }
 
+  private getCleanClientIp(req: http.IncomingMessage): string {
+    let ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    if (ip && ip.includes(',')) ip = ip.split(',')[0]?.trim() || '127.0.0.1';
+    if (ip.startsWith('::ffff:')) ip = ip.substring(7);
+    if (ip === '::1') ip = '127.0.0.1';
+    return ip;
+  }
+
+  private getSessionIdFromReq(req: http.IncomingMessage): string | null {
+    const cookie = req.headers.cookie;
+    if (cookie) {
+      const match = cookie.match(/smaran_session=([a-zA-Z0-9_-]+)/);
+      if (match && match[1]) return match[1];
+    }
+    const headerToken = req.headers['x-session-id'];
+    if (typeof headerToken === 'string') return headerToken;
+    return null;
+  }
+
+  private isSessionValid(session: SessionInfo): boolean {
+    const idleMs = Date.now() - session.lastActivity;
+    if (idleMs <= this.SESSION_TIMEOUT_MS) {
+      return true;
+    }
+    // Exempt if client has active uploads or downloads
+    const hasTransfers = Array.from(this.activeTransfers.values()).some(
+      (t) => t.clientIp === session.clientIp,
+    );
+    if (hasTransfers) {
+      session.lastActivity = Date.now();
+      return true;
+    }
+    return false;
+  }
+
   private authenticateUser(req: http.IncomingMessage): UserAccount | null {
     const settings = this.store.getSettings();
     if (!settings.authEnabled) return null;
 
+    // 1. Session lookup
+    const sessionId = this.getSessionIdFromReq(req);
+    if (sessionId) {
+      const session = this.sessions.get(sessionId);
+      if (session) {
+        if (this.isSessionValid(session)) {
+          session.lastActivity = Date.now();
+          const user = this.store.findUserByUsername(session.username);
+          if (user) return user;
+        } else {
+          this.sessions.delete(sessionId);
+        }
+      }
+    }
+
+    // 2. HTTP Basic Auth
     const authHeader = req.headers['authorization'];
     if (authHeader && authHeader.startsWith('Basic ')) {
       try {
@@ -409,7 +482,7 @@ export class HttpServer {
     // CORS headers for LAN clients
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PROPFIND, MKCOL, MOVE, COPY, LOCK, UNLOCK');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Range, Depth, Destination, Timeout, Lock-Token');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Range, Depth, Destination, Timeout, Lock-Token, X-Session-Id');
     res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Content-Length, Accept-Ranges, DAV, Lock-Token');
 
     if (req.method === 'OPTIONS' && !this.webdav.isWebDavRequest(req)) {
@@ -418,9 +491,18 @@ export class HttpServer {
       return;
     }
 
-    // 4. WebDAV Protocol Handling
+    // 4. WebDAV Protocol Handling with Basic Auth challenge
     if (settings.webdavEnabled && this.webdav.isWebDavRequest(req)) {
-      const handled = await this.webdav.handleRequest(req, res, clientIp);
+      const user = this.authenticateUser(req);
+      if (settings.authEnabled && !user) {
+        res.writeHead(401, {
+          'WWW-Authenticate': 'Basic realm="Smaran HFS"',
+          'Content-Type': 'text/plain',
+        });
+        res.end('WebDAV authentication required');
+        return;
+      }
+      const handled = await this.webdav.handleRequest(req, res, clientIp, user);
       if (handled) return;
     }
 
@@ -428,8 +510,16 @@ export class HttpServer {
     const parsedUrl = new URL(rawUrl, 'http://localhost');
     const pathname = parsedUrl.pathname;
 
-    // 5. Root & Web File Manager UI
+    // 5. Root & Web File Manager UI with Context auto-rewrite
     if (pathname === '/' || pathname === '/index.html') {
+      const user = this.authenticateUser(req);
+      if (!parsedUrl.searchParams.has('context')) {
+        const username = user ? user.username : 'visitor';
+        const cleanIp = this.getCleanClientIp(req);
+        res.writeHead(302, { Location: `/?context=${encodeURIComponent(username)}@${cleanIp}` });
+        res.end();
+        return;
+      }
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(getWebManagerHtml(settings.serverName));
       return;
@@ -442,6 +532,41 @@ export class HttpServer {
       return;
     }
 
+    // 6.1 Session status endpoint
+    if (pathname === '/api/session' && req.method === 'GET') {
+      const user = this.authenticateUser(req);
+      const sessionId = this.getSessionIdFromReq(req);
+      const session = sessionId ? this.sessions.get(sessionId) : null;
+      const remainingSeconds = session
+        ? Math.max(0, Math.floor((this.SESSION_TIMEOUT_MS - (Date.now() - session.lastActivity)) / 1000))
+        : 0;
+      const hasActiveTransfers = Array.from(this.activeTransfers.values()).some(
+        (t) => t.clientIp === clientIp,
+      );
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          authenticated: !!user,
+          user: user
+            ? {
+                id: user.id,
+                username: user.username,
+                role: user.role,
+                permissions: user.permissions,
+                mustChangePassword: !!user.mustChangePassword,
+                isSystem: !!user.isSystem,
+              }
+            : null,
+          clientIp: this.getCleanClientIp(req),
+          expiresInSeconds: remainingSeconds,
+          hasActiveTransfers,
+          authEnabled: settings.authEnabled,
+          serverName: settings.serverName,
+        }),
+      );
+      return;
+    }
+
     // 7. Login API
     if (pathname === '/api/login' && req.method === 'POST') {
       const body = await this.readJsonBody(req);
@@ -449,8 +574,35 @@ export class HttpServer {
         const user = this.store.findUserByUsername(body.username);
         if (user && verifyPassword(body.password, user.passwordHash)) {
           this.bruteForce.recordSuccess(clientIp);
+          const sessionId = randomUUID();
+          this.sessions.set(sessionId, {
+            id: sessionId,
+            username: user.username,
+            role: user.role,
+            clientIp,
+            createdAt: Date.now(),
+            lastActivity: Date.now(),
+          });
+          res.setHeader(
+            'Set-Cookie',
+            `smaran_session=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`,
+          );
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: true, user: { username: user.username, role: user.role } }));
+          res.end(
+            JSON.stringify({
+              ok: true,
+              sessionId,
+              mustChangePassword: !!user.mustChangePassword,
+              user: {
+                id: user.id,
+                username: user.username,
+                role: user.role,
+                permissions: user.permissions,
+                mustChangePassword: !!user.mustChangePassword,
+                isSystem: !!user.isSystem,
+              },
+            }),
+          );
           this.log('info', `User '${user.username}' logged in successfully`, req, 200);
           return;
         }
@@ -462,9 +614,327 @@ export class HttpServer {
       return;
     }
 
+    // 7.1 Change Password API
+    if (pathname === '/api/change-password' && req.method === 'POST') {
+      const user = this.authenticateUser(req);
+      if (!user) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Authentication required' }));
+        return;
+      }
+      const body = await this.readJsonBody(req);
+      const currentPassword = String(body?.currentPassword || '');
+      const newPassword = String(body?.newPassword || '');
+
+      if (!verifyPassword(currentPassword, user.passwordHash)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Current password is incorrect' }));
+        return;
+      }
+      if (newPassword.length < 6) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'New password must be at least 6 characters' }));
+        return;
+      }
+      const newHash = hashPassword(newPassword);
+      this.store.updateUserPassword(user.username, newHash);
+      this.log('info', `Password updated for '${user.username}'`, req, 200);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, message: 'Password changed successfully' }));
+      return;
+    }
+
+    // 7.2 Logout API
+    if (pathname === '/api/logout' && req.method === 'POST') {
+      const sessionId = this.getSessionIdFromReq(req);
+      if (sessionId) {
+        this.sessions.delete(sessionId);
+      }
+      res.setHeader(
+        'Set-Cookie',
+        'smaran_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax',
+      );
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
+    // 7.3 Speed Test Ping Endpoint
+    if (pathname === '/api/speedtest/ping') {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ ok: true, timestamp: Date.now() }));
+      return;
+    }
+
+    // 7.4 Speed Test Download Endpoint (LAN fast stream)
+    if (pathname === '/api/speedtest/download') {
+      const sizeMb = Math.min(
+        100,
+        Math.max(1, parseInt(parsedUrl.searchParams.get('sizeMb') || '10', 10)),
+      );
+      const totalBytes = sizeMb * 1024 * 1024;
+      res.writeHead(200, {
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': totalBytes,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      });
+      const chunk = Buffer.alloc(64 * 1024, 0xaa);
+      let bytesSent = 0;
+      const sendChunk = () => {
+        while (bytesSent < totalBytes) {
+          const remaining = totalBytes - bytesSent;
+          const toSend = Math.min(remaining, chunk.length);
+          const slice = toSend === chunk.length ? chunk : chunk.subarray(0, toSend);
+          bytesSent += toSend;
+          const canContinue = res.write(slice);
+          if (!canContinue) {
+            res.once('drain', sendChunk);
+            return;
+          }
+        }
+        res.end();
+      };
+      sendChunk();
+      return;
+    }
+
+    // 7.5 Speed Test Upload Endpoint
+    if (pathname === '/api/speedtest/upload' && req.method === 'POST') {
+      const startTime = Date.now();
+      let bytesReceived = 0;
+      req.on('data', (chunk: Buffer) => {
+        bytesReceived += chunk.length;
+      });
+      req.on('end', () => {
+        const durationMs = Math.max(1, Date.now() - startTime);
+        const speedMbps = ((bytesReceived * 8) / (durationMs / 1000) / 1_000_000).toFixed(2);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            ok: true,
+            bytesReceived,
+            durationMs,
+            speedMbps: parseFloat(speedMbps),
+          }),
+        );
+      });
+      return;
+    }
+
     // 8. Share Links
     if (pathname.startsWith('/share/')) {
       await this.handleShareRoute(pathname, parsedUrl, req, res);
+      return;
+    }
+
+    // 8.1 Web Admin APIs
+    if (pathname.startsWith('/api/admin/')) {
+      const adminUser = this.authenticateUser(req);
+      if (!adminUser || adminUser.role !== 'admin') {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Administrator access required' }));
+        return;
+      }
+
+      if (pathname === '/api/admin/settings') {
+        if (req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(this.store.getSettings()));
+          return;
+        }
+        if (req.method === 'POST') {
+          const body = await this.readJsonBody(req);
+          if (body) {
+            const updated = this.store.updateSettings(body as Partial<FileServerSettings>);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, settings: updated }));
+            this.log('info', 'File server settings updated via Web Admin', req, 200);
+            return;
+          }
+        }
+      }
+
+      if (pathname === '/api/admin/users') {
+        if (req.method === 'GET') {
+          const safeUsers = this.store.getUsers().map((u) => ({
+            id: u.id,
+            username: u.username,
+            role: u.role,
+            permissions: u.permissions,
+            allowedFolders: u.allowedFolders,
+            mustChangePassword: !!u.mustChangePassword,
+            isSystem: !!u.isSystem,
+            createdAt: u.createdAt,
+          }));
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ users: safeUsers }));
+          return;
+        }
+        if (req.method === 'POST') {
+          const body = await this.readJsonBody(req);
+          if (body && typeof body.username === 'string') {
+            const existing = this.store.findUserByUsername(body.username);
+            const userAccount: UserAccount = {
+              id: (body.id as string) || existing?.id || randomUUID(),
+              username: body.username.trim(),
+              passwordHash: body.password ? hashPassword(String(body.password)) : (existing?.passwordHash || hashPassword('smaran@123')),
+              role: (body.role as UserRole) || 'user',
+              permissions: {
+                read: (body.permissions as Record<string, boolean> | undefined)?.read ?? true,
+                upload: (body.permissions as Record<string, boolean> | undefined)?.upload ?? true,
+                delete: (body.permissions as Record<string, boolean> | undefined)?.delete ?? true,
+                rename: (body.permissions as Record<string, boolean> | undefined)?.rename ?? true,
+                mkdir: (body.permissions as Record<string, boolean> | undefined)?.mkdir ?? true,
+                comment: (body.permissions as Record<string, boolean> | undefined)?.comment ?? true,
+                vfs: (body.permissions as Record<string, boolean> | undefined)?.vfs ?? false,
+                zip: (body.permissions as Record<string, boolean> | undefined)?.zip ?? true,
+              },
+              allowedFolders: Array.isArray(body.allowedFolders) ? body.allowedFolders : [],
+              mustChangePassword: Boolean(body.mustChangePassword),
+              isSystem: existing?.isSystem ?? false,
+              createdAt: existing?.createdAt || new Date().toISOString(),
+            };
+            this.store.saveUser(userAccount);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, user: userAccount }));
+            this.log('info', `User account '${userAccount.username}' saved via Web Admin`, req, 200);
+            return;
+          }
+        }
+      }
+
+      if (pathname === '/api/admin/users/delete' && req.method === 'POST') {
+        const body = await this.readJsonBody(req);
+        if (body?.id) {
+          try {
+            this.store.deleteUser(String(body.id));
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true }));
+            this.log('info', `User ID '${body.id}' deleted via Web Admin`, req, 200);
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Cannot delete user';
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: msg }));
+          }
+          return;
+        }
+      }
+
+      if (pathname === '/api/admin/vfs') {
+        if (req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ nodes: this.store.getVfsNodes() }));
+          return;
+        }
+        if (req.method === 'POST') {
+          const body = await this.readJsonBody(req);
+          if (body && typeof body.name === 'string') {
+            const node: VfsNode = {
+              id: (body.id as string) || randomUUID(),
+              name: String(body.name).trim(),
+              type: (body.type as 'physical_dir' | 'virtual_dir' | 'link') || 'physical_dir',
+              vfsPath: String(body.vfsPath || body.virtualPath || `/${body.name}`),
+              physicalPath: body.physicalPath ? String(body.physicalPath) : undefined,
+              linkUrl: body.linkUrl ? String(body.linkUrl) : undefined,
+              permissions: {
+                canRead: true,
+                canSee: true,
+                canUpload: true,
+                canDelete: true,
+                canList: true,
+                canArchive: true,
+              },
+              allowedRoles: [],
+              readOnly: false,
+              hidden: false,
+              comment: body.comment ? String(body.comment) : undefined,
+              createdAt: new Date().toISOString(),
+            };
+            this.store.saveVfsNode(node);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, node }));
+            this.log('info', `VFS node '${node.name}' saved via Web Admin`, req, 200);
+            return;
+          }
+        }
+      }
+
+      if (pathname === '/api/admin/vfs/delete' && req.method === 'POST') {
+        const body = await this.readJsonBody(req);
+        if (body?.id) {
+          this.store.deleteVfsNode(String(body.id));
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+          this.log('info', `VFS node '${body.id}' deleted via Web Admin`, req, 200);
+          return;
+        }
+      }
+
+      if (pathname === '/api/admin/shares') {
+        if (req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ shares: this.store.getShares() }));
+          return;
+        }
+      }
+
+      if (pathname === '/api/admin/shares/revoke' && req.method === 'POST') {
+        const body = await this.readJsonBody(req);
+        if (body?.id) {
+          this.store.revokeShare(String(body.id));
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+          this.log('info', `Share link '${body.id}' revoked via Web Admin`, req, 200);
+          return;
+        }
+      }
+
+      if (pathname === '/api/admin/logs') {
+        if (req.method === 'GET') {
+          const q = (parsedUrl.searchParams.get('q') || '').toLowerCase();
+          const level = parsedUrl.searchParams.get('level') || '';
+          let logs = this.store.getLogs();
+          if (level) logs = logs.filter((l) => l.level === level);
+          if (q) {
+            logs = logs.filter(
+              (l) =>
+                l.message.toLowerCase().includes(q) ||
+                l.clientIp.toLowerCase().includes(q) ||
+                (l.url && l.url.toLowerCase().includes(q)),
+            );
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ logs }));
+          return;
+        }
+        if (req.method === 'POST' && parsedUrl.pathname === '/api/admin/logs/clear') {
+          this.store.clearLogs();
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+          return;
+        }
+      }
+
+      if (pathname === '/api/admin/connections') {
+        if (req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ connections: this.getStatus().liveConnections }));
+          return;
+        }
+      }
+
+      if (pathname === '/api/admin/connections/kill' && req.method === 'POST') {
+        const body = await this.readJsonBody(req);
+        if (body?.id) {
+          const killed = this.killConnection(String(body.id));
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: killed }));
+          return;
+        }
+      }
+
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Admin endpoint not found' }));
       return;
     }
 

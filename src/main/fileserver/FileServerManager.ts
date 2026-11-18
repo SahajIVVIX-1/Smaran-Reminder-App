@@ -7,6 +7,7 @@ import type {
   ActiveTransfer,
   DirectoryListing,
   FileServerSettings,
+  Permissions,
   ServerLogEntry,
   ServerStatus,
   ShareLink,
@@ -234,20 +235,33 @@ export class FileServerManager {
     username: string;
     password?: string;
     role: 'admin' | 'user' | 'guest';
-    permissions: { read: boolean; upload: boolean; delete: boolean; rename: boolean; mkdir: boolean };
+    permissions: Partial<Permissions>;
     allowedFolders?: string[];
   }): UserAccount {
     const id = input.id || crypto.randomUUID();
     const existing = this.store.getUsers().find((u) => u.id === id);
     const passwordHash = input.password ? hashPassword(input.password) : existing?.passwordHash || '';
 
+    const defaultPerms: Permissions = {
+      read: true,
+      upload: true,
+      delete: true,
+      rename: true,
+      mkdir: true,
+      comment: true,
+      vfs: false,
+      zip: true,
+    };
+
     const user: UserAccount = {
       id,
       username: input.username.trim(),
       passwordHash,
       role: input.role,
-      permissions: input.permissions,
+      permissions: { ...defaultPerms, ...input.permissions },
       allowedFolders: input.allowedFolders || [],
+      mustChangePassword: existing?.mustChangePassword ?? false,
+      isSystem: existing?.isSystem ?? false,
       createdAt: existing?.createdAt || new Date().toISOString(),
     };
     this.store.saveUser(user);

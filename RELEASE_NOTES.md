@@ -1,3 +1,17 @@
+# Smaran 3.3.0
+
+- **Mandatory Web Authentication & System Admin Protection:** Web file server requires authentication by default. Initialized with secure default administrator (`smaran` / `smaran@123`) requiring compulsory password change on first sign-in. The `smaran` username is protected against renaming or deletion. Includes 15-minute idle session timeout with active transfer exemption and `beforeunload` transfer protection.
+- **Full Web-Based Administrator Control Panel:** Authenticated administrators can manage server configuration entirely through the browser: update server name, listening port, max connections, upload limits, and rate limits; create and manage user accounts with granular permissions (Read, Upload, Delete, Rename, Mkdir, Comment, Zip, VFS); manage Virtual File System mounts; and inspect/clear real-time server audit logs.
+- **High-Concurrency Engine for Enterprise Workloads:** Socket and keep-alive tuning supporting thousands of simultaneous connected PCs (`maxConnections = 2048`, `keepAliveTimeout = 65000ms`, `socket.setNoDelay(true)`, `socket.setKeepAlive(true, 15000ms)`). Backpressure-aware streaming ensures low memory footprint under high traffic.
+- **Granular Authenticated WebDAV Drive Mounting:** Windows Explorer and macOS Finder drive mapping (`net use Z: http://<IP>:5900/`) prompts for credentials via HTTP 401 Basic Realm challenge. Bidirectional changes sync live with host filesystem while enforcing per-user permissions for `PROPFIND`, `PUT`, `DELETE`, `MKCOL`, `MOVE`, and `COPY`.
+- **Folder-Targeted Drag & Drop Uploads with Floating Dock:** Drag files or folders onto any folder row with animated highlight targeting to upload directly into that directory. Floating upload progress dock displays overall progress %, real-time speed in MB/s, and dynamic ETA calculation.
+- **Integrated LAN & Internet Speed Test Widget:** Real-time throughput and latency testing widget available directly within the in-app server overview and web file manager. Measures local network ping latency, LAN download Mbps, LAN upload Mbps, and external internet connectivity.
+- **Client Context URL Synchronization:** Web manager automatically appends client identity context `/?context=<user>@<ip>` to the browser URL, paired with an interactive header status badge showing user role and client IP address.
+- **Responsive Multi-Row Tabs & UI Polish:** In-app File Server navigation tabs now wrap cleanly into a 2-row responsive grid across all display resolutions. Replaced raw HTML select dropdowns with Smaran's themed `<Select>` component. Widened actions column with 1-click LAN copy links for every file and folder without clipping.
+- **Detailed Server Audit Logs:** Every file upload, download, deletion, rename, directory creation, and authentication attempt is recorded with client IP, timestamp, and HTTP status code. Viewable in real-time in both the app and web admin panel.
+
+---
+
 # Smaran 3.2.1
 
 - **Native Smaran Web Popups:** Completely eliminated browser-native `prompt()`, `confirm()`, and `alert()` dialogs in the web file manager. All user interactions (Folder Creation, Renaming, File Deletion, Batch Deletion, Description/Comment Editing, and Sign In) now use beautifully crafted, native Smaran modal popups featuring Anthropic Serif typography, dark obsidian glass styling, autofocus, Esc/Enter keyboard navigation, and seamless state resolution.

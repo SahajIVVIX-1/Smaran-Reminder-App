@@ -34,6 +34,7 @@ import {
   UsersIcon,
 } from '../icons';
 import { Button, Card, Dialog, Input, Pill, Row, Switch } from '../ui';
+import { Select } from '../components/Select';
 
 type FileServerTab =
   | 'overview'
@@ -179,7 +180,7 @@ export function FileServer() {
       {/* Tabs */}
       <div
         role="tablist"
-        className="flex items-center gap-1 rounded-xl border border-line bg-raised/70 p-1 animate-enter [animation-delay:20ms] overflow-x-auto"
+        className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-5 lg:flex lg:flex-wrap gap-1.5 rounded-xl border border-line bg-raised/70 p-1.5 animate-enter [animation-delay:20ms]"
       >
         {TABS.map((t) => {
           const Icon = t.icon;
@@ -192,7 +193,7 @@ export function FileServer() {
               aria-selected={active}
               onClick={() => setTab(t.id)}
               className={cx(
-                'flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 px-2 text-[12px] font-medium transition-all duration-150 whitespace-nowrap min-w-[70px]',
+                'flex items-center justify-center gap-1.5 rounded-lg py-2 px-3 text-[12.5px] font-medium transition-all duration-150 whitespace-nowrap',
                 active
                   ? 'bg-surface text-ink shadow-sm ring-1 ring-line'
                   : 'text-muted hover:bg-hover/60 hover:text-ink',
@@ -227,7 +228,7 @@ export function FileServer() {
             />
           )}
 
-          {tab === 'manager' && <FileManagerTab onShowQr={showQr} />}
+          {tab === 'manager' && <FileManagerTab onShowQr={showQr} status={status} />}
 
           {tab === 'vfs' && <VfsTab />}
 
@@ -444,7 +445,122 @@ function OverviewTab({
           </div>
         </Card>
       )}
+
+      {/* Network & LAN Speed Test */}
+      {status.running && <SpeedTestWidget port={status.port} />}
     </div>
+  );
+}
+
+function SpeedTestWidget({ port }: { port: number }) {
+  const [running, setRunning] = useState(false);
+  const [ping, setPing] = useState<number | null>(null);
+  const [downloadMbps, setDownloadMbps] = useState<number | null>(null);
+  const [uploadMbps, setUploadMbps] = useState<number | null>(null);
+  const [internetStatus, setInternetStatus] = useState<string | null>(null);
+  const [stage, setStage] = useState<string>('');
+
+  const runTest = async () => {
+    setRunning(true);
+    setPing(null);
+    setDownloadMbps(null);
+    setUploadMbps(null);
+    setInternetStatus(null);
+    try {
+      // 1. LAN Ping
+      setStage('Measuring LAN ping latency…');
+      const pings: number[] = [];
+      for (let i = 0; i < 3; i++) {
+        const t0 = performance.now();
+        await fetch(`http://localhost:${port}/api/speedtest/ping`, { cache: 'no-store' });
+        pings.push(performance.now() - t0);
+      }
+      const avgPing = Math.round((pings.reduce((a, b) => a + b, 0) / pings.length) * 10) / 10;
+      setPing(avgPing);
+
+      // 2. LAN Download Throughput (10 MB fast stream)
+      setStage('Measuring LAN download speed (10 MB stream)…');
+      const tStartDl = performance.now();
+      const res = await fetch(`http://localhost:${port}/api/speedtest/download?sizeMb=10`, { cache: 'no-store' });
+      const blob = await res.blob();
+      const dtDlSec = Math.max(0.001, (performance.now() - tStartDl) / 1000);
+      const dlSpeed = Math.round(((blob.size * 8) / dtDlSec / 1_000_000) * 10) / 10;
+      setDownloadMbps(dlSpeed);
+
+      // 3. LAN Upload Throughput (8 MB payload)
+      setStage('Measuring LAN upload speed (8 MB stream)…');
+      const uploadBuffer = new Uint8Array(8 * 1024 * 1024);
+      const resUp = await fetch(`http://localhost:${port}/api/speedtest/upload`, {
+        method: 'POST',
+        body: uploadBuffer,
+        headers: { 'Content-Type': 'application/octet-stream' },
+      });
+      const upData = await resUp.json();
+      setUploadMbps(upData.speedMbps || 0);
+
+      // 4. Internet status check
+      setStage('Verifying external Internet connectivity…');
+      try {
+        const netStart = performance.now();
+        await fetch('https://www.google.com/generate_204', { mode: 'no-cors', cache: 'no-store' });
+        const netPing = Math.round(performance.now() - netStart);
+        setInternetStatus(`Online (${netPing} ms)`);
+      } catch {
+        setInternetStatus(navigator.onLine ? 'Connected' : 'Offline');
+      }
+
+      setStage('Speed test completed.');
+    } catch (err: unknown) {
+      setStage('Test notice: ' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <Card
+      title="Network & LAN Speed Test"
+      description="Benchmark latency and throughput between your devices and the file server."
+    >
+      <div className="space-y-3 py-1">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="rounded-lg border border-line bg-raised/40 p-3 text-center">
+            <div className="text-[11px] uppercase tracking-wider text-muted font-medium">LAN Latency</div>
+            <div className="mt-1 font-mono text-[16px] font-semibold text-ink">
+              {ping !== null ? `${ping} ms` : '—'}
+            </div>
+          </div>
+          <div className="rounded-lg border border-line bg-raised/40 p-3 text-center">
+            <div className="text-[11px] uppercase tracking-wider text-muted font-medium">LAN Download</div>
+            <div className="mt-1 font-mono text-[16px] font-semibold text-accent">
+              {downloadMbps !== null ? `${downloadMbps} Mbps` : '—'}
+            </div>
+          </div>
+          <div className="rounded-lg border border-line bg-raised/40 p-3 text-center">
+            <div className="text-[11px] uppercase tracking-wider text-muted font-medium">LAN Upload</div>
+            <div className="mt-1 font-mono text-[16px] font-semibold text-ok">
+              {uploadMbps !== null ? `${uploadMbps} Mbps` : '—'}
+            </div>
+          </div>
+          <div className="rounded-lg border border-line bg-raised/40 p-3 text-center">
+            <div className="text-[11px] uppercase tracking-wider text-muted font-medium">Internet Ping</div>
+            <div className="mt-1 font-mono text-[14px] font-semibold text-ink">
+              {internetStatus || '—'}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-1">
+          <span className="text-[12px] text-muted italic">
+            {stage || 'Test your local network data transfer speed and internet availability.'}
+          </span>
+          <Button size="sm" variant="primary" onClick={runTest} disabled={running}>
+            <ActivityIcon size={13} className={running ? 'animate-spin' : ''} />
+            {running ? 'Testing…' : 'Run Speed Test'}
+          </Button>
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -461,12 +577,19 @@ function MetricTile({ label, value, sub }: { label: string; value: string; sub?:
 // ==========================================
 // 2. FILE MANAGER TAB
 // ==========================================
-function FileManagerTab({ onShowQr }: { onShowQr: (url: string) => void }) {
+function FileManagerTab({
+  onShowQr,
+  status,
+}: {
+  onShowQr: (url: string) => void;
+  status: ServerStatus | null;
+}) {
   const [currentPath, setCurrentPath] = useState('');
   const [listing, setListing] = useState<DirectoryListing | null>(null);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [shareDialog, setShareDialog] = useState<FileItem | null>(null);
+  const [copiedItem, setCopiedItem] = useState<string | null>(null);
 
   const load = async (path = currentPath) => {
     setLoading(true);
@@ -574,8 +697,8 @@ function FileManagerTab({ onShowQr }: { onShowQr: (url: string) => void }) {
             <tr className="border-b border-line bg-raised/40 text-[11px] uppercase tracking-wider text-muted font-semibold">
               <th className="py-2.5 px-4">Name</th>
               <th className="py-2.5 px-4 w-28">Size</th>
-              <th className="py-2.5 px-4 w-40">Modified</th>
-              <th className="py-2.5 px-4 text-right w-48">Actions</th>
+              <th className="py-2.5 px-4 w-36">Modified</th>
+              <th className="py-2.5 px-4 text-right min-w-[250px]">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -622,7 +745,28 @@ function FileManagerTab({ onShowQr }: { onShowQr: (url: string) => void }) {
                     {new Date(item.modifiedAt).toLocaleDateString()}
                   </td>
                   <td className="py-2.5 px-4 text-right">
-                    <div className="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100">
+                    <div className="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100 flex-wrap">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        title="Copy direct LAN Link"
+                        onClick={() => {
+                          const base = status?.lanUrls[0] || status?.localUrl || 'http://localhost:5900';
+                          const link = item.isDirectory
+                            ? `${base}/?path=${encodeURIComponent(item.relativePath)}`
+                            : `${base}/download/${encodeURIComponent(item.relativePath)}`;
+                          navigator.clipboard.writeText(link);
+                          setCopiedItem(item.relativePath);
+                          setTimeout(() => setCopiedItem(null), 2000);
+                        }}
+                      >
+                        {copiedItem === item.relativePath ? (
+                          <CheckIcon size={13} className="text-ok" />
+                        ) : (
+                          <CopyIcon size={13} />
+                        )}
+                        <span>{copiedItem === item.relativePath ? 'Copied' : 'Link'}</span>
+                      </Button>
                       <Button
                         size="sm"
                         variant="ghost"
@@ -820,15 +964,15 @@ function VfsTab() {
           <div className="space-y-3 py-1">
             <div>
               <label className="block text-[12.5px] text-muted mb-1">Mount Type</label>
-              <select
+              <Select
                 value={type}
-                onChange={(e) => setType(e.target.value as 'physical_dir' | 'virtual_dir' | 'link')}
-                className="w-full rounded-lg border border-line bg-surface px-3 py-1.5 text-[13px] text-ink outline-none"
-              >
-                <option value="physical_dir">Physical Directory (Map disk folder)</option>
-                <option value="virtual_dir">Virtual Folder (Directory without disk folder)</option>
-                <option value="link">Link Node (External URL or shortcut)</option>
-              </select>
+                onChange={(val) => setType(val as 'physical_dir' | 'virtual_dir' | 'link')}
+                options={[
+                  { value: 'physical_dir', label: 'Physical Directory (Map disk folder)' },
+                  { value: 'virtual_dir', label: 'Virtual Folder (Directory without disk folder)' },
+                  { value: 'link', label: 'Link Node (External URL or shortcut)' },
+                ]}
+              />
             </div>
             <div>
               <label className="block text-[12.5px] text-muted mb-1">Display Name</label>
@@ -1155,8 +1299,14 @@ function UsersTab() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'admin' | 'user' | 'guest'>('user');
+  const [canRead, setCanRead] = useState(true);
   const [canUpload, setCanUpload] = useState(true);
-  const [canDelete, setCanDelete] = useState(false);
+  const [canDelete, setCanDelete] = useState(true);
+  const [canRename, setCanRename] = useState(true);
+  const [canMkdir, setCanMkdir] = useState(true);
+  const [canComment, setCanComment] = useState(true);
+  const [canVfs, setCanVfs] = useState(false);
+  const [canZip, setCanZip] = useState(true);
 
   // IP filter inputs
   const [newAllowIp, setNewAllowIp] = useState('');
@@ -1181,23 +1331,39 @@ function UsersTab() {
       password: password.trim() || undefined,
       role,
       permissions: {
-        read: true,
+        read: canRead,
         upload: canUpload,
         delete: canDelete,
-        rename: canDelete,
-        mkdir: canUpload,
+        rename: canRename,
+        mkdir: canMkdir,
+        comment: canComment,
+        vfs: canVfs,
+        zip: canZip,
       },
     });
     setAddModal(false);
     setUsername('');
     setPassword('');
+    setRole('user');
+    setCanRead(true);
+    setCanUpload(true);
+    setCanDelete(true);
+    setCanRename(true);
+    setCanMkdir(true);
+    setCanComment(true);
+    setCanVfs(false);
+    setCanZip(true);
     await load();
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Remove this user account?')) return;
-    await window.smaran.fileserver.users.delete(id);
-    await load();
+    try {
+      await window.smaran.fileserver.users.delete(id);
+      await load();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Cannot delete user');
+    }
   };
 
   const addAllowIp = async () => {
@@ -1246,23 +1412,35 @@ function UsersTab() {
           </p>
         ) : (
           <div className="divide-y divide-line py-1 text-[13px]">
-            {users.map((u) => (
-              <div key={u.id} className="flex items-center justify-between py-2.5">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-ink">{u.username}</span>
-                    <Pill tone={u.role === 'admin' ? 'accent' : 'neutral'}>{u.role}</Pill>
+            {users.map((u) => {
+              const isSystem = u.isSystem || u.username.toLowerCase() === 'smaran';
+              return (
+                <div key={u.id} className="flex items-center justify-between py-2.5">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-ink">{u.username}</span>
+                      <Pill tone={isSystem ? 'accent' : u.role === 'admin' ? 'accent' : 'neutral'}>
+                        {isSystem ? 'System Admin' : u.role}
+                      </Pill>
+                    </div>
+                    <div className="mt-0.5 text-[11.5px] text-muted">
+                      Permissions: Read{u.permissions.upload ? ', Upload' : ''}
+                      {u.permissions.delete ? ', Delete' : ''}
+                      {u.permissions.rename ? ', Rename' : ''}
+                      {u.permissions.mkdir ? ', Mkdir' : ''}
+                      {u.permissions.zip ? ', Zip' : ''}
+                    </div>
                   </div>
-                  <div className="mt-0.5 text-[11.5px] text-muted">
-                    Permissions: Read{u.permissions.upload ? ', Upload' : ''}
-                    {u.permissions.delete ? ', Delete' : ''}
-                  </div>
+                  {isSystem ? (
+                    <span className="text-[11.5px] text-muted italic px-2">Permanent</span>
+                  ) : (
+                    <Button size="sm" variant="danger" onClick={() => handleDelete(u.id)}>
+                      Delete
+                    </Button>
+                  )}
                 </div>
-                <Button size="sm" variant="danger" onClick={() => handleDelete(u.id)}>
-                  Delete
-                </Button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -1303,23 +1481,50 @@ function UsersTab() {
               </div>
               <div>
                 <label className="block text-[12.5px] text-muted mb-1">Role</label>
-                <select
+                <Select
                   value={role}
-                  onChange={(e) => setRole(e.target.value as 'admin' | 'user' | 'guest')}
-                  className="w-full rounded-lg border border-line bg-surface px-3 py-1.5 text-[13px] text-ink outline-none"
-                >
-                  <option value="user">User</option>
-                  <option value="admin">Admin</option>
-                  <option value="guest">Guest</option>
-                </select>
+                  onChange={(val) => setRole(val as 'admin' | 'user' | 'guest')}
+                  options={[
+                    { value: 'user', label: 'Standard User (Configurable)' },
+                    { value: 'admin', label: 'Administrator (Full Access)' },
+                    { value: 'guest', label: 'Guest (Read Only)' },
+                  ]}
+                />
               </div>
-              <div className="flex items-center justify-between pt-2">
-                <span className="text-[13px]">Allow Uploads</span>
-                <Switch checked={canUpload} onChange={setCanUpload} label="Allow Uploads" />
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[13px]">Allow Delete & Rename</span>
-                <Switch checked={canDelete} onChange={setCanDelete} label="Allow Delete" />
+              <div className="pt-2 border-t border-line space-y-2">
+                <div className="text-[12px] font-semibold text-muted uppercase tracking-wider">Granular Permissions (All Default ON)</div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px]">Read Files & Folders</span>
+                  <Switch checked={canRead} onChange={setCanRead} label="Read Permission" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px]">Upload Files</span>
+                  <Switch checked={canUpload} onChange={setCanUpload} label="Upload Permission" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px]">Delete Files & Folders</span>
+                  <Switch checked={canDelete} onChange={setCanDelete} label="Delete Permission" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px]">Rename Files</span>
+                  <Switch checked={canRename} onChange={setCanRename} label="Rename Permission" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px]">Create New Folders</span>
+                  <Switch checked={canMkdir} onChange={setCanMkdir} label="Mkdir Permission" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px]">Edit File Descriptions</span>
+                  <Switch checked={canComment} onChange={setCanComment} label="Comment Permission" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px]">Manage VFS Mounts</span>
+                  <Switch checked={canVfs} onChange={setCanVfs} label="VFS Permission" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px]">Download ZIP Archives</span>
+                  <Switch checked={canZip} onChange={setCanZip} label="Zip Permission" />
+                </div>
               </div>
             </div>
           </Dialog>
@@ -1750,30 +1955,30 @@ function CreateShareDialog({
       <div className="space-y-3 py-1">
         <div>
           <label className="block text-[12.5px] text-muted mb-1">Permission</label>
-          <select
+          <Select
             value={permission}
-            onChange={(e) => setPermission(e.target.value as 'download' | 'read' | 'upload' | 'full')}
-            className="w-full rounded-lg border border-line bg-surface px-3 py-1.5 text-[13px] text-ink outline-none"
-          >
-            <option value="download">Download Only</option>
-            <option value="read">Read / View Only</option>
-            <option value="upload">Upload Permitted</option>
-            <option value="full">Full Access</option>
-          </select>
+            onChange={(val) => setPermission(val as 'download' | 'read' | 'upload' | 'full')}
+            options={[
+              { value: 'download', label: 'Download Only' },
+              { value: 'read', label: 'Read / View Only' },
+              { value: 'upload', label: 'Upload Permitted' },
+              { value: 'full', label: 'Full Access' },
+            ]}
+          />
         </div>
         <div>
           <label className="block text-[12.5px] text-muted mb-1">Expiration</label>
-          <select
+          <Select
             value={expiresHours}
-            onChange={(e) => setExpiresHours(Number(e.target.value))}
-            className="w-full rounded-lg border border-line bg-surface px-3 py-1.5 text-[13px] text-ink outline-none"
-          >
-            <option value={1}>1 Hour</option>
-            <option value={24}>24 Hours</option>
-            <option value={168}>7 Days</option>
-            <option value={720}>30 Days</option>
-            <option value={0}>Never Expire</option>
-          </select>
+            onChange={(val) => setExpiresHours(Number(val))}
+            options={[
+              { value: 1, label: '1 Hour' },
+              { value: 24, label: '24 Hours' },
+              { value: 168, label: '7 Days' },
+              { value: 720, label: '30 Days' },
+              { value: 0, label: 'Never Expire' },
+            ]}
+          />
         </div>
         <div>
           <label className="block text-[12.5px] text-muted mb-1">Password (Optional)</label>

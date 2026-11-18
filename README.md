@@ -8,19 +8,25 @@ and links: at a time, at startup or sign-in, or on Windows events such as lock, 
 ### Smaran HFS (Self-Hosted HTTP File Server & WebDAV Engine)
 Smaran includes its own built-in HTTP File Server engine (inspired by Rejetto HFS) to share files and folders over Wi-Fi and local networks:
 - **Zero External Dependencies**: Embedded directly into Smaran's native Node.js process without requiring external servers, runtimes, or tools.
+- **Enterprise Concurrency**: High-concurrency socket engine tuned to effortlessly handle 1,000s of simultaneous connected PCs (`maxConnections = 2048`, `keepAliveTimeout = 65000ms`, non-blocking streaming).
+- **Mandatory Web Authentication**: Default system administrator (`smaran` / `smaran@123`) with compulsory password change on first login. 15-minute inactivity session expiration with active transfer exemptions and navigation protection.
+- **Full Web Admin Control Panel**: Remotely manage server settings (ports, limits, rate limiting), user accounts with granular permissions (Read, Upload, Delete, Rename, Mkdir, Comment, Zip, VFS), VFS mounts, and live audit logs directly from any browser.
+- **Granular WebDAV Drive Mapping**: Mount Smaran HFS directly in Windows File Explorer as a drive letter (`net use Z: http://<IP>:5900/`) or macOS Finder with native HTTP 401 Basic Authentication and live bidirectional filesystem synchronization.
+- **Folder Drag-and-Drop with Floating Dock**: Drag files directly onto target folders with glowing drop targets. Floating progress dock displays transfer percentage, real-time speed (MB/s), and dynamic ETA.
+- **Integrated Speed Benchmark**: Test LAN latency, local download/upload speeds (Mbps), and internet connectivity directly within the app and web manager.
+- **Client Context URL Sync**: Browser URLs auto-update to `/?context=<user>@<ip>` with an interactive header status badge showing user role and source IP.
 - **Virtual File System (VFS)**: Mount physical disks (`D:\Photos`), virtual organizational folders, and external link nodes with granular inheritance permissions (`canRead`, `canUpload`, `canArchive`, `canDelete`).
 - **Streaming ZIP Downloads**: On-the-fly streaming ZIP folder & multi-file downloads directly to HTTP responses via `yazl` without intermediate disk space.
-- **Native WebDAV Server (RFC 4918)**: Connect directly from Windows File Explorer as a mapped network drive letter (`net use Z: http://<IP>:5900/`) or macOS Finder without a web browser.
 - **LAN Web File Manager**: Responsive, dark-themed web browser interface with table & visual grid views, multi-file selection batch dock, and instant search.
 - **In-Browser Rich Media Player**: Lightbox for fullscreen image viewing with zoom/rotate, HTML5 video player, audio player, syntax-highlighted code/text viewer, and PDF preview.
 - **File Descriptions**: Standard `descript.ion` reading and editing displayed directly in web & in-app file listings.
 - **Bandwidth Throttling & Limits**: Global download/upload speed limits (KB/s), per-IP speed limits, and concurrent download caps.
 - **UPnP Router Port Forwarding**: Automatic one-click router port mapping via `@rejetto/nat-upnp` for instant remote access.
 - **Dynamic DNS (DDNS)**: Automated periodic IP updates for DuckDNS, No-IP, and DynDNS webhooks.
-- **Live Connection Inspector**: Real-time connected clients table displaying IP, User-Agent, active path, speed, and one-click socket disconnect.
+- **Live Connection Inspector & Audit Logs**: Real-time connected clients table displaying IP, User-Agent, active path, speed, and one-click socket disconnect. Full audit logs tracking all client actions.
 - **Security & Firewall**: IP allowlist and blocklist masks (wildcards & CIDR notation) with anti-brute force temporary lockout.
 - **Users & Permissions**: Role-based access control (Admin, User, Guest), per-user permissions, and password-protected folders.
-- **Share Links**: Secure tokenized sharing links with expiration, maximum download limits, and QR code sharing.
+- **Share Links**: Secure tokenized sharing links with expiration, maximum download limits, 1-click LAN copy links, and QR code sharing.
 - **Reminder Integration**: Attach files from your file server directly to reminders.
 
 Electron + React + TypeScript. `docs/DESIGN.md` explains how reminders behave and why; `RELEASE_NOTES.md` lists what changed.

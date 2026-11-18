@@ -18,6 +18,7 @@ import type {
   ActiveTransfer,
   DirectoryListing,
   FileServerSettings,
+  Permissions,
   ServerLogEntry,
   ServerStatus,
   ShareLink,
@@ -136,13 +137,7 @@ const api = {
         username: string;
         password?: string;
         role: 'admin' | 'user' | 'guest';
-        permissions: {
-          read: boolean;
-          upload: boolean;
-          delete: boolean;
-          rename: boolean;
-          mkdir: boolean;
-        };
+        permissions: Partial<Permissions>;
         allowedFolders?: string[];
       }): Promise<UserAccount> => ipcRenderer.invoke(IPC.fileserverUsersSave, user),
       delete: (id: string): Promise<void> => ipcRenderer.invoke(IPC.fileserverUsersDelete, id),
