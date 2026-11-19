@@ -1,3 +1,14 @@
+# Smaran 3.3.3
+
+- **HFS-Inspired Reliability & Zero-Trust Authentication:** Hardened the embedded Smaran file server engine with industrial-grade session validation, rejecting bad credentials immediately with 401 Unauthorized and eliminating any possibility of authentication fallthrough into guest mode.
+- **Locked Non-Dismissible Sign-In Modal:** Protected the web explorer with a non-dismissible, locked login modal and inline red error feedback badge whenever authentication is required or credentials fail.
+- **Dedicated Previews in New Browser Tabs:** Added `/preview/<path>` endpoint delivering standalone, streaming media previews (HTTP 206 Range video/audio seeking, zoom/pan/rotate image viewer, syntax-highlighted code viewer with one-click copy, PDF viewer, and clean download fallback cards) under a strict Content Security Policy.
+- **Dual Local LAN & External WAN Sharing:** Share modal now provides an instant toggle between Local LAN URLs and External (Public / DDNS) URLs, complete with real-time vector SVG QR code generation and 1-click clipboard copy.
+- **Desktop-Grade Right-Click Context Menu:** Native floating context menu for fast Open/Preview, Download, Share, Copy Link, Rename, and Delete with viewport edge clamping.
+- **Security Regression Suite:** Added 25 automated security tests in `tests/unit/fileserver-security-regression.test.ts` covering failed logins, token verification, and role permissions.
+
+---
+
 # Smaran 3.3.2
 
 - **Enterprise NAS UI/UX Redesign:** Transformed the Smaran HFS web manager into a modern, enterprise-grade LAN file server interface inspired by Synology DSM, Linear, Dropbox, and Google Drive.
