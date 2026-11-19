@@ -1196,6 +1196,100 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
       to { opacity: 1; transform: translateY(0); }
     }
 
+    /* Floating Context Menu */
+    .context-menu {
+      position: fixed;
+      background: var(--sidebar-bg);
+      border: 1px solid var(--line);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.06);
+      border-radius: 8px;
+      padding: 5px;
+      min-width: 170px;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      animation: menuPop 0.12s ease-out;
+    }
+    @keyframes menuPop {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .context-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 7px 10px;
+      border-radius: 5px;
+      font-size: 12.5px;
+      color: var(--text);
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      text-align: left;
+      width: 100%;
+      user-select: none;
+      transition: background 0.1s ease;
+    }
+    .context-menu-item:hover {
+      background: var(--card-hover);
+      color: #fff;
+    }
+    .context-menu-item.danger {
+      color: var(--danger);
+    }
+    .context-menu-item.danger:hover {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ff5555;
+    }
+    .context-menu-sep {
+      height: 1px;
+      background: var(--line);
+      margin: 3px 0;
+    }
+
+    /* Login Error Badge */
+    .login-error-badge {
+      display: none;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      border-radius: 6px;
+      color: #ef4444;
+      font-size: 12.5px;
+      font-weight: 500;
+      line-height: 1.4;
+    }
+
+    /* Share Link Type Switcher */
+    .share-toggle-group {
+      display: flex;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 2px;
+      margin-bottom: 12px;
+    }
+    .share-toggle-btn {
+      flex: 1;
+      text-align: center;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .share-toggle-btn.active {
+      background: var(--card-active);
+      color: var(--text);
+      font-weight: 600;
+    }
+
     /* Speed Test Gauge */
     .gauge-wrapper {
       display: flex;
@@ -1526,6 +1620,8 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
     let sortAsc = true;
     let currentSessionId = null;
     let currentUser = null;
+    let isAuthMandatory = false;
+    let cachedServerStatus = null;
     let clientIp = window.__INITIAL_IP__ || '127.0.0.1';
     let uploadQueue = [];
     let isUploading = false;
@@ -1534,6 +1630,10 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
     let zoomLevel = 1;
     let rotation = 0;
     let activeNavSection = 'files';
+    let currentShareLanUrl = '';
+    let currentShareExtUrl = '';
+    let currentShareTab = 'lan';
+    let activeContextItem = null;
 
     // Utilities
     function escapeHtml(str) {
@@ -1583,11 +1683,26 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
     const _nativeFetch = window.fetch.bind(window);
     window.fetch = function (input, init) {
       const opts = { ...init };
+      opts.credentials = 'same-origin';
       opts.headers = new Headers(opts.headers || {});
       if (currentSessionId && !opts.headers.has('X-Session-Id')) {
         opts.headers.set('X-Session-Id', currentSessionId);
       }
-      return _nativeFetch(input, opts);
+      return _nativeFetch(input, opts).then((res) => {
+        if (res.status === 401) {
+          const urlStr = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+          if (!urlStr.includes('/api/login') && !urlStr.includes('/api/session')) {
+            currentUser = null;
+            currentSessionId = null;
+            updateSessionUI();
+            updateContextAddressBar('guest', clientIp);
+            if (isAuthMandatory) {
+              showLoginModal(true);
+            }
+          }
+        }
+        return res;
+      });
     };
 
     // Context Address Bar Typewriter Effect
@@ -1634,6 +1749,7 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
         const res = await fetch('/api/session');
         const data = await res.json();
         clientIp = data.clientIp || clientIp;
+        isAuthMandatory = !!(data.authEnabled && !data.guestAccess);
         if (data.authenticated && data.user) {
           currentUser = data.user;
           updateContextAddressBar(currentUser.username, clientIp);
@@ -1643,6 +1759,9 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
         } else {
           currentUser = null;
           updateContextAddressBar('guest', clientIp);
+          if (isAuthMandatory) {
+            showLoginModal(true);
+          }
         }
         updateSessionUI();
         updateStatusBeacon();
@@ -1702,15 +1821,24 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
     }
 
     async function doLogout() {
-      closeModal();
+      closeModal(true);
       currentSessionId = null;
       currentUser = null;
       await fetch('/api/logout', { method: 'POST' });
       updateContextAddressBar('guest', clientIp);
       updateSessionUI();
       showToast('Logged out');
-      loadFiles();
-      showLoginModal();
+      if (isAuthMandatory) {
+        const tbody = document.getElementById('file-list');
+        if (tbody) tbody.innerHTML = '';
+        const fCards = document.getElementById('grid-folders');
+        if (fCards) fCards.innerHTML = '';
+        const flCards = document.getElementById('grid-files');
+        if (flCards) flCards.innerHTML = '';
+        showLoginModal(true);
+      } else {
+        loadFiles();
+      }
     }
 
     // Status beacon
@@ -1719,6 +1847,7 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
         const res = await fetch('/api/status');
         if (!res.ok) return;
         const st = await res.json();
+        cachedServerStatus = st;
         const clientsText = document.getElementById('beacon-clients-text');
         if (clientsText) {
           const count = st.connectedClients || 1;
@@ -1785,10 +1914,14 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
 
     // File Explorer Core
     async function loadFiles(path = currentPath) {
+      if (isAuthMandatory && !currentUser) {
+        showLoginModal(true);
+        return;
+      }
       try {
         const res = await fetch('/api/files?path=' + encodeURIComponent(path));
         if (res.status === 401) {
-          showLoginModal();
+          showLoginModal(true);
           return;
         }
         if (!res.ok) throw new Error('Failed to load files');
@@ -1989,6 +2122,12 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
           openItem(item);
         };
 
+        tr.oncontextmenu = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          showContextMenu(e.clientX, e.clientY, item);
+        };
+
         const tdCb = document.createElement('td');
         tdCb.className = 'col-cb';
         const cb = document.createElement('input');
@@ -2041,6 +2180,13 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
         tdActions.className = 'col-actions';
         const actBox = document.createElement('div');
         actBox.className = 'row-actions';
+
+        const btnPrev = document.createElement('button');
+        btnPrev.className = 'row-btn';
+        btnPrev.title = item.isDirectory ? 'Open Folder' : 'Preview in New Tab';
+        btnPrev.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+        btnPrev.onclick = (e) => { e.stopPropagation(); openItem(item); };
+        actBox.appendChild(btnPrev);
 
         if (!item.isDirectory) {
           const btnDl = document.createElement('button');
@@ -2110,6 +2256,12 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
           openItem(item);
         };
 
+        div.oncontextmenu = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          showContextMenu(e.clientX, e.clientY, item);
+        };
+
         div.ondragover = (e) => { e.preventDefault(); e.stopPropagation(); div.classList.add('drag-target'); };
         div.ondragleave = (e) => { e.preventDefault(); e.stopPropagation(); div.classList.remove('drag-target'); };
         div.ondrop = (e) => {
@@ -2142,6 +2294,12 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
           openItem(item);
         };
 
+        div.oncontextmenu = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          showContextMenu(e.clientX, e.clientY, item);
+        };
+
         let previewHtml = '';
         if (isImageFile(item.name)) {
           previewHtml = '<img src="/raw/' + encodeURIComponent(item.relativePath) + '" loading="lazy" alt="" onerror="this.parentElement.innerHTML=\\'<div class=\\\\\\'file-icon-box\\\\\\'>' + getFileIconSvg(item) + '</div>\\'">';
@@ -2156,6 +2314,9 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
             <div class="file-card-meta">
               <span>\` + formatBytes(item.size) + \`</span>
               <div style="display:flex; gap:2px;">
+                <button class="row-btn" onclick="event.stopPropagation(); openItem(this._item);" title="Preview in New Tab">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
                 <button class="row-btn" onclick="event.stopPropagation(); downloadItem(this._item);" title="Download">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 </button>
@@ -2171,24 +2332,85 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
       });
     }
 
-    // Actions on Items
+    // Actions on Items & Previews
     function openItem(item) {
       if (item.isDirectory) {
         loadFiles(item.relativePath);
         return;
       }
-      if (isImageFile(item.name)) {
-        openImageLightbox(item);
-      } else if (isVideoFile(item.name)) {
-        openVideoPlayer(item);
-      } else if (isAudioFile(item.name)) {
-        openAudioPlayer(item);
-      } else if (isTextFile(item.name)) {
-        openTextViewer(item);
-      } else if (isPdfFile(item.name)) {
-        openPdfViewer(item);
+      const previewUrl = '/preview/' + encodeURIComponent(item.relativePath) + (currentSessionId ? '?token=' + encodeURIComponent(currentSessionId) : '');
+      window.open(previewUrl, '_blank');
+    }
+
+    // Right-Click Context Menu
+    function showContextMenu(x, y, item) {
+      hideContextMenu();
+      window.activeContextItem = item;
+      const isDir = item.isDirectory;
+
+      const menu = document.createElement('div');
+      menu.className = 'context-menu';
+      menu.id = 'context-menu';
+
+      let html = '';
+      html += '<button class="context-menu-item" onclick="openItem(window.activeContextItem); hideContextMenu();">' +
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+        (isDir ? '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>' : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>') +
+        '</svg><span>' + (isDir ? 'Open Folder' : 'Preview in New Tab') + '</span></button>';
+
+      if (!isDir) {
+        html += '<button class="context-menu-item" onclick="downloadItem(window.activeContextItem); hideContextMenu();">' +
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
+          '<span>Download File</span></button>';
       } else {
-        window.open('/raw/' + encodeURIComponent(item.relativePath), '_blank');
+        html += '<button class="context-menu-item" onclick="window.location.href=\\'/api/zip?path=\\' + encodeURIComponent(window.activeContextItem.relativePath); hideContextMenu();">' +
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>' +
+          '<span>Download as ZIP</span></button>';
+      }
+
+      html += '<div class="context-menu-sep"></div>';
+
+      html += '<button class="context-menu-item" onclick="openShareModal(window.activeContextItem); hideContextMenu();">' +
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>' +
+        '<span>Share Link &amp; QR</span></button>';
+
+      html += '<button class="context-menu-item" onclick="copyItemDirectLink(window.activeContextItem); hideContextMenu();">' +
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>' +
+        '<span>' + (isDir ? 'Copy Folder Link' : 'Copy Direct Link') + '</span></button>';
+
+      html += '<div class="context-menu-sep"></div>';
+
+      html += '<button class="context-menu-item" onclick="promptRename(window.activeContextItem); hideContextMenu();">' +
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>' +
+        '<span>Rename</span></button>';
+
+      html += '<button class="context-menu-item danger" onclick="confirmDelete(window.activeContextItem); hideContextMenu();">' +
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>' +
+        '<span>Delete</span></button>';
+
+      menu.innerHTML = html;
+      document.body.appendChild(menu);
+
+      const menuWidth = 190;
+      const menuHeight = 210;
+      const posX = (x + menuWidth > window.innerWidth) ? (window.innerWidth - menuWidth - 8) : x;
+      const posY = (y + menuHeight > window.innerHeight) ? (window.innerHeight - menuHeight - 8) : y;
+      menu.style.left = Math.max(8, posX) + 'px';
+      menu.style.top = Math.max(8, posY) + 'px';
+    }
+
+    function hideContextMenu() {
+      const existing = document.getElementById('context-menu');
+      if (existing) existing.remove();
+    }
+
+    function copyItemDirectLink(item) {
+      if (!item) return;
+      const url = item.isDirectory
+        ? window.location.origin + '/?path=' + encodeURIComponent(item.relativePath)
+        : window.location.origin + '/raw/' + encodeURIComponent(item.relativePath) + (currentSessionId ? '?token=' + encodeURIComponent(currentSessionId) : '');
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(url).then(() => showToast('Link copied to clipboard!')).catch(() => showToast('Could not copy link'));
       }
     }
 
@@ -2507,14 +2729,20 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
                 <input type="password" class="form-input" id="share-password" placeholder="Leave blank for public">
               </div>
               <div id="share-result-box" style="display:none; margin-top:14px; padding:12px; background:var(--card); border:1px solid var(--line); border-radius:8px;">
-                <label class="form-label">Share Link</label>
+                <div class="share-toggle-group">
+                  <button type="button" class="share-toggle-btn active" id="share-tab-lan" onclick="switchShareTab('lan')">Local LAN URL</button>
+                  <button type="button" class="share-toggle-btn" id="share-tab-ext" onclick="switchShareTab('ext')">External (Public) URL</button>
+                </div>
                 <div style="display:flex; gap:8px; margin-top:4px;">
-                  <input type="text" class="form-input" id="share-link-input" readonly style="flex:1;">
+                  <input type="text" class="form-input" id="share-link-input" readonly style="flex:1; font-family:var(--mono); font-size:12px;">
                   <button class="primary" onclick="copyShareLinkText()">Copy</button>
+                </div>
+                <div id="share-ext-notice" style="display:none; font-size:11.5px; color:var(--text-faint); margin-top:6px; line-height:1.4;">
+                  Note: For external WAN access, ensure port forwarding or DDNS hostname is configured in Admin Settings.
                 </div>
                 <div style="margin-top:14px; text-align:center;">
                   <div class="qr-container" id="share-qr-container"></div>
-                  <div style="font-size:11px; color:var(--text-faint); margin-top:6px;">Scan to open on phone</div>
+                  <div id="share-qr-caption" style="font-size:11px; color:var(--text-faint); margin-top:6px;">Scan to open over LAN</div>
                 </div>
               </div>
             </div>
@@ -2526,6 +2754,32 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
         </div>
       \`;
       mc.querySelector('#btn-create-share')._item = item;
+    }
+
+    function switchShareTab(tab) {
+      currentShareTab = tab;
+      const btnLan = document.getElementById('share-tab-lan');
+      const btnExt = document.getElementById('share-tab-ext');
+      const inp = document.getElementById('share-link-input');
+      const notice = document.getElementById('share-ext-notice');
+      const qrCap = document.getElementById('share-qr-caption');
+      const qrCont = document.getElementById('share-qr-container');
+
+      if (tab === 'lan') {
+        if (btnLan) btnLan.classList.add('active');
+        if (btnExt) btnExt.classList.remove('active');
+        if (inp) inp.value = currentShareLanUrl;
+        if (notice) notice.style.display = 'none';
+        if (qrCap) qrCap.innerText = 'Scan to open over LAN';
+        if (qrCont && currentShareLanUrl) renderSvgQrCode(qrCont, currentShareLanUrl);
+      } else {
+        if (btnLan) btnLan.classList.remove('active');
+        if (btnExt) btnExt.classList.add('active');
+        if (inp) inp.value = currentShareExtUrl;
+        if (notice) notice.style.display = 'block';
+        if (qrCap) qrCap.innerText = 'Scan to open via Public URL';
+        if (qrCont && currentShareExtUrl) renderSvgQrCode(qrCont, currentShareExtUrl);
+      }
     }
 
     async function submitCreateShare(item) {
@@ -2555,12 +2809,17 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to create share link');
 
-        const shareUrl = window.location.origin + '/share/' + data.share.token;
-        document.getElementById('share-result-box').style.display = 'block';
-        document.getElementById('share-link-input').value = shareUrl;
-        document.getElementById('btn-create-share').style.display = 'none';
+        const token = data.share.token;
+        currentShareLanUrl = window.location.origin + '/share/' + token;
+        if (cachedServerStatus && cachedServerStatus.externalUrl) {
+          currentShareExtUrl = cachedServerStatus.externalUrl + '/share/' + token;
+        } else {
+          currentShareExtUrl = window.location.origin + '/share/' + token;
+        }
 
-        renderSvgQrCode(document.getElementById('share-qr-container'), shareUrl);
+        document.getElementById('share-result-box').style.display = 'block';
+        document.getElementById('btn-create-share').style.display = 'none';
+        switchShareTab('lan');
         showToast('Share link created!');
       } catch (err) {
         showToast('Error: ' + err.message);
@@ -2570,7 +2829,9 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
     function copyShareLinkText() {
       const val = document.getElementById('share-link-input')?.value;
       if (val) {
-        navigator.clipboard.writeText(val).then(() => showToast('Share URL copied to clipboard!'));
+        navigator.clipboard.writeText(val).then(() => {
+          showToast((currentShareTab === 'ext' ? 'External' : 'LAN') + ' URL copied to clipboard!');
+        });
       }
     }
 
@@ -2901,7 +3162,10 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
     }
 
     // Modal Helpers (Alert, Confirm, Prompt)
-    function closeModal() {
+    function closeModal(force = false) {
+      if (!force && isAuthMandatory && !currentUser) {
+        return;
+      }
       const mc = document.getElementById('modal-container');
       if (mc) mc.innerHTML = '';
     }
@@ -2984,15 +3248,18 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
     }
 
     // Authentication Modals
-    function showLoginModal() {
+    function showLoginModal(locked = false) {
+      const isLocked = locked || (isAuthMandatory && !currentUser);
       const mc = document.getElementById('modal-container');
       mc.innerHTML = \`
-        <div class="modal-overlay">
+        <div class="modal-overlay" \` + (isLocked ? '' : 'onclick="closeModal()"') + \`>
           <div class="modal-box" onclick="event.stopPropagation()">
             <div class="modal-title">
               <span>Sign In to Smaran HFS</span>
+              \` + (isLocked ? '' : '<button onclick="closeModal()" class="subtle icon-only">✕</button>') + \`
             </div>
             <div class="modal-body">
+              <div id="login-error-badge" class="login-error-badge"></div>
               <div class="form-group">
                 <label class="form-label">Username</label>
                 <input type="text" class="form-input" id="login-user" placeholder="e.g. smaran" autocomplete="username">
@@ -3003,21 +3270,44 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
               </div>
             </div>
             <div class="modal-footer">
-              <button class="primary" onclick="doLogin()" style="width:100%; justify-content:center;">Sign In</button>
+              <button class="primary" id="btn-submit-login" onclick="doLogin()" style="width:100%; justify-content:center;">Sign In</button>
             </div>
           </div>
         </div>
       \`;
+      const userInput = document.getElementById('login-user');
       const passInp = document.getElementById('login-pass');
+      if (userInput) {
+        userInput.focus();
+        userInput.onkeydown = (e) => { if (e.key === 'Enter') { if (passInp) passInp.focus(); else doLogin(); } };
+      }
       if (passInp) {
         passInp.onkeydown = (e) => { if (e.key === 'Enter') doLogin(); };
       }
     }
 
     async function doLogin() {
-      const username = document.getElementById('login-user').value.trim();
-      const password = document.getElementById('login-pass').value;
-      if (!username) return;
+      const userInput = document.getElementById('login-user');
+      const passInp = document.getElementById('login-pass');
+      const btnSubmit = document.getElementById('btn-submit-login');
+      const errBadge = document.getElementById('login-error-badge');
+      if (errBadge) errBadge.style.display = 'none';
+
+      const username = userInput ? userInput.value.trim() : '';
+      const password = passInp ? passInp.value : '';
+      if (!username) {
+        if (errBadge) {
+          errBadge.innerText = 'Please enter a username';
+          errBadge.style.display = 'block';
+        }
+        if (userInput) userInput.focus();
+        return;
+      }
+
+      if (btnSubmit) {
+        btnSubmit.disabled = true;
+        btnSubmit.innerText = 'Signing in...';
+      }
 
       try {
         const res = await fetch('/api/login', {
@@ -3026,11 +3316,13 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
           body: JSON.stringify({ username, password })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Login failed');
+        if (!res.ok || !data.ok) {
+          throw new Error(data.error || 'Invalid username or password');
+        }
 
-        currentSessionId = data.token;
+        currentSessionId = data.sessionId || data.token;
         currentUser = data.user;
-        closeModal();
+        closeModal(true);
         updateContextAddressBar(currentUser.username, clientIp);
         updateSessionUI();
         showToast('Signed in as ' + currentUser.username);
@@ -3041,7 +3333,19 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
           loadFiles();
         }
       } catch (err) {
-        smaranAlert({ title: 'Authentication Failed', message: err.message, error: true });
+        if (errBadge) {
+          errBadge.innerText = err.message || 'Invalid username or password';
+          errBadge.style.display = 'block';
+        }
+        if (passInp) {
+          passInp.value = '';
+          passInp.focus();
+        }
+      } finally {
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.innerText = 'Sign In';
+        }
       }
     }
 
@@ -3904,9 +4208,14 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
       window.SmaranDots = { mount, mountAll: () => document.querySelectorAll('svg[data-dots]').forEach(mount) };
     })();
 
-    // Keyboard Shortcuts
+    // Global Listeners & Keyboard Shortcuts
+    window.addEventListener('click', () => hideContextMenu());
+    window.addEventListener('scroll', () => hideContextMenu(), true);
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeModal();
+      if (e.key === 'Escape') {
+        hideContextMenu();
+        if (!isAuthMandatory || currentUser) closeModal();
+      }
       if (e.key === '/' && document.activeElement !== document.getElementById('search-input')) {
         const inp = document.getElementById('search-input');
         if (inp) {
@@ -3919,7 +4228,9 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
     // Initialize
     window.SmaranDots.mountAll();
     checkSession().finally(() => {
-      loadFiles();
+      if (!isAuthMandatory || currentUser) {
+        loadFiles();
+      }
     });
   </script>
 </body>

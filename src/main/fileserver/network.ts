@@ -42,3 +42,23 @@ export function buildServerUrls(
     lanUrls: lanIps.map((ip) => `${scheme}://${ip}${portSuffix}`),
   };
 }
+
+export function buildExternalUrl(
+  port: number,
+  publicHost?: string,
+  https = false,
+): string | null {
+  if (!publicHost) return null;
+  const cleanHost = publicHost.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  if (!cleanHost) return null;
+
+  // If host already specifies a port, use it as-is with scheme
+  if (cleanHost.includes(':')) {
+    return `${https ? 'https' : 'http'}://${cleanHost}`;
+  }
+
+  const scheme = https ? 'https' : 'http';
+  const defaultPort = (https && port === 443) || (!https && port === 80);
+  const portSuffix = defaultPort ? '' : `:${port}`;
+  return `${scheme}://${cleanHost}${portSuffix}`;
+}

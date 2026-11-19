@@ -217,6 +217,7 @@ export interface ServerStatus {
   lanIps: string[];
   localUrl: string;
   lanUrls: string[];
+  externalUrl?: string | null;
   connectedClients: number;
   activeTransfers: ActiveTransfer[];
   totalBytesUploaded: number;

@@ -19,7 +19,7 @@ import type {
 } from '@shared/fileserver';
 import type { FileServerStore } from './FileServerStore';
 import { lookupMime } from './mime';
-import { buildServerUrls, getLanIps } from './network';
+import { buildExternalUrl, buildServerUrls, getLanIps } from './network';
 import {
   BruteForceLimiter,
   hashPassword,
@@ -28,6 +28,7 @@ import {
   verifyPassword,
 } from './security';
 import { getWebManagerHtml } from './webUi';
+import { generatePreviewHtml } from './previewUi';
 import { VfsManager } from './vfs/VfsManager';
 import { streamFolderAsZip, streamSelectionAsZip } from './vfs/zipStream';
 import { WebDavHandler } from './webdav';
@@ -60,6 +61,13 @@ interface SessionInfo {
   clientIp: string;
   createdAt: number;
   lastActivity: number;
+}
+
+export interface AuthAnalysis {
+  state: 'authenticated' | 'anonymous' | 'invalid';
+  user?: UserAccount;
+  session?: SessionInfo;
+  reason?: string;
 }
 
 export class HttpServer {
@@ -261,6 +269,7 @@ export class HttpServer {
     const { localUrl, lanUrls } = buildServerUrls(settings.port, lanIps, settings.httpsEnabled);
     const uptime = this.startedAt ? Math.floor((Date.now() - this.startedAt) / 1000) : 0;
     const natStatus = this.nat.getStatus();
+    const externalUrl = buildExternalUrl(settings.port, settings.ddnsUrl || natStatus.publicIp, settings.httpsEnabled);
 
     const liveConnections: LiveConnection[] = [];
     for (const [, tracker] of this.socketMap) {
@@ -286,6 +295,7 @@ export class HttpServer {
       lanIps,
       localUrl,
       lanUrls,
+      externalUrl,
       connectedClients: this.socketMap.size,
       activeTransfers: Array.from(this.activeTransfers.values()),
       totalBytesUploaded: this.totalBytesUploaded,
@@ -376,45 +386,79 @@ export class HttpServer {
     return null;
   }
 
+  private getCookie(req: http.IncomingMessage, name: string): string | null {
+    const raw = req.headers.cookie;
+    if (!raw) return null;
+    const parts = raw.split(';');
+    for (const p of parts) {
+      const idx = p.indexOf('=');
+      if (idx !== -1) {
+        const k = p.slice(0, idx).trim();
+        const v = p.slice(idx + 1).trim();
+        if (k === name) {
+          try {
+            return decodeURIComponent(v);
+          } catch {
+            return v;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   private getSessionIdFromReq(req: http.IncomingMessage): string | null {
     const headerToken = req.headers['x-session-id'];
-    if (typeof headerToken === 'string' && headerToken) return headerToken;
+    if (typeof headerToken === 'string' && headerToken) return headerToken.trim();
     const auth = req.headers['authorization'];
     if (auth && auth.startsWith('Bearer ')) {
       return auth.slice(7).trim();
     }
+    const cookieToken = this.getCookie(req, 'smaran_session');
+    if (cookieToken) return cookieToken.trim();
     try {
       const parsed = new URL(req.url || '/', 'http://localhost');
       const token = parsed.searchParams.get('token') || parsed.searchParams.get('sessionId');
-      if (token) return token;
+      if (token) return token.trim();
     } catch {
       void 0;
     }
     return null;
   }
 
-  private isSessionValid(_session: SessionInfo): boolean {
-    // Sessions do not expire on a timer; refreshing the browser clears memory token
+  public isSessionValid(session: SessionInfo): boolean {
+    const idleTimeout = 60 * 60 * 1000; // 1-hour sliding inactivity window
+    if (Date.now() - session.lastActivity > idleTimeout) {
+      return false;
+    }
     return true;
   }
 
-  private authenticateUser(req: http.IncomingMessage): UserAccount | null {
+  public analyzeAuth(req: http.IncomingMessage): AuthAnalysis {
     const settings = this.store.getSettings();
-    if (!settings.authEnabled) return null;
+    if (!settings.authEnabled) {
+      const defaultUser = this.store.findUserByUsername('smaran');
+      return { state: 'authenticated', user: defaultUser || undefined };
+    }
 
-    // 1. Session lookup
+    // 1. Session Token lookup (Header, Bearer, Cookie, URL param)
     const sessionId = this.getSessionIdFromReq(req);
     if (sessionId) {
       const session = this.sessions.get(sessionId);
-      if (session) {
-        if (this.isSessionValid(session)) {
-          session.lastActivity = Date.now();
-          const user = this.store.findUserByUsername(session.username);
-          if (user) return user;
-        } else {
-          this.sessions.delete(sessionId);
-        }
+      if (!session) {
+        return { state: 'invalid', reason: 'Invalid or revoked session token' };
       }
+      if (!this.isSessionValid(session)) {
+        this.sessions.delete(sessionId);
+        return { state: 'invalid', reason: 'Session expired' };
+      }
+      const user = this.store.findUserByUsername(session.username);
+      if (!user) {
+        this.sessions.delete(sessionId);
+        return { state: 'invalid', reason: 'User account no longer exists' };
+      }
+      session.lastActivity = Date.now();
+      return { state: 'authenticated', user, session };
     }
 
     // 2. HTTP Basic Auth
@@ -422,31 +466,64 @@ export class HttpServer {
     if (authHeader && authHeader.startsWith('Basic ')) {
       try {
         const decoded = Buffer.from(authHeader.slice(6), 'base64').toString('utf8');
-        const [username, password] = decoded.split(':');
-        if (username && password) {
-          const user = this.store.findUserByUsername(username);
-          if (user && verifyPassword(password, user.passwordHash)) {
-            return user;
-          }
+        const sepIndex = decoded.indexOf(':');
+        if (sepIndex === -1) {
+          return { state: 'invalid', reason: 'Malformed basic authentication header' };
         }
+        const username = decoded.slice(0, sepIndex).trim();
+        const password = decoded.slice(sepIndex + 1);
+        if (!username) {
+          return { state: 'invalid', reason: 'Empty username' };
+        }
+        const user = this.store.findUserByUsername(username);
+        if (!user) {
+          return { state: 'invalid', reason: 'Unknown user' };
+        }
+        if (!verifyPassword(password, user.passwordHash)) {
+          return { state: 'invalid', reason: 'Incorrect password' };
+        }
+        return { state: 'authenticated', user };
       } catch {
-        // Fall through
+        return { state: 'invalid', reason: 'Invalid basic authentication format' };
       }
     }
-    return null;
+
+    // Check if an invalid/unsupported auth scheme was passed
+    if (authHeader && !authHeader.startsWith('Basic ') && !authHeader.startsWith('Bearer ')) {
+      return { state: 'invalid', reason: 'Unsupported authorization scheme' };
+    }
+
+    return { state: 'anonymous' };
   }
 
-  private checkAuth(req: http.IncomingMessage, user: UserAccount | null): boolean {
+  public checkAuth(req: http.IncomingMessage, auth: AuthAnalysis): boolean {
     const settings = this.store.getSettings();
     if (!settings.authEnabled) return true;
-    if (user) return true;
 
-    // Guest access allowed for GET/HEAD
-    if (settings.guestAccess && (req.method === 'GET' || req.method === 'HEAD')) {
+    // Critical: If invalid credentials were provided, REJECT IMMEDIATELY.
+    // Never fall through to guest access when wrong credentials are submitted!
+    if (auth.state === 'invalid') {
+      return false;
+    }
+
+    if (auth.state === 'authenticated' && auth.user) {
       return true;
     }
 
+    // Guest access only applies to truly anonymous requests with no bad credentials,
+    // and only for safe read-only methods (GET, HEAD).
+    if (auth.state === 'anonymous' && settings.guestAccess) {
+      if (req.method === 'GET' || req.method === 'HEAD') {
+        return true;
+      }
+    }
+
     return false;
+  }
+
+  public authenticateUser(req: http.IncomingMessage): UserAccount | null {
+    const analysis = this.analyzeAuth(req);
+    return analysis.state === 'authenticated' ? (analysis.user || null) : null;
   }
 
   private async handleRequest(
@@ -510,8 +587,8 @@ export class HttpServer {
 
     // 4. WebDAV Protocol Handling with Basic Auth challenge
     if (settings.webdavEnabled && this.webdav.isWebDavRequest(req)) {
-      const user = this.authenticateUser(req);
-      if (settings.authEnabled && !user) {
+      const auth = this.analyzeAuth(req);
+      if (settings.authEnabled && (auth.state !== 'authenticated' || !auth.user)) {
         res.writeHead(401, {
           'WWW-Authenticate': 'Basic realm="Smaran HFS"',
           'Content-Type': 'text/plain',
@@ -519,7 +596,7 @@ export class HttpServer {
         res.end('WebDAV authentication required');
         return;
       }
-      const handled = await this.webdav.handleRequest(req, res, clientIp, user);
+      const handled = await this.webdav.handleRequest(req, res, clientIp, auth.user);
       if (handled) return;
     }
 
@@ -549,16 +626,22 @@ export class HttpServer {
 
     // 4.2 Windows Explorer 1-Click Drive Mount script download
     if (pathname === '/api/mount-bat') {
+      const auth = this.analyzeAuth(req);
+      if (settings.authEnabled && auth.state !== 'authenticated') {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Authentication required to download drive mounter' }));
+        return;
+      }
+
       const driveParam = (parsedUrl.searchParams.get('drive') || 'Z').toUpperCase().replace(/[^A-Z]/g, '') || 'Z';
-      const userParam = parsedUrl.searchParams.get('user') || (settings.authEnabled ? 'smaran' : '');
-      const passParam = parsedUrl.searchParams.get('pass') || (settings.authEnabled ? 'smaran@123' : '');
+      const userParam = parsedUrl.searchParams.get('user') || auth.user?.username || (settings.authEnabled ? 'smaran' : '');
       const hostIp = this.getCleanClientIp(req);
       const serverPort = settings.port;
       const lanUrl = `http://${req.headers.host || `${hostIp}:${serverPort}`}/`;
 
       let mountCmd = `net use ${driveParam}: ${lanUrl} /persistent:no`;
       if (settings.authEnabled && userParam) {
-        mountCmd = `net use ${driveParam}: ${lanUrl} /user:${userParam} "${passParam}" /persistent:no`;
+        mountCmd = `net use ${driveParam}: ${lanUrl} /user:${userParam} * /persistent:no`;
       }
 
       const bat = `@echo off\r\n` +
@@ -617,19 +700,54 @@ export class HttpServer {
 
     // 6. Public API Status
     if (pathname === '/api/status') {
+      const auth = this.analyzeAuth(req);
+      const status = this.getStatus();
+      if (settings.authEnabled && auth.state !== 'authenticated') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            running: status.running,
+            serverName: status.serverName,
+            port: status.port,
+            authEnabled: status.authEnabled,
+            guestAccess: status.guestAccess,
+            authenticated: false,
+          }),
+        );
+        return;
+      }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(this.getStatus()));
+      res.end(JSON.stringify(status));
       return;
     }
 
     // 6.1 Session status endpoint
     if (pathname === '/api/session' && req.method === 'GET') {
-      const user = this.authenticateUser(req);
-      const sessionId = this.getSessionIdFromReq(req);
-      const session = sessionId ? this.sessions.get(sessionId) : null;
+      const auth = this.analyzeAuth(req);
+      if (auth.state === 'invalid') {
+        const clearCookie = 'smaran_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax';
+        res.writeHead(401, {
+          'Content-Type': 'application/json',
+          'Set-Cookie': clearCookie,
+        });
+        res.end(
+          JSON.stringify({
+            ok: false,
+            authenticated: false,
+            error: auth.reason || 'Invalid or expired session',
+            clientIp: this.getCleanClientIp(req),
+            authEnabled: settings.authEnabled,
+            serverName: settings.serverName,
+          }),
+        );
+        return;
+      }
+
+      const user = auth.user;
+      const session = auth.session;
       const remainingSeconds = session
         ? Math.max(0, Math.floor((this.SESSION_TIMEOUT_MS - (Date.now() - session.lastActivity)) / 1000))
-        : 0;
+        : (settings.authEnabled ? 0 : 86400);
       const hasActiveTransfers = Array.from(this.activeTransfers.values()).some(
         (t) => t.clientIp === clientIp,
       );
@@ -651,6 +769,7 @@ export class HttpServer {
           expiresInSeconds: remainingSeconds,
           hasActiveTransfers,
           authEnabled: settings.authEnabled,
+          guestAccess: settings.guestAccess,
           serverName: settings.serverName,
         }),
       );
@@ -660,9 +779,12 @@ export class HttpServer {
     // 7. Login API
     if (pathname === '/api/login' && req.method === 'POST') {
       const body = await this.readJsonBody(req);
-      if (body && typeof body.username === 'string' && typeof body.password === 'string') {
-        const user = this.store.findUserByUsername(body.username);
-        if (user && verifyPassword(body.password, user.passwordHash)) {
+      const username = typeof body?.username === 'string' ? body.username.trim() : '';
+      const password = typeof body?.password === 'string' ? body.password : '';
+
+      if (username && password) {
+        const user = this.store.findUserByUsername(username);
+        if (user && verifyPassword(password, user.passwordHash)) {
           this.bruteForce.recordSuccess(clientIp);
           const sessionId = randomUUID();
           this.sessions.set(sessionId, {
@@ -673,11 +795,16 @@ export class HttpServer {
             createdAt: Date.now(),
             lastActivity: Date.now(),
           });
-          res.writeHead(200, { 'Content-Type': 'application/json' });
+          const cookieHeader = `smaran_session=${sessionId}; Path=/; HttpOnly; SameSite=Lax`;
+          res.writeHead(200, {
+            'Content-Type': 'application/json',
+            'Set-Cookie': cookieHeader,
+          });
           res.end(
             JSON.stringify({
               ok: true,
               sessionId,
+              token: sessionId,
               mustChangePassword: !!user.mustChangePassword,
               user: {
                 id: user.id,
@@ -693,9 +820,14 @@ export class HttpServer {
           return;
         }
       }
+
       this.bruteForce.recordFailure(clientIp);
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Invalid username or password' }));
+      const clearCookie = 'smaran_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax';
+      res.writeHead(401, {
+        'Content-Type': 'application/json',
+        'Set-Cookie': clearCookie,
+      });
+      res.end(JSON.stringify({ ok: false, error: 'Invalid username or password' }));
       this.log('warn', 'Failed login attempt', req, 401);
       return;
     }
@@ -803,6 +935,12 @@ export class HttpServer {
       return;
     }
 
+    // 7.6 Dedicated File Preview in Separate Browser Tab
+    if (pathname.startsWith('/preview/')) {
+      await this.handlePreviewRoute(pathname, parsedUrl, req, res);
+      return;
+    }
+
     // 8. Share Links
     if (pathname.startsWith('/share/')) {
       await this.handleShareRoute(pathname, parsedUrl, req, res);
@@ -811,8 +949,13 @@ export class HttpServer {
 
     // 8.1 Web Admin APIs
     if (pathname.startsWith('/api/admin/')) {
-      const adminUser = this.authenticateUser(req);
-      if (!adminUser || adminUser.role !== 'admin') {
+      const auth = this.analyzeAuth(req);
+      if (auth.state !== 'authenticated' || !auth.user) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Authentication required' }));
+        return;
+      }
+      if (auth.user.role !== 'admin') {
         res.writeHead(403, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Administrator access required' }));
         return;
@@ -1021,8 +1164,8 @@ export class HttpServer {
     }
 
     // 9. Auth check
-    const user = this.authenticateUser(req);
-    if (!this.checkAuth(req, user)) {
+    const auth = this.analyzeAuth(req);
+    if (!this.checkAuth(req, auth)) {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
@@ -1030,9 +1173,10 @@ export class HttpServer {
         headers['WWW-Authenticate'] = 'Basic realm="Smaran HFS"';
       }
       res.writeHead(401, headers);
-      res.end(JSON.stringify({ error: 'Authentication required' }));
+      res.end(JSON.stringify({ error: auth.reason || 'Authentication required' }));
       return;
     }
+    const user = auth.user || null;
 
     // 10. Directory Listing API via VFS
     if (pathname === '/api/files' && req.method === 'GET') {
@@ -1050,6 +1194,11 @@ export class HttpServer {
 
     // 11. Streaming ZIP of Folder API
     if (pathname === '/api/zip' && req.method === 'GET') {
+      if (user && !user.permissions.zip) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'ZIP archive download permission denied' }));
+        return;
+      }
       const relPath = parsedUrl.searchParams.get('path') || '';
       await this.handleFolderZipDownload(relPath, user, req, res);
       return;
@@ -1057,6 +1206,11 @@ export class HttpServer {
 
     // 12. Streaming ZIP of Multi-file Selection API
     if (pathname === '/api/zip-selection' && req.method === 'GET') {
+      if (user && !user.permissions.zip) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'ZIP archive download permission denied' }));
+        return;
+      }
       const itemsRaw = parsedUrl.searchParams.get('items') || '';
       const itemsList = itemsRaw.split(';').map((s) => s.trim()).filter(Boolean);
       await this.handleSelectionZipDownload(itemsList, user, req, res);
@@ -1124,6 +1278,11 @@ export class HttpServer {
 
     // 13. File Comment (descript.ion) API
     if (pathname === '/api/comment' && req.method === 'POST') {
+      if (user && !user.permissions.comment) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Comment permission denied' }));
+        return;
+      }
       const body = await this.readJsonBody(req);
       const relPath = typeof body?.path === 'string' ? body.path : '';
       const commentText = typeof body?.comment === 'string' ? body.comment : '';
@@ -1146,6 +1305,11 @@ export class HttpServer {
 
     // 14. Make Directory API
     if (pathname === '/api/mkdir' && req.method === 'POST') {
+      if (user && !user.permissions.mkdir) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Folder creation permission denied' }));
+        return;
+      }
       const body = await this.readJsonBody(req);
       const parentRel = typeof body?.path === 'string' ? body.path : '';
       const dirName = typeof body?.name === 'string' ? body.name.trim() : '';
@@ -1182,6 +1346,11 @@ export class HttpServer {
 
     // 15. Delete File/Folder API
     if (pathname === '/api/delete' && req.method === 'POST') {
+      if (user && !user.permissions.delete) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Delete permission denied' }));
+        return;
+      }
       const body = await this.readJsonBody(req);
       const relPath = typeof body?.path === 'string' ? body.path : '';
 
@@ -1212,6 +1381,11 @@ export class HttpServer {
 
     // 16. Rename API
     if (pathname === '/api/rename' && req.method === 'POST') {
+      if (user && !user.permissions.rename) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Rename permission denied' }));
+        return;
+      }
       const body = await this.readJsonBody(req);
       const relPath = typeof body?.path === 'string' ? body.path : '';
       const newName = typeof body?.newName === 'string' ? body.newName.trim() : '';
@@ -1398,6 +1572,84 @@ export class HttpServer {
     }
   }
 
+  private async handlePreviewRoute(
+    pathname: string,
+    parsedUrl: URL,
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    const auth = this.analyzeAuth(req);
+    const settings = this.store.getSettings();
+
+    if (!this.checkAuth(req, auth)) {
+      res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>401 - Authentication Required</title>
+        <style>body{background:#0e0e11;color:#f0f0f4;font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}
+        .card{background:#18181c;border:1px solid #282830;border-radius:12px;padding:32px;max-width:400px;text-align:center;box-shadow:0 16px 40px rgba(0,0,0,0.5);}
+        h2{margin:0 0 12px 0;font-size:20px;color:#ff6633;}
+        p{color:#a0a0ab;font-size:14px;line-height:1.5;margin-bottom:20px;}
+        a{display:inline-block;background:#ff6633;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:600;}
+        a:hover{background:#ff7744;}
+        </style></head><body><div class="card"><h2>Authentication Required</h2><p>You must be signed in to Smaran HFS to preview this file.</p><a href="/?login=1">Sign In</a></div></body></html>`);
+      return;
+    }
+
+    const relPath = decodeURIComponent(pathname.replace(/^\/preview\/?/, ''));
+    if (!relPath) {
+      res.writeHead(400, { 'Content-Type': 'text/plain' });
+      res.end('File path required');
+      return;
+    }
+
+    const target = this.vfs.resolvePath(relPath, auth.user);
+    if (!target?.physicalPath || !fs.existsSync(target.physicalPath)) {
+      res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(`<!DOCTYPE html><html><head><title>File Not Found</title><style>body{background:#0e0e11;color:#fff;font-family:sans-serif;display:grid;place-items:center;height:100vh;margin:0;}.b{background:#18181c;border:1px solid #282830;padding:32px;border-radius:12px;text-align:center;}a{color:#ff6633;text-decoration:none;font-weight:600;margin-top:16px;display:inline-block;}</style></head><body><div class="b"><h2>404 - File Not Found</h2><p style="color:#888;">The requested file does not exist.</p><a href="/">Return to Smaran HFS</a></div></body></html>`);
+      return;
+    }
+
+    if (!target.permissions.canRead) {
+      res.writeHead(403, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(`<!DOCTYPE html><html><head><title>Access Denied</title><style>body{background:#0e0e11;color:#fff;font-family:sans-serif;display:grid;place-items:center;height:100vh;margin:0;}.b{background:#18181c;border:1px solid #282830;padding:32px;border-radius:12px;text-align:center;}a{color:#ff6633;text-decoration:none;font-weight:600;margin-top:16px;display:inline-block;}</style></head><body><div class="b"><h2 style="color:#ef4444;">403 - Permission Denied</h2><p style="color:#888;">You do not have permission to view this file.</p><a href="/">Return to Smaran HFS</a></div></body></html>`);
+      return;
+    }
+
+    const stat = fs.statSync(target.physicalPath);
+    if (stat.isDirectory()) {
+      res.writeHead(302, { Location: `/?path=${encodeURIComponent(relPath)}` });
+      res.end();
+      return;
+    }
+
+    const fileName = path.basename(target.physicalPath);
+    const mimeType = lookupMime(fileName);
+    const token = auth.session?.id || parsedUrl.searchParams.get('token') || '';
+    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+    const rawUrl = `/raw/${encodeURIComponent(relPath)}${tokenParam}`;
+    const downloadUrl = `/download/${encodeURIComponent(relPath)}${tokenParam}`;
+
+    const previewHtml = generatePreviewHtml({
+      fileName,
+      relPath,
+      physicalPath: target.physicalPath,
+      fileSize: stat.size,
+      mtime: stat.mtime,
+      mimeType,
+      rawUrl,
+      downloadUrl,
+      serverName: settings.serverName,
+    });
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader(
+      'Content-Security-Policy',
+      "default-src 'self' 'unsafe-inline' data: blob:; img-src 'self' data: blob:; media-src 'self' data: blob:; frame-src 'self' blob:; style-src 'self' 'unsafe-inline';",
+    );
+    res.writeHead(200);
+    res.end(previewHtml);
+  }
+
   private async handleShareRoute(
     pathname: string,
     parsedUrl: URL,
@@ -1414,39 +1666,70 @@ export class HttpServer {
 
     const share = this.store.findShareByToken(token);
     if (!share) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Share link not found or expired');
+      res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(`<!DOCTYPE html><html><body style="font-family:sans-serif;background:#0e0e11;color:#fff;display:grid;place-items:center;min-height:90vh;">
+        <div style="background:#16161a;border:1px solid #23232a;padding:32px;border-radius:12px;text-align:center;">
+          <h2 style="color:#ef4444;margin-bottom:8px;">Share Link Not Found</h2>
+          <p style="color:#888;">This share link does not exist or has been revoked.</p>
+        </div></body></html>`);
       return;
     }
 
     if (share.expiresAt && new Date(share.expiresAt).getTime() < Date.now()) {
-      res.writeHead(410, { 'Content-Type': 'text/plain' });
-      res.end('This share link has expired');
+      res.writeHead(410, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(`<!DOCTYPE html><html><body style="font-family:sans-serif;background:#0e0e11;color:#fff;display:grid;place-items:center;min-height:90vh;">
+        <div style="background:#16161a;border:1px solid #23232a;padding:32px;border-radius:12px;text-align:center;">
+          <h2 style="color:#ff6633;margin-bottom:8px;">Share Link Expired</h2>
+          <p style="color:#888;">This share link has expired and is no longer accessible.</p>
+        </div></body></html>`);
       return;
     }
 
     if (share.maxDownloads && share.downloadCount >= share.maxDownloads) {
-      res.writeHead(410, { 'Content-Type': 'text/plain' });
-      res.end('Maximum download limit reached for this share link');
+      res.writeHead(410, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(`<!DOCTYPE html><html><body style="font-family:sans-serif;background:#0e0e11;color:#fff;display:grid;place-items:center;min-height:90vh;">
+        <div style="background:#16161a;border:1px solid #23232a;padding:32px;border-radius:12px;text-align:center;">
+          <h2 style="color:#ff6633;margin-bottom:8px;">Download Limit Reached</h2>
+          <p style="color:#888;">The maximum download limit for this link has been reached.</p>
+        </div></body></html>`);
       return;
     }
 
+    const pwd = parsedUrl.searchParams.get('pwd') || (req.headers['x-share-password'] as string) || '';
     if (share.passwordProtected && share.passwordHash) {
-      const pwd = parsedUrl.searchParams.get('pwd') || (req.headers['x-share-password'] as string);
       if (!pwd || !verifyPassword(pwd, share.passwordHash)) {
         res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(`<!DOCTYPE html><html><body style="font-family:sans-serif;background:#161617;color:#fff;display:grid;place-items:center;min-height:90vh;">
-          <form method="GET" style="background:#222;padding:24px;border-radius:8px;display:flex;flex-direction:column;gap:12px;">
+        res.end(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Password Required · Smaran HFS Share</title>
+          <style>body{font-family:system-ui,-apple-system,sans-serif;background:#0e0e11;color:#f0f0f5;display:grid;place-items:center;min-height:90vh;margin:0;}
+          .card{background:#16161a;border:1px solid #23232a;padding:32px;border-radius:12px;width:100%;max-width:380px;box-shadow:0 16px 40px rgba(0,0,0,0.5);}
+          h3{margin:0 0 8px 0;font-size:18px;color:#ff6633;}
+          p{color:#9e9ea8;font-size:13px;line-height:1.5;margin-bottom:20px;}
+          input{width:100%;box-sizing:border-box;padding:10px 14px;border-radius:8px;border:1px solid #2e2e38;background:#09090c;color:#fff;font-size:14px;margin-bottom:16px;}
+          input:focus{outline:none;border-color:#ff6633;}
+          button{width:100%;padding:10px;background:#ff6633;color:#fff;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;}
+          button:hover{background:#ff7744;}
+          </style></head><body><div class="card">
             <h3>Password Required</h3>
-            <input type="password" name="pwd" placeholder="Enter password" autofocus style="padding:8px;border-radius:4px;border:1px solid #444;background:#111;color:#fff;">
-            <button type="submit" style="padding:8px;background:#e06c43;color:#fff;border:none;border-radius:4px;cursor:pointer;">Unlock</button>
-          </form></body></html>`);
+            <p>This shared file is password-protected. Enter password to continue.</p>
+            <form method="GET">
+              <input type="password" name="pwd" placeholder="Enter password" autofocus required>
+              <button type="submit">Unlock File</button>
+            </form>
+          </div></body></html>`);
         return;
       }
     }
 
+    const isDownload = parsedUrl.searchParams.get('dl') === '1' || parsedUrl.searchParams.get('download') === '1' || share.permission === 'download';
+
+    if (share.isFolder) {
+      this.store.recordShareDownload(share.id);
+      await this.handleFolderZipDownload(share.relativePath, null, req, res);
+      return;
+    }
+
     this.store.recordShareDownload(share.id);
-    await this.serveFile(share.relativePath, true, null, req, res);
+    await this.serveFile(share.relativePath, isDownload, null, req, res);
   }
 
   private async handleFileUpload(
@@ -1456,6 +1739,11 @@ export class HttpServer {
     res: http.ServerResponse,
   ): Promise<void> {
     const settings = this.store.getSettings();
+    if (user && !user.permissions.upload) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Upload permission denied' }));
+      return;
+    }
     const targetFolderRel = parsedUrl.searchParams.get('path') || '';
     let fileName = parsedUrl.searchParams.get('name') || '';
 
