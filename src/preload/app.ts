@@ -187,6 +187,12 @@ const api = {
       ipcRenderer.invoke(IPC.fileserverMountDrive, payload),
     unmountLocalDrive: (driveLetter?: string): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke(IPC.fileserverUnmountDrive, driveLetter),
+    getAdminCredentials: (): Promise<{ username: string; password?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverAdminGet),
+    setAdminCredentials: (creds: { username: string; password: string }): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverAdminSet, creds),
+    openUrl: (url: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.fileserverOpenUrl, url),
     onStatusChanged: (listener: (status: ServerStatus) => void): (() => void) =>
       subscribe(IPC.fileserverStatusChanged, listener),
     onTransfersUpdated: (listener: (transfers: ActiveTransfer[]) => void): (() => void) =>

@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { ipcMain, shell } from 'electron';
 import { IPC } from '@shared/channels';
 import type { FileServerSettings, VfsNode } from '@shared/fileserver';
 import type { FileServerManager } from './FileServerManager';
@@ -96,4 +96,9 @@ export function registerFileServerIpc(manager: FileServerManager): void {
   ipcMain.handle(IPC.fileserverUnmountDrive, (_event, driveLetter?: string) =>
     manager.unmountLocalDrive(driveLetter),
   );
+  ipcMain.handle(IPC.fileserverAdminGet, () => manager.getAdminCredentials());
+  ipcMain.handle(IPC.fileserverAdminSet, (_event, creds: { username: string; password: string }) =>
+    manager.setAdminCredentials(creds),
+  );
+  ipcMain.handle(IPC.fileserverOpenUrl, (_event, url: string) => shell.openExternal(url));
 }

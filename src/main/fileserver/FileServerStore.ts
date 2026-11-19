@@ -179,8 +179,7 @@ export class FileServerStore {
     const existing = this.data.users.find(
       (u) => u.id === user.id || u.username.toLowerCase() === user.username.toLowerCase(),
     );
-    if (existing && existing.username.toLowerCase() === 'smaran') {
-      user.username = 'smaran';
+    if (existing && existing.isSystem) {
       user.role = 'admin';
       user.isSystem = true;
     }
@@ -195,8 +194,8 @@ export class FileServerStore {
 
   deleteUser(id: string): void {
     const user = this.data.users.find((u) => u.id === id);
-    if (user && (user.username.toLowerCase() === 'smaran' || user.isSystem)) {
-      throw new Error("Default system administrator 'smaran' cannot be deleted");
+    if (user && user.isSystem) {
+      throw new Error("Default system administrator account cannot be deleted");
     }
     this.data.users = this.data.users.filter((u) => u.id !== id);
     this.save();

@@ -1,3 +1,13 @@
+# Smaran 3.3.5
+
+- **Full In-Browser HFS 3.4.1 Administration (`/~/admin/`):** Full web-based administrative management matching original HFS capabilities. Manage Virtual File System (VFS) nodes, user accounts and roles, granular folder permissions, upload/download limits, plugins, logs, and server options directly in the browser.
+- **Persistent HFS Configuration Across Restarts:** Modified supervisor configuration lifecycle so `config.yaml` is permanently preserved. Any folders, accounts, limits, or plugin configurations saved via the web admin panel persist across server restarts and application reloads.
+- **Streamlined Desktop File Server Controls:** Redesigned the desktop software File Server view into a fast, clutter-free controller. Removed duplicate sub-tabs in favor of direct Client Web Links (LAN & Localhost), 1-click Web Admin Panel button (`/~/admin/`), real-time Admin Credentials Control (Username & Password configuration with SRP synchronization), and live server logs drawer.
+- **Direct Admin Credentials Synchronization:** Updated Electron IPC and backend supervisor to dynamically configure the HFS admin username and password. Changes made from the desktop app are synced via HFS API in real time or written to `config.yaml` when stopped.
+- **1-Click WebDAV & Network Sharing Tools:** Retained instant 1-click Windows Explorer Drive Z: mounting, vector QR code generation for mobile devices, and LAN/WAN link copying.
+
+---
+
 # Smaran 3.3.4
 
 - **Integrated Official HFS 3.4.1 File Server Engine:** Replaced custom HTTP file serving with the production-grade HFS (HTTP File Server by Rejetto) v3.4.1 engine running as a managed, high-performance isolated sidecar process.

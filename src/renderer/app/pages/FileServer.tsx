@@ -1,16 +1,9 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type {
-  ActiveTransfer,
-  DirectoryListing,
-  FileItem,
   FileServerSettings,
   ServerLogEntry,
   ServerStatus,
-  ShareLink,
-  TransferHistoryEntry,
-  UserAccount,
-  VfsNode,
 } from '@shared/fileserver';
 import { tabVariants } from '../animations';
 import { cx } from '../cx';
@@ -18,64 +11,16 @@ import {
   ActivityIcon,
   CheckIcon,
   CopyIcon,
-  DownloadIcon,
-  FileIcon,
   FolderIcon,
   GearIcon,
   GlobeIcon,
   LockIcon,
-  PlusIcon,
   QrIcon,
   RefreshIcon,
   ServerIcon,
-  ShareIcon,
-  ShieldIcon,
   TrashIcon,
-  UsersIcon,
 } from '../icons';
-import { Button, Card, Dialog, Input, Pill, Row, Switch } from '../ui';
-import { Select } from '../components/Select';
-
-type FileServerTab =
-  | 'overview'
-  | 'manager'
-  | 'vfs'
-  | 'connections'
-  | 'transfers'
-  | 'shares'
-  | 'users'
-  | 'settings'
-  | 'logs';
-
-interface TabItem {
-  id: FileServerTab;
-  label: string;
-  icon: (props: { size?: number; className?: string }) => ReactNode;
-}
-
-const TABS: readonly TabItem[] = [
-  { id: 'overview', label: 'Overview', icon: ServerIcon },
-  { id: 'manager', label: 'File Manager', icon: FolderIcon },
-  { id: 'vfs', label: 'VFS Mounts', icon: GlobeIcon },
-  { id: 'connections', label: 'Connections', icon: ActivityIcon },
-  { id: 'transfers', label: 'Transfers', icon: DownloadIcon },
-  { id: 'shares', label: 'Shared Links', icon: ShareIcon },
-  { id: 'users', label: 'Users & IP', icon: UsersIcon },
-  { id: 'settings', label: 'Settings', icon: GearIcon },
-  { id: 'logs', label: 'Logs', icon: FileIcon },
-];
-
-function formatBytes(bytes: number): string {
-  if (!bytes || bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + (sizes[i] || 'B');
-}
-
-function formatSpeed(bps: number): string {
-  return formatBytes(bps) + '/s';
-}
+import { Button, Card, Dialog, Input, Row, Switch } from '../ui';
 
 function formatUptime(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
@@ -87,2017 +32,754 @@ function formatUptime(seconds: number): string {
 }
 
 export function FileServer() {
-  const [tab, setTab] = useState<FileServerTab>('overview');
   const [status, setStatus] = useState<ServerStatus | null>(null);
   const [settings, setSettings] = useState<FileServerSettings | null>(null);
-  const [qrModal, setQrModal] = useState<{ open: boolean; url: string; qrData: string } | null>(
-    null,
-  );
-  const [webdavModal, setWebdavModal] = useState(false);
+  const [adminUsername, setAdminUsername] = useState('smaran');
+  const [adminPassword, setAdminPassword] = useState('smaran@123');
+  const [showPassword, setShowPassword] = useState(false);
+  const [adminSaveMsg, setAdminSaveMsg] = useState<string | null>(null);
+  const [adminSaveErr, setAdminSaveErr] = useState<string | null>(null);
+  const [portInput, setPortInput] = useState('5900');
+  const [portSaveMsg, setPortSaveMsg] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
-  const [mountLetter, setMountLetter] = useState('Z:');
-  const [mountUsername, setMountUsername] = useState('smaran');
-  const [mountPassword, setMountPassword] = useState('');
-  const [isMounting, setIsMounting] = useState(false);
-  const [mountedDrive, setMountedDrive] = useState<string | null>(null);
-  const [mountMessage, setMountMessage] = useState<{ text: string; error: boolean } | null>(null);
+  const [qrModal, setQrModal] = useState<{ open: boolean; url: string; qrData: string } | null>(null);
+  const [mountStatus, setMountStatus] = useState<string | null>(null);
+  const [mountError, setMountError] = useState<string | null>(null);
+  const [logs, setLogs] = useState<ServerLogEntry[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
 
   useEffect(() => {
     void window.smaran.fileserver.status().then(setStatus);
-    void window.smaran.fileserver.getSettings().then(setSettings);
+    void window.smaran.fileserver.getSettings().then((s) => {
+      setSettings(s);
+      setPortInput(String(s.port));
+    });
+    void window.smaran.fileserver.getAdminCredentials().then((creds) => {
+      if (creds) {
+        if (creds.username) setAdminUsername(creds.username);
+        if (creds.password) setAdminPassword(creds.password);
+      }
+    });
+    void window.smaran.fileserver.logs.get().then(setLogs);
 
     const offStatus = window.smaran.fileserver.onStatusChanged((s) => setStatus(s));
+    const offLog = window.smaran.fileserver.onLogAdded((entry) => {
+      setLogs((prev) => [entry, ...prev].slice(0, 500));
+    });
+
     return () => {
       offStatus();
+      offLog();
     };
   }, []);
 
+  const isRunning = Boolean(status?.running);
+  const effectivePort = settings?.port || status?.port || 5900;
+  const primaryUrl =
+    status?.lanUrls?.[0] || status?.localUrl || `http://localhost:${effectivePort}/`;
+  const lanUrl = status?.lanUrls?.[0] || primaryUrl;
+  const localUrl = status?.localUrl || `http://localhost:${effectivePort}/`;
+  const adminUrl = primaryUrl.replace(/\/$/, '') + '/~/admin/';
+  const lanAdminUrl = lanUrl.replace(/\/$/, '') + '/~/admin/';
+
   const handleStart = async () => {
-    await window.smaran.fileserver.start();
-    const s = await window.smaran.fileserver.status();
-    setStatus(s);
+    setBusyAction('start');
+    try {
+      await window.smaran.fileserver.start();
+      const s = await window.smaran.fileserver.status();
+      setStatus(s);
+    } finally {
+      setBusyAction(null);
+    }
   };
 
   const handleStop = async () => {
-    await window.smaran.fileserver.stop();
-    const s = await window.smaran.fileserver.status();
-    setStatus(s);
+    setBusyAction('stop');
+    try {
+      await window.smaran.fileserver.stop();
+      const s = await window.smaran.fileserver.status();
+      setStatus(s);
+    } finally {
+      setBusyAction(null);
+    }
   };
 
   const handleRestart = async () => {
-    await window.smaran.fileserver.restart();
-    const s = await window.smaran.fileserver.status();
-    setStatus(s);
+    setBusyAction('restart');
+    try {
+      await window.smaran.fileserver.restart();
+      const s = await window.smaran.fileserver.status();
+      setStatus(s);
+    } finally {
+      setBusyAction(null);
+    }
   };
 
-  const showQr = async (url: string) => {
+  const handleOpenBrowser = async (url: string) => {
+    await window.smaran.fileserver.openUrl(url);
+  };
+
+  const handleCopy = (url: string) => {
+    void navigator.clipboard.writeText(url);
+    setCopiedUrl(url);
+    setTimeout(() => setCopiedUrl(null), 2500);
+  };
+
+  const handleShowQr = async (url: string) => {
     const qrData = await window.smaran.fileserver.generateQr(url);
     setQrModal({ open: true, url, qrData });
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedUrl(text);
-    setTimeout(() => setCopiedUrl(null), 2000);
+  const handleSaveAdminCredentials = async () => {
+    setAdminSaveErr(null);
+    setAdminSaveMsg(null);
+    if (!adminUsername.trim()) {
+      setAdminSaveErr('Admin username cannot be empty');
+      return;
+    }
+    if (!adminPassword) {
+      setAdminSaveErr('Admin password cannot be empty');
+      return;
+    }
+    const res = await window.smaran.fileserver.setAdminCredentials({
+      username: adminUsername.trim(),
+      password: adminPassword,
+    });
+    if (!res.ok) {
+      setAdminSaveErr(res.error || 'Failed to save admin credentials');
+    } else {
+      setAdminSaveMsg('Admin credentials updated! Use them to log in to the Web Admin Panel.');
+      setTimeout(() => setAdminSaveMsg(null), 4000);
+    }
   };
 
   const handleMountDrive = async () => {
-    setIsMounting(true);
-    setMountMessage(null);
-    try {
-      const res = await window.smaran.fileserver.mountLocalDrive({
-        driveLetter: mountLetter,
-        username: mountUsername,
-        password: mountPassword,
-      });
-      if (res.ok) {
-        setMountedDrive(res.driveLetter || mountLetter);
-        setMountMessage({
-          text: `Successfully mounted to ${res.driveLetter || mountLetter} and opened in Windows Explorer!`,
-          error: false,
-        });
-      } else {
-        setMountMessage({ text: res.error || 'Failed to mount drive', error: true });
-      }
-    } catch (err: unknown) {
-      setMountMessage({ text: err instanceof Error ? err.message : String(err), error: true });
-    } finally {
-      setIsMounting(false);
+    setMountError(null);
+    setMountStatus('Mounting drive Z: ...');
+    const res = await window.smaran.fileserver.mountLocalDrive({
+      driveLetter: 'Z:',
+      username: adminUsername,
+      password: adminPassword,
+    });
+    if (!res.ok) {
+      setMountError(res.error || 'Failed to mount WebDAV drive');
+      setMountStatus(null);
+    } else {
+      setMountStatus(`Successfully mounted as Drive ${res.driveLetter || 'Z:'}! Windows Explorer opened.`);
+      setTimeout(() => setMountStatus(null), 5000);
     }
   };
 
   const handleUnmountDrive = async () => {
-    setIsMounting(true);
-    setMountMessage(null);
-    try {
-      const res = await window.smaran.fileserver.unmountLocalDrive(mountLetter);
-      if (res.ok) {
-        setMountedDrive(null);
-        setMountMessage({ text: `Drive ${mountLetter} unmounted.`, error: false });
-      } else {
-        setMountMessage({ text: res.error || 'Failed to unmount drive', error: true });
-      }
-    } catch (err: unknown) {
-      setMountMessage({ text: err instanceof Error ? err.message : String(err), error: true });
-    } finally {
-      setIsMounting(false);
+    setMountError(null);
+    setMountStatus('Unmounting drive Z: ...');
+    const res = await window.smaran.fileserver.unmountLocalDrive('Z:');
+    if (!res.ok) {
+      setMountError(res.error || 'Failed to unmount drive');
+      setMountStatus(null);
+    } else {
+      setMountStatus('Drive Z: unmounted successfully.');
+      setTimeout(() => setMountStatus(null), 3000);
     }
-  };
-
-  return (
-    <div className="mx-auto max-w-[900px] space-y-5 px-7 pt-8 pb-16">
-      <header className="animate-enter flex items-center justify-between">
-        <div>
-          <h1 className="font-serif text-[26px] leading-tight flex items-center gap-2.5">
-            <ServerIcon size={24} className="text-accent" />
-            File Server (HFS)
-          </h1>
-          <p className="mt-1 font-serif text-[14px] text-muted italic">
-            Self-hosted HTTP file server engine with VFS, WebDAV, streaming ZIP, and bandwidth throttling.
-          </p>
-        </div>
-
-        {status && (
-          <div className="flex items-center gap-2.5">
-            <span
-              className={cx(
-                'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium',
-                status.running ? 'bg-ok/15 text-ok ring-1 ring-ok/30' : 'bg-line text-muted',
-              )}
-            >
-              <span
-                className={cx(
-                  'h-2 w-2 rounded-full',
-                  status.running ? 'bg-ok animate-pulse' : 'bg-muted',
-                )}
-              />
-              {status.running ? `Online :${status.port}` : 'Offline'}
-            </span>
-            {status.running ? (
-              <Button size="sm" variant="danger" onClick={handleStop}>
-                Stop
-              </Button>
-            ) : (
-              <Button size="sm" variant="primary" onClick={handleStart}>
-                Start
-              </Button>
-            )}
-          </div>
-        )}
-      </header>
-
-      {/* Tabs */}
-      <div
-        role="tablist"
-        className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-5 lg:flex lg:flex-wrap gap-1.5 rounded-xl border border-line bg-raised/70 p-1.5 animate-enter [animation-delay:20ms]"
-      >
-        {TABS.map((t) => {
-          const Icon = t.icon;
-          const active = tab === t.id;
-          return (
-            <button
-              key={t.id}
-              role="tab"
-              type="button"
-              aria-selected={active}
-              onClick={() => setTab(t.id)}
-              className={cx(
-                'flex items-center justify-center gap-1.5 rounded-lg py-2 px-3 text-[12.5px] font-medium transition-all duration-150 whitespace-nowrap',
-                active
-                  ? 'bg-surface text-ink shadow-sm ring-1 ring-line'
-                  : 'text-muted hover:bg-hover/60 hover:text-ink',
-              )}
-            >
-              <Icon size={14} className={active ? 'text-accent' : 'text-faint'} />
-              <span>{t.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={tab}
-          role="tabpanel"
-          variants={tabVariants}
-          initial="initial"
-          animate="animate"
-          exit="exit"
-        >
-          {tab === 'overview' && status && (
-            <OverviewTab
-              status={status}
-              onStart={handleStart}
-              onStop={handleStop}
-              onRestart={handleRestart}
-              onShowQr={showQr}
-              onOpenWebdav={() => setWebdavModal(true)}
-              onCopy={copyToClipboard}
-              copiedUrl={copiedUrl}
-            />
-          )}
-
-          {tab === 'manager' && <FileManagerTab onShowQr={showQr} status={status} />}
-
-          {tab === 'vfs' && <VfsTab />}
-
-          {tab === 'connections' && <ConnectionsTab />}
-
-          {tab === 'transfers' && <TransfersTab />}
-
-          {tab === 'shares' && <SharesTab onShowQr={showQr} />}
-
-          {tab === 'users' && <UsersTab />}
-
-          {tab === 'settings' && settings && (
-            <SettingsTab initialSettings={settings} onUpdated={(s) => setSettings(s)} />
-          )}
-
-          {tab === 'logs' && <LogsTab />}
-        </motion.div>
-      </AnimatePresence>
-
-      {/* QR Code Dialog */}
-      {qrModal && (
-        <Dialog
-          open={qrModal.open}
-          title="Scan to Open on Mobile"
-          onClose={() => setQrModal(null)}
-          actions={
-            <Button variant="secondary" onClick={() => setQrModal(null)}>
-              Close
-            </Button>
-          }
-        >
-          <div className="flex flex-col items-center gap-4 py-2">
-            <img
-              src={qrModal.qrData}
-              alt="QR Code"
-              className="h-56 w-56 rounded-xl border border-line bg-surface p-2 shadow-sm"
-            />
-            <p className="font-mono text-[13px] text-muted text-center break-all px-4 select-all">
-              {qrModal.url}
-            </p>
-          </div>
-        </Dialog>
-      )}
-
-      {/* WebDAV Drive Guidance & 1-Click Mount Dialog */}
-      {webdavModal && status && (
-        <Dialog
-          open={webdavModal}
-          title="Mount as Windows Network Drive (WebDAV)"
-          onClose={() => setWebdavModal(false)}
-          actions={
-            <Button variant="secondary" onClick={() => setWebdavModal(false)}>
-              Close
-            </Button>
-          }
-        >
-          <div className="space-y-3.5 py-2 text-[13px] text-muted leading-relaxed">
-            <p>
-              Smaran HFS includes a full native WebDAV server. You can mount your shared folders
-              directly in Windows Explorer as a network drive letter to view, edit, add, and delete files like a local disk.
-            </p>
-
-            <div className="grid grid-cols-3 gap-2.5">
-              <div>
-                <label className="text-[11.5px] font-medium text-ink block mb-1">Drive Letter</label>
-                <select
-                  className="w-full rounded-md border border-line bg-raised px-2.5 py-1.5 text-[12px] text-ink focus:outline-none focus:border-accent"
-                  value={mountLetter}
-                  onChange={(e) => setMountLetter(e.target.value)}
-                >
-                  <option value="Z:">Z:</option>
-                  <option value="Y:">Y:</option>
-                  <option value="X:">X:</option>
-                  <option value="W:">W:</option>
-                  <option value="V:">V:</option>
-                  <option value="S:">S:</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[11.5px] font-medium text-ink block mb-1">Username</label>
-                <input
-                  type="text"
-                  className="w-full rounded-md border border-line bg-raised px-2.5 py-1.5 text-[12px] text-ink focus:outline-none focus:border-accent"
-                  value={mountUsername}
-                  onChange={(e) => setMountUsername(e.target.value)}
-                  placeholder="smaran"
-                />
-              </div>
-              <div>
-                <label className="text-[11.5px] font-medium text-ink block mb-1">Password</label>
-                <input
-                  type="password"
-                  className="w-full rounded-md border border-line bg-raised px-2.5 py-1.5 text-[12px] text-ink focus:outline-none focus:border-accent"
-                  value={mountPassword}
-                  onChange={(e) => setMountPassword(e.target.value)}
-                  placeholder="Password"
-                />
-              </div>
-            </div>
-
-            {mountMessage && (
-              <div
-                className={`rounded-md p-2.5 text-[12px] ${
-                  mountMessage.error
-                    ? 'bg-danger/10 text-danger border border-danger/30'
-                    : 'bg-ok/10 text-ok border border-ok/30'
-                }`}
-              >
-                {mountMessage.text}
-              </div>
-            )}
-
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <Button variant="primary" onClick={() => void handleMountDrive()} disabled={isMounting}>
-                {isMounting ? 'Mounting...' : `Mount as Drive ${mountLetter}`}
-              </Button>
-              <Button variant="secondary" onClick={() => void handleUnmountDrive()} disabled={isMounting}>
-                Unmount {mountLetter}
-              </Button>
-              {mountedDrive && (
-                <span className="text-[12px] text-ok font-medium ml-1">
-                  Mapped to {mountedDrive}
-                </span>
-              )}
-            </div>
-
-            <div className="space-y-1.5 pt-1">
-              <div className="font-semibold text-ink text-[12px]">Direct Command / LAN Setup:</div>
-              <div className="rounded-lg border border-line bg-raised/50 p-2.5 font-mono text-[11.5px] text-ink select-all">
-                net use {mountLetter} {status.localUrl}/ {mountUsername ? `/user:${mountUsername} "${mountPassword || '••••'}"` : ''} /persistent:no
-              </div>
-            </div>
-          </div>
-        </Dialog>
-      )}
-    </div>
-  );
-}
-
-// ==========================================
-// 1. OVERVIEW TAB
-// ==========================================
-function OverviewTab({
-  status,
-  onRestart,
-  onShowQr,
-  onOpenWebdav,
-  onCopy,
-  copiedUrl,
-}: {
-  status: ServerStatus;
-  onStart: () => void;
-  onStop: () => void;
-  onRestart: () => void;
-  onShowQr: (url: string) => void;
-  onOpenWebdav: () => void;
-  onCopy: (url: string) => void;
-  copiedUrl: string | null;
-}) {
-  return (
-    <div className="space-y-5">
-      <Card
-        title="Server Status & Access Addresses"
-        description="Share these addresses with devices connected to your Wi-Fi or local network."
-      >
-        <div className="space-y-3 py-1">
-          {/* Status Bar Pills */}
-          <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-line">
-            <Pill tone={status.running ? 'ok' : 'neutral'}>
-              {status.running ? 'HTTP Server Active' : 'Server Stopped'}
-            </Pill>
-            {status.upnpMapped ? (
-              <Pill tone="accent">UPnP Port Forwarded ({status.publicIp || 'WAN'})</Pill>
-            ) : (
-              <Pill tone="neutral">UPnP Router: Inactive</Pill>
-            )}
-            <Button size="sm" variant="ghost" onClick={onOpenWebdav}>
-              <GlobeIcon size={13} className="text-accent" />
-              Mount as WebDAV Drive
-            </Button>
-            {status.running && (
-              <Button size="sm" variant="ghost" onClick={onRestart}>
-                <RefreshIcon size={13} />
-                Restart
-              </Button>
-            )}
-          </div>
-
-          {/* URLs */}
-          {status.running ? (
-            <div className="space-y-2 pt-1">
-              {/* Localhost */}
-              <div className="flex items-center justify-between rounded-lg border border-line bg-raised/40 p-2.5">
-                <div className="min-w-0 flex-1">
-                  <div className="text-[11px] uppercase tracking-wider text-muted font-medium">
-                    This PC (Localhost)
-                  </div>
-                  <div className="font-mono text-[13.5px] text-ink truncate select-all">
-                    {status.localUrl}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0 ml-3">
-                  <Button size="sm" variant="ghost" onClick={() => onCopy(status.localUrl)}>
-                    {copiedUrl === status.localUrl ? <CheckIcon size={13} /> : <CopyIcon size={13} />}
-                    {copiedUrl === status.localUrl ? 'Copied' : 'Copy'}
-                  </Button>
-                  <Button size="sm" variant="secondary" onClick={() => onShowQr(status.localUrl)}>
-                    <QrIcon size={13} />
-                    QR
-                  </Button>
-                </div>
-              </div>
-
-              {/* LAN URLs */}
-              {status.lanUrls.map((url) => (
-                <div
-                  key={url}
-                  className="flex items-center justify-between rounded-lg border border-accent/30 bg-accent/5 p-2.5"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[11px] uppercase tracking-wider text-accent font-semibold flex items-center gap-1.5">
-                      Wi-Fi / LAN Network URL
-                    </div>
-                    <div className="font-mono text-[14px] font-semibold text-ink truncate select-all">
-                      {url}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0 ml-3">
-                    <Button size="sm" variant="ghost" onClick={() => onCopy(url)}>
-                      {copiedUrl === url ? <CheckIcon size={13} /> : <CopyIcon size={13} />}
-                      {copiedUrl === url ? 'Copied' : 'Copy'}
-                    </Button>
-                    <Button size="sm" variant="primary" onClick={() => onShowQr(url)}>
-                      <QrIcon size={13} />
-                      QR
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="py-4 text-center text-muted font-serif italic text-[13.5px]">
-              Server is offline. Click &ldquo;Start&rdquo; above to begin sharing files.
-            </p>
-          )}
-        </div>
-      </Card>
-
-      {/* Metrics Grid */}
-      {status.running && (
-        <Card title="Live Server Activity" description="Real-time bandwidth and connected network clients.">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 py-1">
-            <MetricTile
-              label="Uptime"
-              value={formatUptime(status.uptimeSeconds)}
-              sub={`Port :${status.port}`}
-            />
-            <MetricTile
-              label="Connected Clients"
-              value={String(status.connectedClients)}
-              sub="Live sockets"
-            />
-            <MetricTile
-              label="Upload Speed"
-              value={formatSpeed(status.currentUploadSpeedBps)}
-              sub={`Total: ${formatBytes(status.totalBytesUploaded)}`}
-            />
-            <MetricTile
-              label="Download Speed"
-              value={formatSpeed(status.currentDownloadSpeedBps)}
-              sub={`Total: ${formatBytes(status.totalBytesDownloaded)}`}
-            />
-          </div>
-        </Card>
-      )}
-
-      {/* Network & LAN Speed Test */}
-      {status.running && <SpeedTestWidget port={status.port} />}
-    </div>
-  );
-}
-
-function SpeedTestWidget({ port }: { port: number }) {
-  const [running, setRunning] = useState(false);
-  const [ping, setPing] = useState<number | null>(null);
-  const [downloadMbps, setDownloadMbps] = useState<number | null>(null);
-  const [uploadMbps, setUploadMbps] = useState<number | null>(null);
-  const [internetStatus, setInternetStatus] = useState<string | null>(null);
-  const [stage, setStage] = useState<string>('');
-
-  const runTest = async () => {
-    setRunning(true);
-    setPing(null);
-    setDownloadMbps(null);
-    setUploadMbps(null);
-    setInternetStatus(null);
-    try {
-      // 1. LAN Ping
-      setStage('Measuring LAN ping latency…');
-      const pings: number[] = [];
-      for (let i = 0; i < 3; i++) {
-        const t0 = performance.now();
-        await fetch(`http://localhost:${port}/api/speedtest/ping`, { cache: 'no-store' });
-        pings.push(performance.now() - t0);
-      }
-      const avgPing = Math.round((pings.reduce((a, b) => a + b, 0) / pings.length) * 10) / 10;
-      setPing(avgPing);
-
-      // 2. LAN Download Throughput (10 MB fast stream)
-      setStage('Measuring LAN download speed (10 MB stream)…');
-      const tStartDl = performance.now();
-      const res = await fetch(`http://localhost:${port}/api/speedtest/download?sizeMb=10`, { cache: 'no-store' });
-      const blob = await res.blob();
-      const dtDlSec = Math.max(0.001, (performance.now() - tStartDl) / 1000);
-      const dlSpeed = Math.round(((blob.size * 8) / dtDlSec / 1_000_000) * 10) / 10;
-      setDownloadMbps(dlSpeed);
-
-      // 3. LAN Upload Throughput (8 MB payload)
-      setStage('Measuring LAN upload speed (8 MB stream)…');
-      const uploadBuffer = new Uint8Array(8 * 1024 * 1024);
-      const resUp = await fetch(`http://localhost:${port}/api/speedtest/upload`, {
-        method: 'POST',
-        body: uploadBuffer,
-        headers: { 'Content-Type': 'application/octet-stream' },
-      });
-      const upData = await resUp.json();
-      setUploadMbps(upData.speedMbps || 0);
-
-      // 4. Internet status check
-      setStage('Verifying external Internet connectivity…');
-      try {
-        const netStart = performance.now();
-        await fetch('https://www.google.com/generate_204', { mode: 'no-cors', cache: 'no-store' });
-        const netPing = Math.round(performance.now() - netStart);
-        setInternetStatus(`Online (${netPing} ms)`);
-      } catch {
-        setInternetStatus(navigator.onLine ? 'Connected' : 'Offline');
-      }
-
-      setStage('Speed test completed.');
-    } catch (err: unknown) {
-      setStage('Test notice: ' + (err instanceof Error ? err.message : String(err)));
-    } finally {
-      setRunning(false);
-    }
-  };
-
-  return (
-    <Card
-      title="Network & LAN Speed Test"
-      description="Benchmark latency and throughput between your devices and the file server."
-    >
-      <div className="space-y-3 py-1">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          <div className="rounded-lg border border-line bg-raised/40 p-3 text-center">
-            <div className="text-[11px] uppercase tracking-wider text-muted font-medium">LAN Latency</div>
-            <div className="mt-1 font-mono text-[16px] font-semibold text-ink">
-              {ping !== null ? `${ping} ms` : '—'}
-            </div>
-          </div>
-          <div className="rounded-lg border border-line bg-raised/40 p-3 text-center">
-            <div className="text-[11px] uppercase tracking-wider text-muted font-medium">LAN Download</div>
-            <div className="mt-1 font-mono text-[16px] font-semibold text-accent">
-              {downloadMbps !== null ? `${downloadMbps} Mbps` : '—'}
-            </div>
-          </div>
-          <div className="rounded-lg border border-line bg-raised/40 p-3 text-center">
-            <div className="text-[11px] uppercase tracking-wider text-muted font-medium">LAN Upload</div>
-            <div className="mt-1 font-mono text-[16px] font-semibold text-ok">
-              {uploadMbps !== null ? `${uploadMbps} Mbps` : '—'}
-            </div>
-          </div>
-          <div className="rounded-lg border border-line bg-raised/40 p-3 text-center">
-            <div className="text-[11px] uppercase tracking-wider text-muted font-medium">Internet Ping</div>
-            <div className="mt-1 font-mono text-[14px] font-semibold text-ink">
-              {internetStatus || '—'}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between pt-1">
-          <span className="text-[12px] text-muted italic">
-            {stage || 'Test your local network data transfer speed and internet availability.'}
-          </span>
-          <Button size="sm" variant="primary" onClick={runTest} disabled={running}>
-            <ActivityIcon size={13} className={running ? 'animate-spin' : ''} />
-            {running ? 'Testing…' : 'Run Speed Test'}
-          </Button>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-function MetricTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded-lg border border-line bg-raised/50 p-3">
-      <div className="text-[11px] uppercase tracking-wider text-muted font-medium">{label}</div>
-      <div className="mt-1 font-mono text-[17px] font-semibold text-ink tabular-nums">{value}</div>
-      {sub && <div className="mt-0.5 text-[11px] text-faint">{sub}</div>}
-    </div>
-  );
-}
-
-// ==========================================
-// 2. FILE MANAGER TAB
-// ==========================================
-function FileManagerTab({
-  onShowQr,
-  status,
-}: {
-  onShowQr: (url: string) => void;
-  status: ServerStatus | null;
-}) {
-  const [currentPath, setCurrentPath] = useState('');
-  const [listing, setListing] = useState<DirectoryListing | null>(null);
-  const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [shareDialog, setShareDialog] = useState<FileItem | null>(null);
-  const [copiedItem, setCopiedItem] = useState<string | null>(null);
-
-  const load = async (path = currentPath) => {
-    setLoading(true);
-    try {
-      const res = await window.smaran.fileserver.listDir(path);
-      setListing(res);
-      setCurrentPath(path);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void window.smaran.fileserver.listDir('').then((res) => {
-      setListing(res);
-      setCurrentPath('');
-    });
-  }, []);
-
-  const handleMkdir = async () => {
-    const name = prompt('Folder name:');
-    if (!name?.trim()) return;
-    await window.smaran.fileserver.mkdir(currentPath, name.trim());
-    await load();
-  };
-
-  const handleDelete = async (item: FileItem) => {
-    if (!confirm(`Delete "${item.name}"?`)) return;
-    await window.smaran.fileserver.delete(item.relativePath);
-    await load();
-  };
-
-  const handleRename = async (item: FileItem) => {
-    const newName = prompt('New name:', item.name);
-    if (!newName?.trim() || newName.trim() === item.name) return;
-    await window.smaran.fileserver.rename(item.relativePath, newName.trim());
-    await load();
-  };
-
-  const handleSetComment = async (item: FileItem) => {
-    const comment = prompt(`Description for "${item.name}":`, item.comment || '');
-    if (comment === null) return;
-    await window.smaran.fileserver.setComment(item.relativePath, comment.trim());
-    await load();
-  };
-
-  const filteredItems = (listing?.items || []).filter((i) =>
-    i.name.toLowerCase().includes(search.toLowerCase().trim()),
-  );
-
-  return (
-    <div className="space-y-3">
-      {/* Action Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface p-3">
-        {/* Breadcrumbs */}
-        <div className="flex items-center gap-1.5 flex-wrap text-[13px]">
-          {(listing?.breadcrumbs || []).map((b, idx, arr) => (
-            <span key={b.path} className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => load(b.path)}
-                className={cx(
-                  'rounded px-1.5 py-0.5 transition-colors',
-                  idx === arr.length - 1
-                    ? 'font-semibold text-ink bg-raised'
-                    : 'text-muted hover:text-ink hover:bg-hover',
-                )}
-              >
-                {b.name}
-              </button>
-              {idx < arr.length - 1 && <span className="text-faint">/</span>}
-            </span>
-          ))}
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search items…"
-            className="w-40 h-7 text-[12px]"
-          />
-          <Button size="sm" variant="secondary" onClick={handleMkdir}>
-            <PlusIcon size={13} />
-            New Folder
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => void window.smaran.fileserver.openFolder(currentPath)}
-          >
-            Open in Explorer
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => load()}>
-            <RefreshIcon size={13} className={loading ? 'animate-spin' : ''} />
-          </Button>
-        </div>
-      </div>
-
-      {/* File Table */}
-      <div className="rounded-xl border border-line bg-surface overflow-hidden">
-        <table className="w-full text-left text-[13px]">
-          <thead>
-            <tr className="border-b border-line bg-raised/40 text-[11px] uppercase tracking-wider text-muted font-semibold">
-              <th className="py-2.5 px-4">Name</th>
-              <th className="py-2.5 px-4 w-28">Size</th>
-              <th className="py-2.5 px-4 w-36">Modified</th>
-              <th className="py-2.5 px-4 text-right min-w-[250px]">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {filteredItems.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="py-8 text-center text-muted italic font-serif">
-                  {search ? 'No matching files found.' : 'This folder is empty.'}
-                </td>
-              </tr>
-            ) : (
-              filteredItems.map((item) => (
-                <tr key={item.relativePath} className="hover:bg-hover/50 transition-colors group">
-                  <td className="py-2.5 px-4">
-                    <div className="flex items-center gap-2.5">
-                      {item.isDirectory ? (
-                        <FolderIcon size={16} className="text-accent shrink-0" />
-                      ) : (
-                        <FileIcon size={16} className="text-muted shrink-0" />
-                      )}
-                      <div className="min-w-0">
-                        {item.isDirectory ? (
-                          <button
-                            type="button"
-                            onClick={() => load(item.relativePath)}
-                            className="font-medium text-ink hover:text-accent hover:underline text-left truncate block"
-                          >
-                            {item.name}
-                          </button>
-                        ) : (
-                          <span className="font-medium text-ink truncate block">{item.name}</span>
-                        )}
-                        {item.comment && (
-                          <span className="text-[11px] text-muted italic block truncate">
-                            {item.comment}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-2.5 px-4 font-mono text-[12px] text-muted tabular-nums">
-                    {item.isDirectory ? '—' : formatBytes(item.size)}
-                  </td>
-                  <td className="py-2.5 px-4 text-[12px] text-muted">
-                    {new Date(item.modifiedAt).toLocaleDateString()}
-                  </td>
-                  <td className="py-2.5 px-4 text-right">
-                    <div className="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100 flex-wrap">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        title="Copy direct LAN Link"
-                        onClick={() => {
-                          const base = status?.lanUrls[0] || status?.localUrl || 'http://localhost:5900';
-                          const link = item.isDirectory
-                            ? `${base}/?path=${encodeURIComponent(item.relativePath)}`
-                            : `${base}/download/${encodeURIComponent(item.relativePath)}`;
-                          navigator.clipboard.writeText(link);
-                          setCopiedItem(item.relativePath);
-                          setTimeout(() => setCopiedItem(null), 2000);
-                        }}
-                      >
-                        {copiedItem === item.relativePath ? (
-                          <CheckIcon size={13} className="text-ok" />
-                        ) : (
-                          <CopyIcon size={13} />
-                        )}
-                        <span>{copiedItem === item.relativePath ? 'Copied' : 'Link'}</span>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        title="Set description / comment"
-                        onClick={() => handleSetComment(item)}
-                      >
-                        Note
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setShareDialog(item)}
-                        title="Create Share Link"
-                      >
-                        <ShareIcon size={13} />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleRename(item)}
-                        title="Rename"
-                      >
-                        Rename
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        onClick={() => handleDelete(item)}
-                        title="Delete"
-                      >
-                        <TrashIcon size={13} />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {shareDialog && (
-        <CreateShareDialog
-          item={shareDialog}
-          onClose={() => setShareDialog(null)}
-          onCreated={async (s) => {
-            setShareDialog(null);
-            onShowQr(getShareUrl(s.token));
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-// ==========================================
-// 3. VFS MOUNTS TAB
-// ==========================================
-function VfsTab() {
-  const [nodes, setNodes] = useState<VfsNode[]>([]);
-  const [addModal, setAddModal] = useState(false);
-  const [name, setName] = useState('');
-  const [vfsPath, setVfsPath] = useState('');
-  const [type, setType] = useState<'physical_dir' | 'virtual_dir' | 'link'>('physical_dir');
-  const [physicalPath, setPhysicalPath] = useState('');
-  const [linkUrl, setLinkUrl] = useState('');
-  const [readOnly, setReadOnly] = useState(false);
-  const [hidden, setHidden] = useState(false);
-  const [comment, setComment] = useState('');
-
-  const load = async () => {
-    const list = await window.smaran.fileserver.vfs.list();
-    setNodes(list);
-  };
-
-  useEffect(() => {
-    void window.smaran.fileserver.vfs.list().then(setNodes);
-  }, []);
-
-  const handlePickFolder = async () => {
-    const chosen = await window.smaran.fileserver.vfs.pickPath(true);
-    if (chosen) {
-      setPhysicalPath(chosen);
-      if (!name) setName(chosen.split(/[/\\]/).pop() || 'Folder');
-      if (!vfsPath) setVfsPath('/' + (chosen.split(/[/\\]/).pop() || 'folder').toLowerCase());
-    }
-  };
-
-  const handleSave = async () => {
-    if (!name.trim() || !vfsPath.trim()) return;
-
-    const node: VfsNode = {
-      id: crypto.randomUUID(),
-      name: name.trim(),
-      vfsPath: vfsPath.trim().startsWith('/') ? vfsPath.trim() : '/' + vfsPath.trim(),
-      type,
-      physicalPath: type === 'physical_dir' ? physicalPath.trim() : undefined,
-      linkUrl: type === 'link' ? linkUrl.trim() : undefined,
-      permissions: {
-        canRead: true,
-        canSee: !hidden,
-        canUpload: !readOnly,
-        canDelete: !readOnly,
-        canList: true,
-        canArchive: true,
-      },
-      allowedRoles: [],
-      readOnly,
-      hidden,
-      comment: comment.trim() || undefined,
-      createdAt: new Date().toISOString(),
-    };
-
-    await window.smaran.fileserver.vfs.save(node);
-    setAddModal(false);
-    resetForm();
-    await load();
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Remove this VFS mount? (Physical files will not be deleted)')) return;
-    await window.smaran.fileserver.vfs.delete(id);
-    await load();
-  };
-
-  const resetForm = () => {
-    setName('');
-    setVfsPath('');
-    setType('physical_dir');
-    setPhysicalPath('');
-    setLinkUrl('');
-    setReadOnly(false);
-    setHidden(false);
-    setComment('');
-  };
-
-  return (
-    <Card
-      title="Virtual File System (VFS) Tree"
-      description="Mount physical drives, virtual folders, or external links anywhere in your HFS server path hierarchy."
-    >
-      <div className="flex justify-end pb-3">
-        <Button size="sm" variant="primary" onClick={() => setAddModal(true)}>
-          <PlusIcon size={13} />
-          Add VFS Mount
-        </Button>
-      </div>
-
-      {nodes.length === 0 ? (
-        <div className="py-8 text-center text-muted font-serif italic text-[13px] border border-dashed border-line rounded-lg">
-          No custom VFS mounts configured. The default storage root is mounted at <code className="text-ink">/</code>.
-        </div>
-      ) : (
-        <div className="divide-y divide-line py-1 text-[13px]">
-          {nodes.map((n) => (
-            <div key={n.id} className="flex items-center justify-between py-2.5">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-ink font-mono text-[13.5px]">{n.vfsPath}</span>
-                  <Pill tone={n.type === 'physical_dir' ? 'accent' : 'neutral'}>{n.type}</Pill>
-                  {n.readOnly && <Pill tone="neutral">Read-only</Pill>}
-                  {n.hidden && <Pill tone="neutral">Hidden</Pill>}
-                </div>
-                <div className="mt-0.5 text-[12px] text-muted truncate">
-                  {n.type === 'physical_dir' && `Mapped to: ${n.physicalPath}`}
-                  {n.type === 'virtual_dir' && 'Pure virtual directory (in-memory)'}
-                  {n.type === 'link' && `Redirects to: ${n.linkUrl}`}
-                  {n.comment && ` · "${n.comment}"`}
-                </div>
-              </div>
-              <Button size="sm" variant="danger" onClick={() => handleDelete(n.id)}>
-                Delete
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {addModal && (
-        <Dialog
-          open={addModal}
-          title="Add VFS Mount Node"
-          onClose={() => setAddModal(false)}
-          actions={
-            <>
-              <Button variant="ghost" onClick={() => setAddModal(false)}>
-                Cancel
-              </Button>
-              <Button variant="primary" onClick={handleSave}>
-                Save Mount
-              </Button>
-            </>
-          }
-        >
-          <div className="space-y-3 py-1">
-            <div>
-              <label className="block text-[12.5px] text-muted mb-1">Mount Type</label>
-              <Select
-                value={type}
-                onChange={(val) => setType(val as 'physical_dir' | 'virtual_dir' | 'link')}
-                options={[
-                  { value: 'physical_dir', label: 'Physical Directory (Map disk folder)' },
-                  { value: 'virtual_dir', label: 'Virtual Folder (Directory without disk folder)' },
-                  { value: 'link', label: 'Link Node (External URL or shortcut)' },
-                ]}
-              />
-            </div>
-            <div>
-              <label className="block text-[12.5px] text-muted mb-1">Display Name</label>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Vacation Photos"
-              />
-            </div>
-            <div>
-              <label className="block text-[12.5px] text-muted mb-1">VFS URL Path</label>
-              <Input
-                value={vfsPath}
-                onChange={(e) => setVfsPath(e.target.value)}
-                placeholder="e.g. /photos or /shared/docs"
-              />
-            </div>
-            {type === 'physical_dir' && (
-              <div>
-                <label className="block text-[12.5px] text-muted mb-1">Physical Disk Path</label>
-                <div className="flex gap-2">
-                  <Input
-                    value={physicalPath}
-                    onChange={(e) => setPhysicalPath(e.target.value)}
-                    placeholder="e.g. D:\Pictures\Vacation"
-                    className="flex-1"
-                  />
-                  <Button size="sm" variant="secondary" onClick={handlePickFolder}>
-                    Browse…
-                  </Button>
-                </div>
-              </div>
-            )}
-            {type === 'link' && (
-              <div>
-                <label className="block text-[12.5px] text-muted mb-1">Target URL</label>
-                <Input
-                  value={linkUrl}
-                  onChange={(e) => setLinkUrl(e.target.value)}
-                  placeholder="https://example.com"
-                />
-              </div>
-            )}
-            <div>
-              <label className="block text-[12.5px] text-muted mb-1">Description / Comment</label>
-              <Input
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="Optional note shown in file listings"
-              />
-            </div>
-            <div className="flex items-center justify-between pt-2">
-              <span className="text-[13px]">Read-only (prevent uploads & deletes)</span>
-              <Switch checked={readOnly} onChange={setReadOnly} label="Read-only" />
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[13px]">Hidden (accessible only via direct link)</span>
-              <Switch checked={hidden} onChange={setHidden} label="Hidden" />
-            </div>
-          </div>
-        </Dialog>
-      )}
-    </Card>
-  );
-}
-
-// ==========================================
-// 4. LIVE CONNECTIONS INSPECTOR TAB
-// ==========================================
-function ConnectionsTab() {
-  const [status, setStatus] = useState<ServerStatus | null>(null);
-
-  useEffect(() => {
-    void window.smaran.fileserver.status().then(setStatus);
-    const off = window.smaran.fileserver.onStatusChanged(setStatus);
-    return () => off();
-  }, []);
-
-  const handleDisconnect = async (id: string) => {
-    await window.smaran.fileserver.killConnection(id);
-    const s = await window.smaran.fileserver.status();
-    setStatus(s);
-  };
-
-  const connections = status?.liveConnections || [];
-
-  return (
-    <Card
-      title="Live Connected Clients & Sockets"
-      description="Inspect active network connections to your HFS server with client software details and disconnect controls."
-    >
-      {connections.length === 0 ? (
-        <p className="py-8 text-center text-muted font-serif italic text-[13px]">
-          No active client connections right now.
-        </p>
-      ) : (
-        <div className="divide-y divide-line py-1 text-[13px]">
-          {connections.map((c) => (
-            <div key={c.id} className="flex items-center justify-between py-2.5">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono font-semibold text-ink">{c.clientIp}</span>
-                  <span className="font-mono text-[11px] text-faint">
-                    Connected: {new Date(c.connectedAt).toLocaleTimeString()}
-                  </span>
-                </div>
-                <div className="mt-0.5 text-[12px] text-muted truncate">
-                  <span className="text-accent font-medium">Path:</span> {c.currentPath} ·{' '}
-                  <span className="text-faint">{c.userAgent}</span>
-                </div>
-                <div className="mt-0.5 font-mono text-[11px] text-muted">
-                  Transferred: {formatBytes(c.bytesSent + c.bytesReceived)}
-                </div>
-              </div>
-              <Button size="sm" variant="danger" onClick={() => handleDisconnect(c.id)}>
-                Disconnect
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-    </Card>
-  );
-}
-
-// ==========================================
-// 5. TRANSFERS TAB
-// ==========================================
-function TransfersTab() {
-  const [active, setActive] = useState<ActiveTransfer[]>([]);
-  const [history, setHistory] = useState<TransferHistoryEntry[]>([]);
-
-  useEffect(() => {
-    void window.smaran.fileserver.transfers.active().then(setActive);
-    void window.smaran.fileserver.transfers.history().then(setHistory);
-
-    const off = window.smaran.fileserver.onTransfersUpdated((transfers) => {
-      setActive(transfers);
-    });
-    return () => off();
-  }, []);
-
-  const handleCancel = async (id: string) => {
-    await window.smaran.fileserver.transfers.cancel(id);
-    const updated = await window.smaran.fileserver.transfers.active();
-    setActive(updated);
-  };
-
-  const handleClearHistory = async () => {
-    await window.smaran.fileserver.transfers.clearHistory();
-    setHistory([]);
-  };
-
-  return (
-    <div className="space-y-5">
-      <Card title="Active Transfers" description="Real-time uploads and downloads currently in progress.">
-        {active.length === 0 ? (
-          <p className="py-6 text-center text-muted font-serif italic text-[13px]">
-            No active file transfers at the moment.
-          </p>
-        ) : (
-          <div className="space-y-3 py-1">
-            {active.map((t) => (
-              <div key={t.id} className="rounded-lg border border-line bg-raised/50 p-3 space-y-2">
-                <div className="flex items-center justify-between text-[13px]">
-                  <div className="flex items-center gap-2">
-                    <Pill tone={t.direction === 'upload' ? 'accent' : 'ok'}>
-                      {t.direction.toUpperCase()}
-                    </Pill>
-                    <span className="font-medium text-ink">{t.fileName}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-[12px] text-muted">
-                      {formatSpeed(t.speedBps)} · {t.percent}%
-                    </span>
-                    <Button size="sm" variant="ghost" onClick={() => handleCancel(t.id)}>
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-                <div className="h-1.5 w-full rounded-full bg-line overflow-hidden">
-                  <div
-                    className="h-full bg-accent transition-all duration-200"
-                    style={{ width: `${t.percent}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      <Card
-        title="Transfer History"
-        description="Log of recent completed and failed file transfers."
-      >
-        <div className="flex justify-end pb-2">
-          {history.length > 0 && (
-            <Button size="sm" variant="ghost" onClick={handleClearHistory}>
-              Clear History
-            </Button>
-          )}
-        </div>
-
-        {history.length === 0 ? (
-          <p className="py-6 text-center text-muted font-serif italic text-[13px]">
-            No transfer history recorded yet.
-          </p>
-        ) : (
-          <div className="divide-y divide-line text-[12.5px] max-h-80 overflow-y-auto">
-            {history.map((h) => (
-              <div key={h.id} className="flex items-center justify-between py-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-ink">{h.fileName}</span>
-                    <Pill tone={h.status === 'completed' ? 'ok' : 'neutral'}>{h.status}</Pill>
-                  </div>
-                  <div className="text-[11.5px] text-muted font-mono mt-0.5">
-                    {h.direction} · {formatBytes(h.totalBytes)} · {h.clientIp} · {Math.round(h.durationMs / 1000)}s
-                  </div>
-                </div>
-                <span className="font-mono text-[11px] text-faint">
-                  {new Date(h.completedAt).toLocaleTimeString()}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-    </div>
-  );
-}
-
-// ==========================================
-// 6. SHARED LINKS TAB
-// ==========================================
-function SharesTab({ onShowQr }: { onShowQr: (url: string) => void }) {
-  const [shares, setShares] = useState<ShareLink[]>([]);
-
-  const load = async () => {
-    const list = await window.smaran.fileserver.shares.list();
-    setShares(list);
-  };
-
-  useEffect(() => {
-    void window.smaran.fileserver.shares.list().then(setShares);
-  }, []);
-
-  const handleRevoke = async (id: string) => {
-    if (!confirm('Revoke this share link?')) return;
-    await window.smaran.fileserver.shares.revoke(id);
-    await load();
-  };
-
-  return (
-    <Card
-      title="Active Shared Links"
-      description="Direct download links generated for files or folders, with optional password protection."
-    >
-      {shares.length === 0 ? (
-        <p className="py-8 text-center text-muted font-serif italic text-[13px]">
-          No shared links created yet. Create one from the File Manager tab.
-        </p>
-      ) : (
-        <div className="divide-y divide-line py-1 text-[13px]">
-          {shares.map((s) => (
-            <div key={s.id} className="flex items-center justify-between py-3">
-              <div className="min-w-0 flex-1 pr-4">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-ink">{s.name}</span>
-                  {s.passwordProtected && (
-                    <Pill tone="accent">
-                      <LockIcon size={11} className="inline mr-1" />
-                      Protected
-                    </Pill>
-                  )}
-                  <Pill tone="neutral">{s.permission}</Pill>
-                </div>
-                <div className="mt-1 font-mono text-[11.5px] text-muted truncate">
-                  {getShareUrl(s.token)}
-                </div>
-                <div className="mt-0.5 text-[11px] text-faint">
-                  Downloads: {s.downloadCount}
-                  {s.maxDownloads ? ` / ${s.maxDownloads}` : ''} · Created{' '}
-                  {new Date(s.createdAt).toLocaleDateString()}
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => onShowQr(getShareUrl(s.token))}
-                >
-                  <QrIcon size={13} />
-                  QR
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => navigator.clipboard.writeText(getShareUrl(s.token))}
-                >
-                  <CopyIcon size={13} />
-                  Copy
-                </Button>
-                <Button size="sm" variant="danger" onClick={() => handleRevoke(s.id)}>
-                  Revoke
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </Card>
-  );
-}
-
-// ==========================================
-// 7. USERS & IP SECURITY TAB
-// ==========================================
-function UsersTab() {
-  const [users, setUsers] = useState<UserAccount[]>([]);
-  const [settings, setSettings] = useState<FileServerSettings | null>(null);
-  const [addModal, setAddModal] = useState(false);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'admin' | 'user' | 'guest'>('user');
-  const [canRead, setCanRead] = useState(true);
-  const [canUpload, setCanUpload] = useState(true);
-  const [canDelete, setCanDelete] = useState(true);
-  const [canRename, setCanRename] = useState(true);
-  const [canMkdir, setCanMkdir] = useState(true);
-  const [canComment, setCanComment] = useState(true);
-  const [canVfs, setCanVfs] = useState(false);
-  const [canZip, setCanZip] = useState(true);
-
-  // IP filter inputs
-  const [newAllowIp, setNewAllowIp] = useState('');
-  const [newBlockIp, setNewBlockIp] = useState('');
-
-  const load = async () => {
-    const list = await window.smaran.fileserver.users.list();
-    setUsers(list);
-    const s = await window.smaran.fileserver.getSettings();
-    setSettings(s);
-  };
-
-  useEffect(() => {
-    void window.smaran.fileserver.users.list().then(setUsers);
-    void window.smaran.fileserver.getSettings().then(setSettings);
-  }, []);
-
-  const handleSave = async () => {
-    if (!username.trim()) return;
-    await window.smaran.fileserver.users.save({
-      username: username.trim(),
-      password: password.trim() || undefined,
-      role,
-      permissions: {
-        read: canRead,
-        upload: canUpload,
-        delete: canDelete,
-        rename: canRename,
-        mkdir: canMkdir,
-        comment: canComment,
-        vfs: canVfs,
-        zip: canZip,
-      },
-    });
-    setAddModal(false);
-    setUsername('');
-    setPassword('');
-    setRole('user');
-    setCanRead(true);
-    setCanUpload(true);
-    setCanDelete(true);
-    setCanRename(true);
-    setCanMkdir(true);
-    setCanComment(true);
-    setCanVfs(false);
-    setCanZip(true);
-    await load();
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Remove this user account?')) return;
-    try {
-      await window.smaran.fileserver.users.delete(id);
-      await load();
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Cannot delete user');
-    }
-  };
-
-  const addAllowIp = async () => {
-    if (!newAllowIp.trim() || !settings) return;
-    const updated = [...settings.ipAllowlist, newAllowIp.trim()];
-    const res = await window.smaran.fileserver.saveSettings({ ipAllowlist: updated });
-    setSettings(res);
-    setNewAllowIp('');
-  };
-
-  const removeAllowIp = async (ip: string) => {
-    if (!settings) return;
-    const updated = settings.ipAllowlist.filter((x) => x !== ip);
-    const res = await window.smaran.fileserver.saveSettings({ ipAllowlist: updated });
-    setSettings(res);
-  };
-
-  const addBlockIp = async () => {
-    if (!newBlockIp.trim() || !settings) return;
-    const updated = [...settings.ipBlocklist, newBlockIp.trim()];
-    const res = await window.smaran.fileserver.saveSettings({ ipBlocklist: updated });
-    setSettings(res);
-    setNewBlockIp('');
-  };
-
-  const removeBlockIp = async (ip: string) => {
-    if (!settings) return;
-    const updated = settings.ipBlocklist.filter((x) => x !== ip);
-    const res = await window.smaran.fileserver.saveSettings({ ipBlocklist: updated });
-    setSettings(res);
-  };
-
-  return (
-    <div className="space-y-5">
-      <Card title="User Accounts" description="Manage access credentials and upload/delete permissions.">
-        <div className="flex justify-end pb-3">
-          <Button size="sm" variant="primary" onClick={() => setAddModal(true)}>
-            <PlusIcon size={13} />
-            Add User
-          </Button>
-        </div>
-
-        {users.length === 0 ? (
-          <p className="py-6 text-center text-muted font-serif italic text-[13px]">
-            No user accounts defined. Guest access is currently active.
-          </p>
-        ) : (
-          <div className="divide-y divide-line py-1 text-[13px]">
-            {users.map((u) => {
-              const isSystem = u.isSystem || u.username.toLowerCase() === 'smaran';
-              return (
-                <div key={u.id} className="flex items-center justify-between py-2.5">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-ink">{u.username}</span>
-                      <Pill tone={isSystem ? 'accent' : u.role === 'admin' ? 'accent' : 'neutral'}>
-                        {isSystem ? 'System Admin' : u.role}
-                      </Pill>
-                    </div>
-                    <div className="mt-0.5 text-[11.5px] text-muted">
-                      Permissions: Read{u.permissions.upload ? ', Upload' : ''}
-                      {u.permissions.delete ? ', Delete' : ''}
-                      {u.permissions.rename ? ', Rename' : ''}
-                      {u.permissions.mkdir ? ', Mkdir' : ''}
-                      {u.permissions.zip ? ', Zip' : ''}
-                    </div>
-                  </div>
-                  {isSystem ? (
-                    <span className="text-[11.5px] text-muted italic px-2">Permanent</span>
-                  ) : (
-                    <Button size="sm" variant="danger" onClick={() => handleDelete(u.id)}>
-                      Delete
-                    </Button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {addModal && (
-          <Dialog
-            open={addModal}
-            title="Add User Account"
-            onClose={() => setAddModal(false)}
-            actions={
-              <>
-                <Button variant="ghost" onClick={() => setAddModal(false)}>
-                  Cancel
-                </Button>
-                <Button variant="primary" onClick={handleSave}>
-                  Save User
-                </Button>
-              </>
-            }
-          >
-            <div className="space-y-3 py-1">
-              <div>
-                <label className="block text-[12.5px] text-muted mb-1">Username</label>
-                <Input
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="e.g. john"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-[12.5px] text-muted mb-1">Password</label>
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Choose a strong password"
-                />
-              </div>
-              <div>
-                <label className="block text-[12.5px] text-muted mb-1">Role</label>
-                <Select
-                  value={role}
-                  onChange={(val) => setRole(val as 'admin' | 'user' | 'guest')}
-                  options={[
-                    { value: 'user', label: 'Standard User (Configurable)' },
-                    { value: 'admin', label: 'Administrator (Full Access)' },
-                    { value: 'guest', label: 'Guest (Read Only)' },
-                  ]}
-                />
-              </div>
-              <div className="pt-2 border-t border-line space-y-2">
-                <div className="text-[12px] font-semibold text-muted uppercase tracking-wider">Granular Permissions (All Default ON)</div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[13px]">Read Files & Folders</span>
-                  <Switch checked={canRead} onChange={setCanRead} label="Read Permission" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[13px]">Upload Files</span>
-                  <Switch checked={canUpload} onChange={setCanUpload} label="Upload Permission" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[13px]">Delete Files & Folders</span>
-                  <Switch checked={canDelete} onChange={setCanDelete} label="Delete Permission" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[13px]">Rename Files</span>
-                  <Switch checked={canRename} onChange={setCanRename} label="Rename Permission" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[13px]">Create New Folders</span>
-                  <Switch checked={canMkdir} onChange={setCanMkdir} label="Mkdir Permission" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[13px]">Edit File Descriptions</span>
-                  <Switch checked={canComment} onChange={setCanComment} label="Comment Permission" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[13px]">Manage VFS Mounts</span>
-                  <Switch checked={canVfs} onChange={setCanVfs} label="VFS Permission" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[13px]">Download ZIP Archives</span>
-                  <Switch checked={canZip} onChange={setCanZip} label="Zip Permission" />
-                </div>
-              </div>
-            </div>
-          </Dialog>
-        )}
-      </Card>
-
-      {/* IP Firewall Card */}
-      {settings && (
-        <Card
-          title="IP Firewall & Anti-Brute Force"
-          description="Restrict connections by IP/CIDR masks and guard against password guessing."
-        >
-          <div className="space-y-4 py-1">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-[13px] font-medium text-ink">IP Filter Enabled</div>
-                <div className="text-[11.5px] text-muted">Enforce allowlist and blocklist rules.</div>
-              </div>
-              <Switch
-                checked={settings.ipFilterEnabled}
-                onChange={async (v) => {
-                  const s = await window.smaran.fileserver.saveSettings({ ipFilterEnabled: v });
-                  setSettings(s);
-                }}
-                label="IP Filter Enabled"
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-[13px] font-medium text-ink">Anti-Brute Force Protection</div>
-                <div className="text-[11.5px] text-muted">Automatically lock out IPs after 5 failed login attempts.</div>
-              </div>
-              <Switch
-                checked={settings.bruteForceProtection}
-                onChange={async (v) => {
-                  const s = await window.smaran.fileserver.saveSettings({ bruteForceProtection: v });
-                  setSettings(s);
-                }}
-                label="Anti-Brute Force"
-              />
-            </div>
-
-            {/* Blocklist */}
-            <div className="space-y-2 pt-2 border-t border-line">
-              <div className="text-[12.5px] font-semibold text-danger flex items-center gap-1.5">
-                <ShieldIcon size={14} />
-                Blocked IP Addresses (Blocklist)
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  value={newBlockIp}
-                  onChange={(e) => setNewBlockIp(e.target.value)}
-                  placeholder="e.g. 192.168.1.150 or 10.0.0.*"
-                  className="flex-1 text-[12.5px]"
-                />
-                <Button size="sm" variant="danger" onClick={addBlockIp}>
-                  Block IP
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {settings.ipBlocklist.map((ip) => (
-                  <span
-                    key={ip}
-                    className="inline-flex items-center gap-1 rounded-md bg-danger/10 px-2 py-0.5 font-mono text-[11.5px] text-danger"
-                  >
-                    {ip}
-                    <button
-                      type="button"
-                      onClick={() => removeBlockIp(ip)}
-                      className="hover:text-ink cursor-pointer ml-1"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Allowlist */}
-            <div className="space-y-2 pt-2 border-t border-line">
-              <div className="text-[12.5px] font-semibold text-ok flex items-center gap-1.5">
-                <ShieldIcon size={14} />
-                Allowed IP Addresses (Allowlist - optional)
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  value={newAllowIp}
-                  onChange={(e) => setNewAllowIp(e.target.value)}
-                  placeholder="e.g. 192.168.1.0/24"
-                  className="flex-1 text-[12.5px]"
-                />
-                <Button size="sm" variant="secondary" onClick={addAllowIp}>
-                  Allow IP
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {settings.ipAllowlist.map((ip) => (
-                  <span
-                    key={ip}
-                    className="inline-flex items-center gap-1 rounded-md bg-ok/10 px-2 py-0.5 font-mono text-[11.5px] text-ok"
-                  >
-                    {ip}
-                    <button
-                      type="button"
-                      onClick={() => removeAllowIp(ip)}
-                      className="hover:text-ink cursor-pointer ml-1"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
-    </div>
-  );
-}
-
-// ==========================================
-// 8. SERVER SETTINGS TAB
-// ==========================================
-function SettingsTab({
-  initialSettings,
-  onUpdated,
-}: {
-  initialSettings: FileServerSettings;
-  onUpdated: (s: FileServerSettings) => void;
-}) {
-  const [settings, setSettings] = useState(initialSettings);
-  const [saved, setSaved] = useState(false);
-
-  const handleSave = async () => {
-    const updated = await window.smaran.fileserver.saveSettings(settings);
-    setSettings(updated);
-    onUpdated(updated);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
   };
 
   const handlePickRootDir = async () => {
-    const chosen = await window.smaran.fileserver.pickRootDir();
-    if (chosen) {
-      setSettings((s) => ({ ...s, rootDir: chosen }));
+    const picked = await window.smaran.fileserver.pickRootDir();
+    if (picked) {
+      const updated = await window.smaran.fileserver.saveSettings({ rootDir: picked });
+      setSettings(updated);
     }
   };
 
-  return (
-    <Card title="Server Settings" description="Configure network ports, bandwidth caps, and UPnP routing.">
-      <Row
-        label="Auto-start Server"
-        hint="Automatically start the HTTP file server when Smaran launches."
-      >
-        <Switch
-          checked={settings.enabled}
-          onChange={(enabled) => setSettings((s) => ({ ...s, enabled }))}
-          label="Auto-start Server"
-        />
-      </Row>
+  const handleOpenRootFolder = async () => {
+    await window.smaran.fileserver.openFolder('');
+  };
 
-      <Row label="Server Display Name" hint="Shown on the web file manager heading.">
-        <Input
-          value={settings.serverName}
-          onChange={(e) => setSettings((s) => ({ ...s, serverName: e.target.value }))}
-          className="w-60"
-        />
-      </Row>
+  const handleSavePort = async () => {
+    const num = parseInt(portInput, 10);
+    if (isNaN(num) || num < 1 || num > 65535) {
+      setPortSaveMsg('Port must be between 1 and 65535');
+      return;
+    }
+    const updated = await window.smaran.fileserver.saveSettings({ port: num });
+    setSettings(updated);
+    setPortSaveMsg('Port updated');
+    setTimeout(() => setPortSaveMsg(null), 3000);
+  };
 
-      <Row label="HTTP Port" hint="Default is 5900.">
-        <Input
-          type="number"
-          value={settings.port}
-          onChange={(e) => setSettings((s) => ({ ...s, port: Number(e.target.value) || 5900 }))}
-          className="w-24 text-center font-mono"
-        />
-      </Row>
+  const handleToggleAutoStart = async (enabled: boolean) => {
+    const updated = await window.smaran.fileserver.saveSettings({ enabled });
+    setSettings(updated);
+  };
 
-      <Row label="Storage Directory" hint={settings.rootDir}>
-        <Button size="sm" variant="secondary" onClick={handlePickRootDir}>
-          Browse Folder…
-        </Button>
-      </Row>
-
-      <Row
-        label="UPnP Router Port Forwarding"
-        hint="Automatically maps your router's external port to this PC via UPnP NAT."
-      >
-        <Switch
-          checked={settings.upnpEnabled}
-          onChange={(upnpEnabled) => setSettings((s) => ({ ...s, upnpEnabled }))}
-          label="UPnP Port Forwarding"
-        />
-      </Row>
-
-      <Row
-        label="WebDAV Server Protocol"
-        hint="Allow mounting as a Windows Explorer network drive without browser."
-      >
-        <Switch
-          checked={settings.webdavEnabled}
-          onChange={(webdavEnabled) => setSettings((s) => ({ ...s, webdavEnabled }))}
-          label="WebDAV Server"
-        />
-      </Row>
-
-      <Row
-        label="Require Authentication"
-        hint="Enforce username/password for file operations."
-      >
-        <Switch
-          checked={settings.authEnabled}
-          onChange={(authEnabled) => setSettings((s) => ({ ...s, authEnabled }))}
-          label="Require Authentication"
-        />
-      </Row>
-
-      <Row
-        label="Allow Guest Browsing"
-        hint="Allow devices to browse and download files without logging in."
-      >
-        <Switch
-          checked={settings.guestAccess}
-          onChange={(guestAccess) => setSettings((s) => ({ ...s, guestAccess }))}
-          label="Allow Guest Browsing"
-        />
-      </Row>
-
-      {/* Bandwidth Limits */}
-      <Row
-        label="Download Speed Limit"
-        hint={settings.maxKbpsDown > 0 ? `${settings.maxKbpsDown} KB/s cap` : 'Unlimited'}
-      >
-        <div className="flex items-center gap-2">
-          <Input
-            type="number"
-            value={settings.maxKbpsDown}
-            onChange={(e) => setSettings((s) => ({ ...s, maxKbpsDown: Number(e.target.value) || 0 }))}
-            className="w-24 font-mono text-center"
-          />
-          <span className="text-[12px] text-muted">KB/s (0 = unlimited)</span>
-        </div>
-      </Row>
-
-      <Row
-        label="Upload Speed Limit"
-        hint={settings.maxKbpsUp > 0 ? `${settings.maxKbpsUp} KB/s cap` : 'Unlimited'}
-      >
-        <div className="flex items-center gap-2">
-          <Input
-            type="number"
-            value={settings.maxKbpsUp}
-            onChange={(e) => setSettings((s) => ({ ...s, maxKbpsUp: Number(e.target.value) || 0 }))}
-            className="w-24 font-mono text-center"
-          />
-          <span className="text-[12px] text-muted">KB/s (0 = unlimited)</span>
-        </div>
-      </Row>
-
-      <Row
-        label="Per-IP Speed Limit"
-        hint={settings.maxKbpsPerIp > 0 ? `${settings.maxKbpsPerIp} KB/s per client` : 'Unlimited'}
-      >
-        <div className="flex items-center gap-2">
-          <Input
-            type="number"
-            value={settings.maxKbpsPerIp}
-            onChange={(e) => setSettings((s) => ({ ...s, maxKbpsPerIp: Number(e.target.value) || 0 }))}
-            className="w-24 font-mono text-center"
-          />
-          <span className="text-[12px] text-muted">KB/s (0 = unlimited)</span>
-        </div>
-      </Row>
-
-      <Row
-        label="Dynamic DNS (DDNS) Update URL"
-        hint="DuckDNS, No-IP, or DynDNS webhook URL. Use {ip} for address."
-      >
-        <Input
-          value={settings.ddnsUrl}
-          onChange={(e) => setSettings((s) => ({ ...s, ddnsUrl: e.target.value }))}
-          placeholder="https://www.duckdns.org/update?domains=MYDOMAIN&token=MYTOKEN&ip={ip}"
-          className="w-72 text-[12px]"
-        />
-      </Row>
-
-      <div className="flex justify-end pt-4 pb-2">
-        <Button variant="primary" onClick={handleSave}>
-          {saved ? 'Settings Saved!' : 'Save Settings'}
-        </Button>
-      </div>
-    </Card>
-  );
-}
-
-// ==========================================
-// 9. LOGS TAB
-// ==========================================
-function LogsTab() {
-  const [logs, setLogs] = useState<ServerLogEntry[]>([]);
-  const [filter, setFilter] = useState<'all' | 'error' | 'warn'>('all');
-
-  useEffect(() => {
-    void window.smaran.fileserver.logs.get().then(setLogs);
-    const off = window.smaran.fileserver.onLogAdded((entry) => {
-      setLogs((prev) => [entry, ...prev.slice(0, 500)]);
-    });
-    return () => off();
-  }, []);
-
-  const handleClear = async () => {
+  const handleClearLogs = async () => {
     await window.smaran.fileserver.logs.clear();
     setLogs([]);
   };
 
-  const filteredLogs = logs.filter((l) => (filter === 'all' ? true : l.level === filter));
-
   return (
-    <Card title="Server Access & Audit Logs" description="Live request events and server activity.">
-      <div className="flex items-center justify-between pb-3">
-        <div className="flex items-center gap-1.5">
-          <Button
-            size="sm"
-            variant={filter === 'all' ? 'primary' : 'ghost'}
-            onClick={() => setFilter('all')}
-          >
-            All
-          </Button>
-          <Button
-            size="sm"
-            variant={filter === 'error' ? 'primary' : 'ghost'}
-            onClick={() => setFilter('error')}
-          >
-            Errors
-          </Button>
-          <Button
-            size="sm"
-            variant={filter === 'warn' ? 'primary' : 'ghost'}
-            onClick={() => setFilter('warn')}
-          >
-            Warnings
-          </Button>
-        </div>
-        <Button size="sm" variant="ghost" onClick={handleClear}>
-          Clear Logs
-        </Button>
-      </div>
-
-      {filteredLogs.length === 0 ? (
-        <p className="py-8 text-center text-muted font-serif italic text-[13px]">
-          No log events recorded yet.
-        </p>
-      ) : (
-        <div className="max-h-96 overflow-y-auto rounded-lg border border-line bg-raised/30 p-2 font-mono text-[11.5px] space-y-1">
-          {filteredLogs.map((l) => (
+    <motion.div
+      variants={tabVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      className="max-w-4xl mx-auto space-y-6 pb-12"
+    >
+      {/* 1. Header Hero Card with Master Controls */}
+      <Card className="p-6 relative overflow-hidden bg-[#16161a] border border-[#26262b] rounded-2xl shadow-xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-start gap-4">
             <div
-              key={l.id}
               className={cx(
-                'flex items-start gap-2 py-0.5 leading-tight',
-                l.level === 'error'
-                  ? 'text-danger'
-                  : l.level === 'warn'
-                    ? 'text-accent'
-                    : 'text-muted',
+                'w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border transition-all',
+                isRunning
+                  ? 'bg-[#e06c43]/10 border-[#e06c43]/30 text-[#e06c43] shadow-[0_0_15px_rgba(224,108,67,0.25)]'
+                  : 'bg-[#222226] border-[#333338] text-neutral-400',
               )}
             >
-              <span className="text-faint shrink-0">
-                {new Date(l.timestamp).toLocaleTimeString()}
-              </span>
-              <span className="shrink-0 uppercase font-semibold">[{l.level}]</span>
-              <span className="shrink-0 text-ink">{l.clientIp}</span>
-              {l.method && <span className="shrink-0 text-accent font-semibold">{l.method}</span>}
-              <span className="truncate flex-1 text-ink">{l.message}</span>
+              <ServerIcon size={24} />
             </div>
-          ))}
+
+            <div className="space-y-1">
+              <div className="flex items-center gap-3">
+                <h1 className="text-xl font-semibold tracking-tight text-neutral-100">
+                  Smaran HFS
+                </h1>
+                <span
+                  className={cx(
+                    'text-xs font-medium px-2.5 py-0.5 rounded-full flex items-center gap-1.5',
+                    isRunning
+                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-neutral-800 text-neutral-400 border border-neutral-700',
+                  )}
+                >
+                  <span
+                    className={cx(
+                      'w-2 h-2 rounded-full',
+                      isRunning ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-500',
+                    )}
+                  />
+                  {isRunning ? 'Server Online' : 'Server Offline'}
+                </span>
+                <span className="text-xs text-neutral-400 border border-[#2a2a30] px-2 py-0.5 rounded bg-[#1c1c20]">
+                  HFS 3.4.1 Engine
+                </span>
+              </div>
+              <p className="text-xs text-neutral-400">
+                LAN & Web HTTP File Server · Full web administration & file browsing
+              </p>
+            </div>
+          </div>
+
+          {/* Master Start / Stop / Restart Buttons */}
+          <div className="flex items-center gap-2.5">
+            {isRunning ? (
+              <>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={Boolean(busyAction)}
+                  onClick={handleRestart}
+                  className="flex items-center gap-1.5 border-[#333338] hover:bg-[#26262b] text-neutral-200"
+                >
+                  <RefreshIcon
+                    size={14}
+                    className={busyAction === 'restart' ? 'animate-spin' : ''}
+                  />
+                  Restart
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  disabled={Boolean(busyAction)}
+                  onClick={handleStop}
+                  className="flex items-center gap-1.5 bg-red-950/40 text-red-400 border border-red-800/40 hover:bg-red-900/50"
+                >
+                  {busyAction === 'stop' ? 'Stopping...' : 'Stop Server'}
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={Boolean(busyAction)}
+                onClick={handleStart}
+                className="flex items-center gap-2 bg-[#e06c43] hover:bg-[#cf5b32] text-white font-medium px-5 shadow-[0_0_20px_rgba(224,108,67,0.3)]"
+              >
+                <ServerIcon size={16} />
+                {busyAction === 'start' ? 'Starting...' : 'Start Server'}
+              </Button>
+            )}
+          </div>
         </div>
-      )}
-    </Card>
-  );
-}
 
-// Helpers
-function getShareUrl(token: string): string {
-  return `${window.location.protocol}//${window.location.hostname}:5900/share/${token}`;
-}
+        {/* Telemetry info bar when running */}
+        {isRunning && (
+          <div className="mt-5 pt-4 border-t border-[#26262b] grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-neutral-400">
+            <div>
+              <span className="text-neutral-400 block text-[11px]">HTTP Port</span>
+              <span className="font-mono text-neutral-200 font-medium">{effectivePort}</span>
+            </div>
+            <div>
+              <span className="text-neutral-400 block text-[11px]">Uptime</span>
+              <span className="font-mono text-neutral-200 font-medium">
+                {status ? formatUptime(status.uptimeSeconds) : '0s'}
+              </span>
+            </div>
+            <div>
+              <span className="text-neutral-400 block text-[11px]">Connected Clients</span>
+              <span className="font-mono text-neutral-200 font-medium">
+                {status?.liveConnections?.length ?? 0} active
+              </span>
+            </div>
+            <div>
+              <span className="text-neutral-400 block text-[11px]">Storage Root</span>
+              <span
+                onClick={handleOpenRootFolder}
+                className="text-[#e06c43] hover:underline cursor-pointer truncate block font-medium"
+                title={settings?.rootDir}
+              >
+                Open in Explorer ↗
+              </span>
+            </div>
+          </div>
+        )}
+      </Card>
 
-function CreateShareDialog({
-  item,
-  onClose,
-  onCreated,
-}: {
-  item: FileItem;
-  onClose: () => void;
-  onCreated: (share: ShareLink) => void;
-}) {
-  const [password, setPassword] = useState('');
-  const [permission, setPermission] = useState<'download' | 'read' | 'upload' | 'full'>('download');
-  const [expiresHours, setExpiresHours] = useState<number>(24);
+      {/* 2. Client Web Access Links Card */}
+      <Card className="p-6 bg-[#16161a] border border-[#26262b] rounded-2xl shadow-md space-y-4">
+        <div className="flex items-center justify-between border-b border-[#26262b] pb-3">
+          <div className="flex items-center gap-2.5">
+            <GlobeIcon size={18} className="text-[#e06c43]" />
+            <h2 className="text-sm font-semibold tracking-wide uppercase text-neutral-300">
+              Client Links (Web File Manager)
+            </h2>
+          </div>
+          <span className="text-xs text-neutral-400">For browsing, streaming & uploading files</span>
+        </div>
 
-  const handleCreate = async () => {
-    const expiresAt = expiresHours > 0 ? new Date(Date.now() + expiresHours * 3600 * 1000).toISOString() : null;
-    const share = await window.smaran.fileserver.shares.create({
-      relativePath: item.relativePath,
-      permission,
-      password: password.trim() || undefined,
-      expiresAt,
-    });
-    onCreated(share);
-  };
+        {/* Primary LAN URL Box */}
+        <div className="space-y-2">
+          <div className="text-xs font-medium text-neutral-300 flex items-center justify-between">
+            <span>Local Network (LAN) Link:</span>
+            <span className="text-[11px] text-neutral-400">Share with other devices on your Wi-Fi/LAN</span>
+          </div>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-[#0c0c0e] p-2 rounded-xl border border-[#2a2a30]">
+            <input
+              type="text"
+              readOnly
+              value={lanUrl}
+              className="bg-transparent font-mono text-xs text-[#e06c43] px-2 py-1 flex-1 outline-none select-all cursor-text"
+            />
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handleCopy(lanUrl)}
+                className="text-xs px-2.5 py-1 h-8 flex items-center gap-1 border-[#333338] hover:bg-[#222226]"
+              >
+                {copiedUrl === lanUrl ? (
+                  <>
+                    <CheckIcon size={13} className="text-emerald-400" />
+                    <span className="text-emerald-400">Copied</span>
+                  </>
+                ) : (
+                  <>
+                    <CopyIcon size={13} />
+                    <span>Copy</span>
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handleShowQr(lanUrl)}
+                className="text-xs px-2.5 py-1 h-8 flex items-center gap-1 border-[#333338] hover:bg-[#222226]"
+                title="Scan QR on mobile phone or tablet"
+              >
+                <QrIcon size={13} />
+                <span>QR Code</span>
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => handleOpenBrowser(lanUrl)}
+                className="text-xs px-3 py-1 h-8 bg-[#e06c43] hover:bg-[#cf5b32] text-white flex items-center gap-1 shadow-sm"
+              >
+                <span>Open File Manager ↗</span>
+              </Button>
+            </div>
+          </div>
+        </div>
 
-  return (
-    <Dialog
-      open
-      title={`Share "${item.name}"`}
-      onClose={onClose}
-      actions={
-        <>
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
+        {/* Localhost Link Box */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 bg-[#111114] rounded-xl border border-[#222226] text-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-neutral-400">Local PC URL:</span>
+            <span className="font-mono text-neutral-300">{localUrl}</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => handleCopy(localUrl)}
+              className="text-xs px-2 py-0.5 h-7 border-[#333338] hover:bg-[#222226]"
+            >
+              {copiedUrl === localUrl ? 'Copied' : 'Copy'}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => handleOpenBrowser(localUrl)}
+              className="text-xs px-2.5 py-0.5 h-7 border-[#333338] text-neutral-200 hover:bg-[#222226]"
+            >
+              Open ↗
+            </Button>
+          </div>
+        </div>
+
+        {/* 1-Click WebDAV Windows Drive Mounter */}
+        <div className="mt-2 p-3.5 bg-[#121216] border border-[#26262e] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="space-y-0.5">
+            <div className="font-medium text-neutral-200 flex items-center gap-2">
+              <FolderIcon size={14} className="text-[#e06c43]" />
+              <span>Windows Explorer 1-Click WebDAV Drive (Drive Z:)</span>
+            </div>
+            <p className="text-[11px] text-neutral-400">
+              Mount your Smaran file server as a local Windows drive letter for seamless desktop file access.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleMountDrive}
+              className="text-xs px-3 py-1 h-8 bg-[#202026] hover:bg-[#282830] text-neutral-200 border border-[#33333c]"
+            >
+              Mount as Drive Z:
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleUnmountDrive}
+              className="text-xs px-2.5 py-1 h-8 text-neutral-400 hover:text-red-400 border-[#33333c]"
+              title="Disconnect Drive Z:"
+            >
+              Unmount
+            </Button>
+          </div>
+        </div>
+        {mountStatus && (
+          <p className="text-xs text-emerald-400 bg-emerald-950/30 border border-emerald-800/40 p-2 rounded-lg">
+            {mountStatus}
+          </p>
+        )}
+        {mountError && (
+          <p className="text-xs text-red-400 bg-red-950/30 border border-red-800/40 p-2 rounded-lg">
+            {mountError}
+          </p>
+        )}
+      </Card>
+
+      {/* 3. Web Admin Panel Link Card (Full HFS 3.4.1 Control) */}
+      <Card className="p-6 bg-[#16161a] border border-[#26262b] rounded-2xl shadow-md space-y-4">
+        <div className="flex items-center justify-between border-b border-[#26262b] pb-3">
+          <div className="flex items-center gap-2.5">
+            <ActivityIcon size={18} className="text-[#e06c43]" />
+            <h2 className="text-sm font-semibold tracking-wide uppercase text-neutral-300">
+              Web Admin Panel (Edit Everything from Browser)
+            </h2>
+          </div>
+          <span className="text-xs text-[#e06c43] font-mono">/~/admin/</span>
+        </div>
+
+        <p className="text-xs text-neutral-400 leading-relaxed">
+          Open the complete <strong>Smaran HFS Web Administration Panel</strong> in your browser to edit all things:
+          manage Virtual File System (VFS) folders, mapped drives, file permissions, user accounts, upload/download speed caps, real-time client monitors, streaming logs, and plugins.
+        </p>
+
+        {/* Primary Admin Link Box */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-[#0c0c0e] p-2 rounded-xl border border-[#2a2a30]">
+          <input
+            type="text"
+            readOnly
+            value={adminUrl}
+            className="bg-transparent font-mono text-xs text-amber-400 px-2 py-1 flex-1 outline-none select-all cursor-text"
+          />
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => handleCopy(adminUrl)}
+              className="text-xs px-2.5 py-1 h-8 border-[#333338] hover:bg-[#222226]"
+            >
+              {copiedUrl === adminUrl ? 'Copied' : 'Copy'}
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => handleOpenBrowser(adminUrl)}
+              className="text-xs px-4 py-1 h-8 bg-[#e06c43] hover:bg-[#cf5b32] text-white font-medium flex items-center gap-1.5 shadow-md"
+            >
+              <span>Open Web Admin Panel ↗</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* LAN Admin URL notice */}
+        <div className="flex items-center justify-between text-xs text-neutral-400 px-1">
+          <span>Access admin from other computers on LAN:</span>
+          <span
+            onClick={() => handleCopy(lanAdminUrl)}
+            className="font-mono text-[#e06c43] hover:underline cursor-pointer"
+            title="Click to copy LAN admin URL"
+          >
+            {lanAdminUrl}
+          </span>
+        </div>
+      </Card>
+
+      {/* 4. Admin Credentials Control Card */}
+      <Card className="p-6 bg-[#16161a] border border-[#26262b] rounded-2xl shadow-md space-y-4">
+        <div className="flex items-center justify-between border-b border-[#26262b] pb-3">
+          <div className="flex items-center gap-2.5">
+            <LockIcon size={18} className="text-[#e06c43]" />
+            <h2 className="text-sm font-semibold tracking-wide uppercase text-neutral-300">
+              Admin Username & Password Control
+            </h2>
+          </div>
+          <span className="text-xs text-neutral-400">Direct credential control from software</span>
+        </div>
+
+        <p className="text-xs text-neutral-400">
+          Control your administrator username and password here. These credentials give you full admin authority to log in and edit everything inside the Web Admin Panel.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-neutral-300">Admin Username</label>
+            <Input
+              type="text"
+              value={adminUsername}
+              onChange={(e) => setAdminUsername(e.target.value)}
+              placeholder="e.g. smaran or admin"
+              className="bg-[#0c0c0e] border-[#2a2a30] text-neutral-200 font-mono text-xs"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-neutral-300">Admin Password</label>
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="text-[11px] text-[#e06c43] hover:underline"
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
+            <Input
+              type={showPassword ? 'text' : 'password'}
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              placeholder="Enter admin password"
+              className="bg-[#0c0c0e] border-[#2a2a30] text-neutral-200 font-mono text-xs"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-2">
+          <div className="text-xs text-neutral-400">
+            {adminSaveMsg && (
+              <span className="text-emerald-400 font-medium">{adminSaveMsg}</span>
+            )}
+            {adminSaveErr && (
+              <span className="text-red-400 font-medium">{adminSaveErr}</span>
+            )}
+          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleSaveAdminCredentials}
+            className="text-xs px-4 py-1.5 bg-[#e06c43] hover:bg-[#cf5b32] text-white font-medium"
+          >
+            Save Admin Credentials
           </Button>
-          <Button variant="primary" onClick={handleCreate}>
-            Create Link
+        </div>
+      </Card>
+
+      {/* 5. Essential Server Parameters Card */}
+      <Card className="p-6 bg-[#16161a] border border-[#26262b] rounded-2xl shadow-md space-y-4">
+        <div className="flex items-center justify-between border-b border-[#26262b] pb-3">
+          <div className="flex items-center gap-2.5">
+            <GearIcon size={18} className="text-[#e06c43]" />
+            <h2 className="text-sm font-semibold tracking-wide uppercase text-neutral-300">
+              Server Settings & Storage Folder
+            </h2>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
+          {/* Root Directory */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-neutral-300">Host Storage Directory</label>
+            <div className="p-2.5 bg-[#0c0c0e] border border-[#2a2a30] rounded-xl font-mono text-[11px] text-neutral-300 truncate" title={settings?.rootDir}>
+              {settings?.rootDir || 'Documents/Smaran Files'}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handlePickRootDir}
+                className="text-xs px-3 py-1 h-7 border-[#333338] text-neutral-200 hover:bg-[#222226]"
+              >
+                Change Folder...
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleOpenRootFolder}
+                className="text-xs px-3 py-1 h-7 border-[#333338] text-neutral-400 hover:bg-[#222226]"
+              >
+                Open in Explorer ↗
+              </Button>
+            </div>
+          </div>
+
+          {/* Port and Auto-Start */}
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-neutral-300">HTTP Port</label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  value={portInput}
+                  onChange={(e) => setPortInput(e.target.value)}
+                  className="bg-[#0c0c0e] border-[#2a2a30] text-neutral-200 font-mono text-xs w-32"
+                />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleSavePort}
+                  className="text-xs px-3 py-1.5 h-8 border-[#333338] hover:bg-[#222226]"
+                >
+                  Save Port
+                </Button>
+                {portSaveMsg && (
+                  <span className="text-xs text-emerald-400">{portSaveMsg}</span>
+                )}
+              </div>
+            </div>
+
+            <Row
+              label="Start on App Launch"
+              hint="Automatically start the HFS file server when Smaran launches."
+            >
+              <Switch
+                label="Start on App Launch"
+                checked={settings?.enabled ?? true}
+                onChange={handleToggleAutoStart}
+              />
+            </Row>
+          </div>
+        </div>
+      </Card>
+
+      {/* 6. Live Activity & Logs (Collapsible) */}
+      <Card className="p-4 bg-[#16161a] border border-[#26262b] rounded-2xl shadow-sm">
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setShowLogs((v) => !v)}
+            className="flex items-center gap-2 text-xs font-medium text-neutral-300 hover:text-white"
+          >
+            <span>{showLogs ? '▼' : '▶'}</span>
+            <span>Live Server Logs</span>
+            <span className="text-neutral-400 font-mono text-[11px]">({logs.length} entries)</span>
+          </button>
+          {showLogs && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleClearLogs}
+              className="text-xs px-2.5 py-0.5 h-7 text-neutral-400 hover:text-neutral-200 border-[#333338]"
+            >
+              <TrashIcon size={12} className="mr-1 inline" />
+              Clear
+            </Button>
+          )}
+        </div>
+
+        <AnimatePresence>
+          {showLogs && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="mt-3 pt-3 border-t border-[#26262b] overflow-hidden"
+            >
+              <div className="bg-[#0c0c0e] rounded-xl p-3 border border-[#2a2a30] font-mono text-[11px] max-h-60 overflow-y-auto space-y-1">
+                {logs.length === 0 ? (
+                  <p className="text-neutral-400 text-center py-4">No log entries recorded yet.</p>
+                ) : (
+                  logs.map((log) => (
+                    <div key={log.id} className="flex items-start gap-2 text-neutral-400 leading-tight">
+                      <span className="text-neutral-400 shrink-0">
+                        {log.timestamp.slice(11, 19)}
+                      </span>
+                      <span
+                        className={cx(
+                          'px-1 rounded text-[10px] uppercase font-bold shrink-0',
+                          log.level === 'error'
+                            ? 'bg-red-950 text-red-400'
+                            : log.level === 'warn'
+                              ? 'bg-amber-950 text-amber-400'
+                              : 'bg-neutral-800 text-neutral-300',
+                        )}
+                      >
+                        {log.level}
+                      </span>
+                      <span className="text-neutral-200 flex-1 break-all">{log.message}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </Card>
+
+      {/* QR Code Modal */}
+      <Dialog
+        open={Boolean(qrModal?.open)}
+        onClose={() => setQrModal(null)}
+        title="Mobile Quick Connect (LAN QR Code)"
+        actions={
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setQrModal(null)}
+          >
+            Close
           </Button>
-        </>
-      }
-    >
-      <div className="space-y-3 py-1">
-        <div>
-          <label className="block text-[12.5px] text-muted mb-1">Permission</label>
-          <Select
-            value={permission}
-            onChange={(val) => setPermission(val as 'download' | 'read' | 'upload' | 'full')}
-            options={[
-              { value: 'download', label: 'Download Only' },
-              { value: 'read', label: 'Read / View Only' },
-              { value: 'upload', label: 'Upload Permitted' },
-              { value: 'full', label: 'Full Access' },
-            ]}
-          />
+        }
+      >
+        <div className="space-y-4 text-center py-2">
+          <p className="text-xs text-neutral-400">
+            Scan with your phone or tablet camera to open the Smaran HFS Web File Manager on your local network:
+          </p>
+          {qrModal?.qrData && (
+            <div
+              className="p-4 bg-white rounded-xl inline-block mx-auto shadow-lg"
+              dangerouslySetInnerHTML={{ __html: qrModal.qrData }}
+            />
+          )}
+          <p className="font-mono text-xs text-[#e06c43] break-all bg-[#111114] p-2 rounded-lg border border-[#26262b]">
+            {qrModal?.url}
+          </p>
         </div>
-        <div>
-          <label className="block text-[12.5px] text-muted mb-1">Expiration</label>
-          <Select
-            value={expiresHours}
-            onChange={(val) => setExpiresHours(Number(val))}
-            options={[
-              { value: 1, label: '1 Hour' },
-              { value: 24, label: '24 Hours' },
-              { value: 168, label: '7 Days' },
-              { value: 720, label: '30 Days' },
-              { value: 0, label: 'Never Expire' },
-            ]}
-          />
-        </div>
-        <div>
-          <label className="block text-[12.5px] text-muted mb-1">Password (Optional)</label>
-          <Input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Protect with a password"
-          />
-        </div>
-      </div>
-    </Dialog>
+      </Dialog>
+    </motion.div>
   );
 }

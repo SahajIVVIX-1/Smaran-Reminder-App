@@ -3,7 +3,7 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { app } from 'electron';
-import type { LogLevel, ServerLogEntry, ServerStatus } from '@shared/fileserver';
+import type { FileServerSettings, LogLevel, ServerLogEntry, ServerStatus } from '@shared/fileserver';
 import { HfsApiClient } from './HfsApiClient';
 import { generateHfsConfigYaml } from './HfsConfigBridge';
 import type { FileServerStore } from './FileServerStore';
@@ -119,15 +119,8 @@ export class HfsProcessSupervisor {
       fs.mkdirSync(settings.rootDir, { recursive: true });
       fs.mkdirSync(this.runtimeDir, { recursive: true });
 
-      // Generate config.yaml
-      const users = this.store.getUsers();
-      const vfsNodes = this.store.getVfsNodes();
-      const configYaml = generateHfsConfigYaml({
-        settings,
-        users,
-        vfsNodes,
-      });
-      fs.writeFileSync(this.configYamlPath, configYaml, 'utf8');
+      // Ensure config.yaml is prepared without destroying browser-admin edits
+      this.ensureConfigFile(settings);
 
       const { runner, args } = this.resolveEngineLaunchConfig(settings);
 
@@ -247,6 +240,100 @@ export class HfsProcessSupervisor {
       await new Promise((r) => setTimeout(r, 350));
     }
     return false;
+  }
+
+  private ensureConfigFile(settings: FileServerSettings): void {
+    if (!fs.existsSync(this.configYamlPath)) {
+      const users = this.store.getUsers();
+      const vfsNodes = this.store.getVfsNodes();
+      const adminPass = settings.adminPassword || 'smaran@123';
+      const configYaml = generateHfsConfigYaml({
+        settings,
+        users,
+        vfsNodes,
+        adminPassword: adminPass,
+      });
+      fs.writeFileSync(this.configYamlPath, configYaml, 'utf8');
+      return;
+    }
+
+    // Preserve all browser-admin changes (VFS nodes, users, plugins, options)!
+    // Only verify critical parameters (port, localhost_admin: false)
+    try {
+      let content = fs.readFileSync(this.configYamlPath, 'utf8');
+      let changed = false;
+
+      // Ensure localhost_admin is false
+      if (!/localhost_admin:\s*false/i.test(content)) {
+        if (/localhost_admin:\s*true/i.test(content)) {
+          content = content.replace(/localhost_admin:\s*true/i, 'localhost_admin: false');
+          changed = true;
+        } else {
+          content = `localhost_admin: false\n` + content;
+          changed = true;
+        }
+      }
+
+      // Ensure port is in sync
+      const portRegex = /port:\s*(\d+)/i;
+      const match = content.match(portRegex);
+      if (match && Number(match[1]) !== settings.port) {
+        content = content.replace(portRegex, `port: ${settings.port}`);
+        changed = true;
+      }
+
+      if (changed) {
+        fs.writeFileSync(this.configYamlPath, content, 'utf8');
+      }
+    } catch (err) {
+      console.warn('Failed to verify existing config.yaml:', err);
+    }
+  }
+
+  async updateAdminAccount(username: string, password: string, oldUsername?: string): Promise<void> {
+    if (this.running) {
+      try {
+        await this.apiClient.callApi('add_account', {
+          overwrite: true,
+          username,
+          password,
+          admin: true,
+        });
+        if (oldUsername && oldUsername.toLowerCase() !== username.toLowerCase()) {
+          await this.apiClient.callApi('del_account', { username: oldUsername }).catch(() => {});
+        }
+        return;
+      } catch (err) {
+        console.warn('Live HFS API add_account failed, falling back to disk update:', err);
+      }
+    }
+
+    // When stopped or if API failed, update config.yaml on disk directly
+    try {
+      if (fs.existsSync(this.configYamlPath)) {
+        let content = fs.readFileSync(this.configYamlPath, 'utf8');
+        const oldName = oldUsername || 'smaran';
+        const oldEscaped = oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const userBlockRegex = new RegExp(
+          `(\\s{2}${oldEscaped}:[\\s\\S]*?)(?=\\n\\s{2}[a-zA-Z0-9_"-]+:|\\n[a-zA-Z0-9_"-]+:|$)`,
+          'i',
+        );
+        const newBlock = `  ${JSON.stringify(username)}:\n    admin: true\n    password: ${JSON.stringify(password)}`;
+
+        if (/accounts:/i.test(content)) {
+          if (userBlockRegex.test(content)) {
+            content = content.replace(userBlockRegex, newBlock);
+          } else {
+            content = content.replace(/accounts:/i, `accounts:\n${newBlock}`);
+          }
+        } else {
+          content += `\naccounts:\n${newBlock}\n`;
+        }
+        fs.writeFileSync(this.configYamlPath, content, 'utf8');
+      }
+    } catch (err) {
+      console.warn('Failed to update admin account in config.yaml:', err);
+    }
   }
 
   private forceKillSync(): void {

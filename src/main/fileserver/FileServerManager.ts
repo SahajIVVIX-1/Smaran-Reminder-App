@@ -253,6 +253,61 @@ export class FileServerManager {
     return this.store.getUsers();
   }
 
+  getAdminCredentials(): { username: string; password?: string } {
+    const settings = this.store.getSettings();
+    const adminUser = this.store.getUsers().find((u) => u.role === 'admin') || {
+      username: 'smaran',
+    };
+    return {
+      username: adminUser.username,
+      password: settings.adminPassword || 'smaran@123',
+    };
+  }
+
+  async setAdminCredentials(creds: { username: string; password: string }): Promise<{ ok: boolean; error?: string }> {
+    const username = (creds.username || '').trim();
+    const password = creds.password || '';
+    if (!username) return { ok: false, error: 'Username cannot be empty' };
+    if (!password) return { ok: false, error: 'Password cannot be empty' };
+
+    const oldAdmin = this.store.getUsers().find((u) => u.role === 'admin');
+    const oldUsername = oldAdmin?.username || 'smaran';
+
+    this.store.updateSettings({ adminPassword: password });
+
+    if (oldAdmin) {
+      oldAdmin.username = username;
+      oldAdmin.passwordHash = hashPassword(password);
+      oldAdmin.mustChangePassword = false;
+      this.store.saveUser(oldAdmin);
+    } else {
+      this.store.saveUser({
+        id: crypto.randomUUID(),
+        username,
+        passwordHash: hashPassword(password),
+        role: 'admin',
+        permissions: {
+          read: true,
+          upload: true,
+          delete: true,
+          rename: true,
+          mkdir: true,
+          comment: true,
+          vfs: true,
+          zip: true,
+        },
+        allowedFolders: [],
+        mustChangePassword: false,
+        isSystem: true,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    await this.supervisor.updateAdminAccount(username, password, oldUsername);
+    this.broadcast(IPC.fileserverStatusChanged, this.getStatus());
+    return { ok: true };
+  }
+
   saveUser(input: {
     id?: string;
     username: string;

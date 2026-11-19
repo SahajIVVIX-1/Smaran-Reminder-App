@@ -130,6 +130,7 @@ export const FileServerSettingsSchema = z.object({
   ipAllowlist: z.array(z.string()).default([]),
   ipBlocklist: z.array(z.string()).default([]),
   bruteForceProtection: z.boolean().default(true),
+  adminPassword: z.string().optional(),
 });
 export type FileServerSettings = z.infer<typeof FileServerSettingsSchema>;
 

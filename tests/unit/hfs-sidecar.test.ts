@@ -143,4 +143,15 @@ describe('HfsConfigBridge', () => {
     expect(yaml).toContain(`srp: "${existingSrp}"`);
     expect(yaml).not.toContain('password: "smaran@123"');
   });
+
+  it('supports custom admin password and credentials', () => {
+    const yaml = generateHfsConfigYaml({
+      settings: dummySettings,
+      users: dummyUsers,
+      vfsNodes: [],
+      adminPassword: 'CustomAdminPassword!42',
+    });
+
+    expect(yaml).toContain('password: "CustomAdminPassword!42"');
+  });
 });

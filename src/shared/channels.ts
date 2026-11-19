@@ -92,6 +92,9 @@ export const IPC = {
   fileserverSetComment: 'fileserver:comment:set',
   fileserverMountDrive: 'fileserver:mount:drive',
   fileserverUnmountDrive: 'fileserver:unmount:drive',
+  fileserverAdminGet: 'fileserver:admin:get',
+  fileserverAdminSet: 'fileserver:admin:set',
+  fileserverOpenUrl: 'fileserver:openUrl',
   // Broadcast events
   fileserverStatusChanged: 'fileserver:event:statusChanged',
   fileserverTransfersUpdated: 'fileserver:event:transfersUpdated',

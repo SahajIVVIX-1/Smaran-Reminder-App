@@ -11,8 +11,9 @@ export function generateHfsConfigYaml(params: {
   users: UserAccount[];
   vfsNodes: VfsNode[];
   existingSrpMap?: Record<string, string>;
+  adminPassword?: string;
 }): string {
-    const { settings, users, vfsNodes, existingSrpMap = {} } = params;
+    const { settings, users, vfsNodes, existingSrpMap = {}, adminPassword } = params;
     const lines: string[] = [];
 
     lines.push(`# Smaran HFS Auto-Generated Configuration`);
@@ -39,9 +40,9 @@ export function generateHfsConfigYaml(params: {
       const existingSrp = existingSrpMap[u.username];
       if (existingSrp) {
         lines.push(`    srp: ${escapeYamlString(existingSrp)}`);
-      } else if (u.username === 'smaran' && !existingSrp) {
-        // Default admin password for smaran
-        lines.push(`    password: "smaran@123"`);
+      } else if (u.role === 'admin' && !existingSrp) {
+        const pass = adminPassword || settings.adminPassword || 'smaran@123';
+        lines.push(`    password: ${escapeYamlString(pass)}`);
       }
 
       if (u.mustChangePassword) {

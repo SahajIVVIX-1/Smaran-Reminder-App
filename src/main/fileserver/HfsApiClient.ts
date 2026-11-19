@@ -64,7 +64,7 @@ export class HfsApiClient {
     return `http://127.0.0.1:${this.getPort()}/~/api`;
   }
 
-  private async callApi<T>(cmd: string, params?: Record<string, unknown>, timeoutMs = 8000): Promise<T> {
+  async callApi<T>(cmd: string, params?: Record<string, unknown>, timeoutMs = 8000): Promise<T> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
