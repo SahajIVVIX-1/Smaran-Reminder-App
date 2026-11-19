@@ -21,11 +21,11 @@ export class FileServerStore {
   private loadInitialData(): FileServerData {
     const defaultSettings: FileServerSettings = {
       enabled: false,
-      port: 8080,
+      port: 5901,
       rootDir: '',
       autoStart: true,
-      adminUsername: 'admin',
-      adminPassword: 'admin',
+      adminUsername: 'smaran',
+      adminPassword: 'smaran',
     };
 
     if (fs.existsSync(this.filePath)) {
@@ -45,9 +45,9 @@ export class FileServerStore {
       settings: defaultSettings,
       users: [
         {
-          id: 'admin',
-          username: 'admin',
-          password: 'admin',
+          id: 'smaran',
+          username: 'smaran',
+          password: 'smaran',
           role: 'admin',
           isSystem: true,
         },

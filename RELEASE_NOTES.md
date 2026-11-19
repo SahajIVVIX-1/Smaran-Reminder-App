@@ -1,3 +1,15 @@
+# Smaran 3.3.8
+
+- **Professional Redesigned Web Admin Sidebar:** Replaced the default bright orange sidebar with an obsidian dark theme palette (`#111114`), high-contrast typography, warm amber accents (`#e06c43`), smooth hover and selection transitions, and active navigation indicators.
+- **Official Smaran Watermark:** Replaced the legacy coffee cup background graphic with the official Smaran vector watermark, rendered with subtle transparency and elegant positioning that preserves dashboard readability.
+- **Removed HFS Update Prompts & Badges:** Eliminated all default HFS update check sections ("No update available", "All releases", "Auto check updates daily", "Include beta versions") and telemetry surveys, ensuring complete visual independence without interfering with Smaran's own update system.
+- **Cleaned Branding & Removed HFS Versioning:** Removed user-facing `3.4.1` version numbers beside Smaran HFS headers for a clean commercial product presentation while preserving internal technical compatibility.
+- **Enhanced Typography:** Adopted modern Inter sans-serif typography across the administration interface for consistent font weights, crisp line heights, and refined mobile/desktop readability.
+- **Updated Default Port to 5901:** Changed default HTTP file server listening port from `8080` to `5901` across server stores, supervisor, UI inputs, and drive mounting.
+- **Default Admin Credentials (`smaran`/`smaran`):** Configured out-of-the-box administrator credentials to username `smaran` and password `smaran` with instant SRP credential synchronization.
+
+---
+
 # Smaran 3.3.7
 
 - **Full Native Integration of HFS 3.4.1 Engine as Smaran HFS:** Directly integrated the complete, official HFS (HTTP File Server) v3.4.1 engine into Smaran as a fully native, managed subsystem while keeping all core reminder and automation features cleanly isolated and untouched.

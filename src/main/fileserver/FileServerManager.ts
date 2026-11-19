@@ -112,8 +112,8 @@ export class FileServerManager {
   async getAdminCredentials(): Promise<{ username: string; password?: string }> {
     const settings = this.store.getSettings();
     return {
-      username: settings.adminUsername || 'admin',
-      password: settings.adminPassword || 'smaran@123',
+      username: settings.adminUsername || 'smaran',
+      password: settings.adminPassword || 'smaran',
     };
   }
 
@@ -131,10 +131,10 @@ export class FileServerManager {
   }): Promise<{ ok: boolean; driveLetter?: string; error?: string }> {
     const drive = (payload?.driveLetter || 'Z:').toUpperCase().replace(/:?$/, ':');
     const settings = this.store.getSettings();
-    const port = settings.port || 8080;
+    const port = settings.port || 5901;
     const url = `http://127.0.0.1:${port}/`;
-    const user = payload?.username || settings.adminUsername || 'admin';
-    const pwd = payload?.password || settings.adminPassword || 'smaran@123';
+    const user = payload?.username || settings.adminUsername || 'smaran';
+    const pwd = payload?.password || settings.adminPassword || 'smaran';
 
     try {
       try {

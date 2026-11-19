@@ -22,11 +22,11 @@ export interface ServerStatus {
 
 export const FileServerSettingsSchema = z.object({
   enabled: z.boolean().default(false),
-  port: z.number().int().min(1024).max(65535).default(8080),
+  port: z.number().int().min(1024).max(65535).default(5901),
   rootDir: z.string().default(''),
   autoStart: z.boolean().default(true),
-  adminUsername: z.string().default('admin'),
-  adminPassword: z.string().optional(),
+  adminUsername: z.string().default('smaran'),
+  adminPassword: z.string().default('smaran'),
 });
 
 export type FileServerSettings = z.infer<typeof FileServerSettingsSchema>;

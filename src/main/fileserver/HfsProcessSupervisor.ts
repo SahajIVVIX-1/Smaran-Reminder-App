@@ -33,7 +33,7 @@ export async function checkPortAvailable(
   if (port < 1024) {
     return {
       available: false,
-      error: `Port ${port} is a system-privileged port (< 1024). Smaran runs as a standard user for security and does not request administrator privileges. Please configure a port number of 1024 or higher (e.g. 8080).`,
+      error: `Port ${port} is a system-privileged port (< 1024). Smaran runs as a standard user for security and does not request administrator privileges. Please configure a port number of 1024 or higher (e.g. 5901).`,
     };
   }
   return new Promise((resolve) => {
@@ -219,7 +219,7 @@ export class HfsProcessSupervisor {
       },
       users: this.store.getUsers(),
       internalToken: this.internalToken,
-      adminPassword: settings.adminPassword || 'admin',
+      adminPassword: settings.adminPassword || 'smaran',
     });
     fs.writeFileSync(this.configYamlPath, yaml, 'utf8');
   }

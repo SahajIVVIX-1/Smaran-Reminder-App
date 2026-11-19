@@ -1,9 +1,5 @@
 import { useEffect, useState } from 'react';
-import type {
-  FileServerSettings,
-  ServerLogEntry,
-  ServerStatus,
-} from '@shared/fileserver';
+import type { FileServerSettings, ServerLogEntry, ServerStatus } from '@shared/fileserver';
 import {
   ActivityIcon,
   CheckIcon,
@@ -22,7 +18,7 @@ import { Button, Dialog, IconButton, Input, Switch } from '../ui';
 export function FileServer() {
   const [status, setStatus] = useState<ServerStatus | null>(null);
   const [settings, setSettings] = useState<FileServerSettings | null>(null);
-  const [adminUsername, setAdminUsername] = useState('admin');
+  const [adminUsername, setAdminUsername] = useState('smaran');
   const [adminPassword, setAdminPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [credSaving, setCredSaving] = useState(false);
@@ -199,7 +195,7 @@ export function FileServer() {
   };
 
   const isRunning = status?.running ?? false;
-  const currentPort = status?.port ?? settings?.port ?? 8080;
+  const currentPort = status?.port ?? settings?.port ?? 5901;
   const adminUrl = `http://localhost:${currentPort}/~/admin/`;
   const primaryLanUrl = status?.lanUrls?.[0] || `http://127.0.0.1:${currentPort}`;
 
@@ -243,12 +239,7 @@ export function FileServer() {
 
           {isRunning ? (
             <div className="flex items-center gap-1.5">
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={handleStop}
-                disabled={actionLoading}
-              >
+              <Button variant="danger" size="sm" onClick={handleStop} disabled={actionLoading}>
                 Stop Server
               </Button>
               <IconButton
@@ -257,19 +248,11 @@ export function FileServer() {
                 onClick={handleRestart}
                 disabled={actionLoading}
               >
-                <RefreshIcon
-                  size={14}
-                  className={actionLoading ? 'animate-spin' : ''}
-                />
+                <RefreshIcon size={14} className={actionLoading ? 'animate-spin' : ''} />
               </IconButton>
             </div>
           ) : (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleStart}
-              disabled={actionLoading}
-            >
+            <Button variant="primary" size="sm" onClick={handleStart} disabled={actionLoading}>
               Start Server
             </Button>
           )}
@@ -283,7 +266,9 @@ export function FileServer() {
             <GlobeIcon size={18} className="text-[#e06c43]" />
             <h2 className="text-sm font-semibold text-text">Client Web Links</h2>
           </div>
-          <span className="text-xs text-muted">Share with phones, tablets, or computers on your network</span>
+          <span className="text-xs text-muted">
+            Share with phones, tablets, or computers on your network
+          </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
@@ -374,9 +359,7 @@ export function FileServer() {
                 Unmount
               </Button>
             </div>
-            {driveResult && (
-              <p className="text-[11.5px] text-muted italic">{driveResult}</p>
-            )}
+            {driveResult && <p className="text-[11.5px] text-muted italic">{driveResult}</p>}
           </div>
         </div>
       </div>
@@ -389,8 +372,9 @@ export function FileServer() {
             Web Administration Panel
           </div>
           <p className="text-xs text-muted max-w-xl">
-            Open the complete <strong>Smaran HFS Web Administration Panel</strong> in your browser to edit all things:
-            Virtual File System (VFS), create folders, assign accounts &amp; permissions, upload/download limits, plugins, and logs.
+            Open the complete <strong>Smaran HFS Web Administration Panel</strong> in your browser
+            to edit all things: Virtual File System (VFS), create folders, assign accounts &amp;
+            permissions, upload/download limits, plugins, and logs.
           </p>
         </div>
         <Button
@@ -411,7 +395,9 @@ export function FileServer() {
             <ShieldIcon size={18} className="text-[#e06c43]" />
             <h2 className="text-sm font-semibold text-text">Admin Credentials Control</h2>
           </div>
-          <span className="text-xs text-muted">Directly configure the server administrator login</span>
+          <span className="text-xs text-muted">
+            Directly configure the server administrator login
+          </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -454,16 +440,16 @@ export function FileServer() {
             {credSaving ? 'Saving...' : 'Save Credentials'}
           </Button>
           {credMessage && (
-            <span className="text-xs text-emerald-400 font-medium">
-              {credMessage}
-            </span>
+            <span className="text-xs text-emerald-400 font-medium">{credMessage}</span>
           )}
         </div>
       </div>
 
       {/* 5. Basic Settings Card */}
       <div className="p-5 rounded-xl border border-line bg-surface space-y-4">
-        <h2 className="text-sm font-semibold text-text border-b border-line pb-3">Basic Settings</h2>
+        <h2 className="text-sm font-semibold text-text border-b border-line pb-3">
+          Basic Settings
+        </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
@@ -491,7 +477,7 @@ export function FileServer() {
             <label className="text-xs font-medium text-muted">HTTP Server Port</label>
             <Input
               type="number"
-              defaultValue={settings?.port ?? 8080}
+              defaultValue={settings?.port ?? 5901}
               onBlur={handlePortChange}
               min={1024}
               max={65535}
@@ -521,7 +507,9 @@ export function FileServer() {
           >
             <ActivityIcon size={18} className="text-[#e06c43]" />
             <span>Activity Logs ({logs.length})</span>
-            <span className="text-xs text-muted font-normal">{showLogs ? '▲ Collapse' : '▼ Expand'}</span>
+            <span className="text-xs text-muted font-normal">
+              {showLogs ? '▲ Collapse' : '▼ Expand'}
+            </span>
           </button>
           {showLogs && (
             <Button size="sm" variant="ghost" onClick={handleClearLogs}>
@@ -545,8 +533,8 @@ export function FileServer() {
                       log.level === 'error'
                         ? 'bg-rose-950 text-rose-300'
                         : log.level === 'warn'
-                        ? 'bg-amber-950 text-amber-300'
-                        : 'bg-zinc-800 text-zinc-400'
+                          ? 'bg-amber-950 text-amber-300'
+                          : 'bg-zinc-800 text-zinc-400'
                     }`}
                   >
                     {log.level}
@@ -581,9 +569,7 @@ export function FileServer() {
             <p className="text-xs text-muted text-center max-w-xs">
               Scan with your phone or tablet camera to open Smaran HFS on your local network:
             </p>
-            <p className="font-mono text-xs text-[#e06c43] break-all text-center">
-              {qrModalUrl}
-            </p>
+            <p className="font-mono text-xs text-[#e06c43] break-all text-center">{qrModalUrl}</p>
           </div>
         </Dialog>
       )}

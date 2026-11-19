@@ -5,10 +5,10 @@ import type { FileServerSettings, UserAccount, VfsNode } from '../../src/shared/
 describe('HfsConfigBridge', () => {
   const dummySettings: FileServerSettings = {
     enabled: true,
-    port: 8080,
+    port: 5901,
     rootDir: 'C:\\Test\\Files',
     autoStart: true,
-    adminUsername: 'admin',
+    adminUsername: 'smaran',
     adminPassword: 'secretpassword123',
   };
 
@@ -19,7 +19,7 @@ describe('HfsConfigBridge', () => {
     });
 
     expect(yaml).toContain('localhost_admin: false');
-    expect(yaml).toContain('port: 8080');
+    expect(yaml).toContain('port: 5901');
     expect(yaml).toContain('title: "Smaran HFS"');
     expect(yaml).toContain('force_theme: "dark"');
   });

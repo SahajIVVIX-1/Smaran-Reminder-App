@@ -23,9 +23,9 @@ export function generateHfsConfigYaml(options: GenerateConfigOptions): string {
   const accounts = [...users];
   if (accounts.length === 0) {
     accounts.push({
-      id: 'admin',
-      username: settings.adminUsername || 'admin',
-      password: adminPassword || settings.adminPassword || 'smaran@123',
+      id: 'smaran',
+      username: settings.adminUsername || 'smaran',
+      password: adminPassword || settings.adminPassword || 'smaran',
       role: 'admin',
       isSystem: true,
     });
@@ -35,9 +35,9 @@ export function generateHfsConfigYaml(options: GenerateConfigOptions): string {
   for (const acc of accounts) {
     lines.push(`  ${acc.username}:`);
     const pwd =
-      acc.username === (settings.adminUsername || 'admin') && adminPassword
+      acc.username === (settings.adminUsername || 'smaran') && adminPassword
         ? adminPassword
-        : acc.password || 'smaran@123';
+        : acc.password || 'smaran';
     lines.push(`    password: "${pwd}"`);
     if (acc.role === 'admin') {
       lines.push('    admin: true');
