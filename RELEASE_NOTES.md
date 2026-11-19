@@ -1,3 +1,21 @@
+# Smaran 3.3.11
+
+- **Complete WebDAV Integration & Verified Drive Mounting:** Fully enabled and verified WebDAV protocol compliance (RFC 4918), supporting OPTIONS and PROPFIND methods, Basic authentication, and native Windows File Explorer network drive mapping (`net use Z:`). Includes robust drive verification check (`fs.existsSync('Z:\\')`), automated WebClient service startup query, and meaningful, human-friendly error messages on connection failures.
+- **Background Startup by Default & Browser Launch Preference:** Starting the file server runs quietly in the background without automatically launching Chrome or any browser. Added an explicit desktop setting: `Automatically open Admin Panel after server starts` (`autoOpenAdminOnStart`, default OFF). The manual "Open Web Admin Panel ↗" button remains active at all times when running.
+- **Live Port Configuration & Automatic Server Reload:** Added live HTTP server port configuration directly from the desktop UI (validating unprivileged ports 1024–65535 and verifying socket availability). Applying a new port synchronizes HFS `config.yaml` and smoothly restarts the running engine without manual process stopping, updating all localhost, LAN, WebDAV, and QR endpoints instantly.
+- **Custom Storage Root Directory Synchronization:** Selecting a new storage directory via native Windows folder picker saves permanently to configuration, immediately re-points HFS root VFS (`vfs.source`) with full upload/delete permissions, and restarts the engine automatically so files in the new directory are instantly served over Web and WebDAV. Added 1-click "Reset to Default" storage directory option.
+- **Automatic Administrator Credentials Synchronization:** Updating administrator username or password from desktop UI securely writes to HFS `config.yaml` and restarts the engine via sequential sync queue, immediately validating new credentials and rejecting stale passwords across Web Admin and WebDAV without storing plaintext passwords in logs.
+- **Sequential Configuration Synchronization Queue:** Protected all server configuration updates (port, storage directory, credentials, launch preferences) with a sequential execution queue, preventing race conditions or conflicting simultaneous process restarts.
+- **Organized 5-Section Desktop Control Center:** Rebuilt `FileServer.tsx` into five distinct, intuitive control sections:
+  1. **Server Configuration**: Start/stop/restart controls, live pulsating status beacon, active port input with Apply button, and auto-start toggle.
+  2. **Storage Directory**: Current path display with tooltips, browse folder picker, open in Windows Explorer, and reset to default directory.
+  3. **WebDAV Network Storage**: Real-time WebDAV status badge, live WebDAV URLs (localhost & LAN), 1-click URL copy, verified "Mount as Drive Z:" button with loading spinner, and unmount button.
+  4. **Administrator Credentials**: Admin username, masked password input with Show/Hide toggle, and Save Credentials button with sync feedback.
+  5. **Browser & Administration**: Auto-open Admin Panel switch, admin console URL, and primary Web Admin Panel launch button.
+- **Factory Defaults Reset:** Preserved the dedicated Danger Zone card and confirmation modal to easily revert to factory defaults (port 5901, admin `smaran`/`smaran`, default folder, and 19 bundled plugins).
+
+---
+
 # Smaran 3.3.10
 
 - **Redesigned Desktop File Server Dashboard:** Completely overhauled the desktop application File Server interface (`src/renderer/app/pages/FileServer.tsx`) into an elegant, high-contrast, modern control center adhering strictly to Smaran's design system (`bg-surface`, `bg-sheet`, `border-line`, `text-ink`, `text-muted`, and warm amber `#e06c43`).

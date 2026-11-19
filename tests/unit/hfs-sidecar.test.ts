@@ -8,6 +8,7 @@ describe('HfsConfigBridge', () => {
     port: 5901,
     rootDir: 'C:\\Test\\Files',
     autoStart: true,
+    autoOpenAdminOnStart: false,
     adminUsername: 'smaran',
     adminPassword: 'secretpassword123',
   };
@@ -20,8 +21,8 @@ describe('HfsConfigBridge', () => {
 
     expect(yaml).toContain('localhost_admin: false');
     expect(yaml).toContain('port: 5901');
-    expect(yaml).toContain('title: "Smaran HFS"');
-    expect(yaml).toContain('force_theme: "dark"');
+    expect(yaml).toContain('title: Smaran HFS');
+    expect(yaml).toContain('force_theme: dark');
   });
 
   it('configures system admin account with password and admin role', () => {
@@ -37,10 +38,10 @@ describe('HfsConfigBridge', () => {
     });
 
     expect(yaml).toContain('admin:');
-    expect(yaml).toContain('password: "custompassword"');
+    expect(yaml).toContain('password: custompassword');
     expect(yaml).toContain('admin: true');
     expect(yaml).toContain('alice:');
-    expect(yaml).toContain('password: "alicepass"');
+    expect(yaml).toContain('password: alicepass');
   });
 
   it('normalizes VFS node mount paths to forward slashes', () => {
@@ -60,7 +61,7 @@ describe('HfsConfigBridge', () => {
     });
 
     expect(yaml).toContain('docs:');
-    expect(yaml).toContain('source: "D:/User/Documents"');
+    expect(yaml).toContain('source: D:/User/Documents');
   });
 
   it('includes all 19 default plugins and plugin configurations', () => {

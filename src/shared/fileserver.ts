@@ -25,6 +25,7 @@ export const FileServerSettingsSchema = z.object({
   port: z.number().int().min(1024).max(65535).default(5901),
   rootDir: z.string().default(''),
   autoStart: z.boolean().default(true),
+  autoOpenAdminOnStart: z.boolean().default(false),
   adminUsername: z.string().default('smaran'),
   adminPassword: z.string().default('smaran'),
 });

@@ -24,6 +24,7 @@ export class FileServerStore {
       port: 5901,
       rootDir: '',
       autoStart: true,
+      autoOpenAdminOnStart: false,
       adminUsername: 'smaran',
       adminPassword: 'smaran',
     };

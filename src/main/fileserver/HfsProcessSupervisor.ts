@@ -12,7 +12,7 @@ import type {
   ServerStatus,
 } from '@shared/fileserver';
 import { HfsApiClient } from './HfsApiClient';
-import { generateHfsConfigYaml } from './HfsConfigBridge';
+import { syncHfsConfigFile } from './HfsConfigBridge';
 import type { FileServerStore } from './FileServerStore';
 
 export interface SupervisorCallbacks {
@@ -185,52 +185,21 @@ export class HfsProcessSupervisor {
     return urls;
   }
 
-  private syncPortFromConfig(): number {
-    const settings = this.store.getSettings();
-    let port = settings.port;
-
-    if (fs.existsSync(this.configYamlPath)) {
-      try {
-        const content = fs.readFileSync(this.configYamlPath, 'utf8');
-        const match = content.match(/^port:\s*(\d+)/m);
-        if (match && match[1]) {
-          const yamlPort = parseInt(match[1], 10);
-          if (yamlPort > 0 && yamlPort <= 65535) {
-            port = yamlPort;
-            if (settings.port !== port) {
-              this.store.updateSettings({ port });
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('Could not read port from config.yaml:', err);
-      }
-    }
-    return port;
+  public updateStatusPort(port: number): void {
+    this.currentStatus.port = port;
+    this.currentStatus.localUrl = `http://localhost:${port}`;
+    this.currentStatus.lanUrls = this.getLanUrls(port);
+    this.callbacks.onStatusChanged?.(this.getStatus());
   }
 
-  private ensureConfigFile(settings: FileServerSettings): void {
+  public updateStatusRootDir(rootDir: string): void {
+    this.currentStatus.rootDir = rootDir;
+    this.callbacks.onStatusChanged?.(this.getStatus());
+  }
+
+  public ensureConfigFile(settings: FileServerSettings): void {
     if (!fs.existsSync(this.runtimeDir)) {
       fs.mkdirSync(this.runtimeDir, { recursive: true });
-    }
-
-    if (fs.existsSync(this.configYamlPath)) {
-      try {
-        let content = fs.readFileSync(this.configYamlPath, 'utf8');
-        let modified = false;
-
-        if (!content.includes('localhost_admin: false')) {
-          content = content.replace(/localhost_admin:\s*\w+/g, 'localhost_admin: false');
-          modified = true;
-        }
-
-        if (modified) {
-          fs.writeFileSync(this.configYamlPath, content, 'utf8');
-        }
-        return;
-      } catch (err) {
-        console.error('Failed to verify config.yaml:', err);
-      }
     }
 
     const defaultDir = this.getDefaultStorageDir();
@@ -242,16 +211,11 @@ export class HfsProcessSupervisor {
       }
     }
 
-    const yaml = generateHfsConfigYaml({
-      settings: {
-        ...settings,
-        rootDir: settings.rootDir || defaultDir,
-      },
-      users: this.store.getUsers(),
-      internalToken: this.internalToken,
-      adminPassword: settings.adminPassword || 'smaran',
+    syncHfsConfigFile(this.configYamlPath, {
+      settings,
+      adminPassword: settings.adminPassword,
+      defaultStorageDir: defaultDir,
     });
-    fs.writeFileSync(this.configYamlPath, yaml, 'utf8');
   }
 
   public async updateAdminAccount(creds: {
@@ -259,43 +223,21 @@ export class HfsProcessSupervisor {
     password: string;
   }): Promise<{ ok: boolean; error?: string }> {
     try {
+      const prevUsername = this.store.getSettings().adminUsername;
       this.store.updateSettings({
         adminUsername: creds.username,
         adminPassword: creds.password,
       });
 
-      if (this.child && this.apiClient) {
-        try {
-          await this.apiClient.addAccount({
-            username: creds.username,
-            password: creds.password,
-            admin: true,
-          });
-        } catch (apiErr) {
-          console.warn(
-            'Could not update running HFS account via API; saving to config.yaml:',
-            apiErr,
-          );
-        }
-      }
+      syncHfsConfigFile(this.configYamlPath, {
+        settings: this.store.getSettings(),
+        adminPassword: creds.password,
+        previousAdminUsername: prevUsername,
+        defaultStorageDir: this.getDefaultStorageDir(),
+      });
 
-      if (fs.existsSync(this.configYamlPath)) {
-        try {
-          let content = fs.readFileSync(this.configYamlPath, 'utf8');
-          const accountRegex = new RegExp(
-            `(\\n\\s{2}${creds.username}:[\\s\\S]*?password:\\s*)("[^"]*"|'[^']*'|\\S+)`,
-            'g',
-          );
-          if (accountRegex.test(content)) {
-            content = content.replace(accountRegex, `$1"${creds.password}"`);
-          } else if (content.includes('accounts:')) {
-            const entry = `\n  ${creds.username}:\n    password: "${creds.password}"\n    admin: true`;
-            content = content.replace('accounts:', `accounts:${entry}`);
-          }
-          fs.writeFileSync(this.configYamlPath, content, 'utf8');
-        } catch (yamlErr) {
-          console.error('Failed to rewrite config.yaml account:', yamlErr);
-        }
+      if (this.child) {
+        await this.restart();
       }
 
       this.addLog('info', `Admin credentials updated for user "${creds.username}"`);
@@ -389,9 +331,9 @@ export class HfsProcessSupervisor {
       return { ok: false, error: runtimePerm.error };
     }
 
-    // 4. Ensure Config File & Synchronize Port
+    // 4. Ensure Config File & Determine Active Port
     this.ensureConfigFile(settings);
-    const activePort = this.syncPortFromConfig();
+    const activePort = settings.port || 5901;
 
     // 5. Port Availability & Conflict Check
     const portCheck = await checkPortAvailable(activePort);

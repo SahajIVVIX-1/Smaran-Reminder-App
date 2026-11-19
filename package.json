@@ -1,7 +1,7 @@
 {
   "name": "smaran",
   "productName": "Smaran",
-  "version": "3.3.10",
+  "version": "3.3.11",
   "description": "Styled, always-on-top reminder popups shown in bursts on schedules.",
   "author": "SahajS",
   "license": "UNLICENSED",
@@ -72,6 +72,7 @@
     "font-list": "^2.1.0",
     "motion": "^14.14.0",
     "qrcode": "^1.5.4",
+    "yaml": "^2.9.1",
     "zod": "^4.6.5"
   }
 }
