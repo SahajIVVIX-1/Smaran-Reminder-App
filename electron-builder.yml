@@ -15,6 +15,12 @@ files:
   - out/**
   - package.json
 extraResources:
+  - from: resources/engine
+    to: engine
+  - from: resources/tray
+    to: tray
+  - from: resources/icon.png
+    to: icon.png
   - from: resources
     to: resources
 win:

@@ -34,7 +34,10 @@ export function generateHfsConfigYaml(options: GenerateConfigOptions): string {
   lines.push('accounts:');
   for (const acc of accounts) {
     lines.push(`  ${acc.username}:`);
-    const pwd = acc.username === (settings.adminUsername || 'admin') && adminPassword ? adminPassword : (acc.password || 'smaran@123');
+    const pwd =
+      acc.username === (settings.adminUsername || 'admin') && adminPassword
+        ? adminPassword
+        : acc.password || 'smaran@123';
     lines.push(`    password: "${pwd}"`);
     if (acc.role === 'admin') {
       lines.push('    admin: true');
@@ -53,8 +56,10 @@ export function generateHfsConfigYaml(options: GenerateConfigOptions): string {
     }
   } else if (settings.rootDir) {
     const cleanRoot = settings.rootDir.replace(/\\/g, '/');
-    lines.push('  files:');
-    lines.push(`    source: "${cleanRoot}"`);
+    lines.push(`  source: "${cleanRoot}"`);
+    lines.push('  can_see: "*"');
+    lines.push('  can_read: "*"');
+    lines.push('  can_list: "*"');
   }
 
   return lines.join('\n') + '\n';

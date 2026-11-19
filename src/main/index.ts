@@ -33,6 +33,8 @@ function runApp(): void {
   }
   let smaran: SmaranApp | null = null;
   let gate: BrowserWindow | null = null;
+  let license: LicenseStore | null = null;
+  let checking = true;
 
   const focusGate = () => {
     if (!gate || gate.isDestroyed()) return false;
@@ -48,11 +50,11 @@ function runApp(): void {
 
   app.whenReady().then(() => {
     app.setAppUserModelId(APP_ID);
-    const license = new LicenseStore(app.getPath('userData'), {
+    license = new LicenseStore(app.getPath('userData'), {
       decodeOther: decodeWithNativeImage,
     });
     // Only an unpackaged development build may skip the license (the e2e tests do).
-    const checking = app.isPackaged || process.env['SMARAN_LICENSE_CHECK'] !== 'off';
+    checking = app.isPackaged || process.env['SMARAN_LICENSE_CHECK'] !== 'off';
 
     /** The license screen: nothing else of Smaran runs while it shows. */
     const showGate = () => {
@@ -85,7 +87,7 @@ function runApp(): void {
     // A license can run out while Smaran is open: check now and then, and lock if it has.
     if (checking) {
       setInterval(() => {
-        if (license.valid || !smaran) return;
+        if (license?.valid || !smaran) return;
         smaran.stop();
         for (const win of BrowserWindow.getAllWindows()) win.destroy();
         smaran = null;
@@ -105,7 +107,11 @@ function runApp(): void {
       app.exit(0);
       return;
     }
-    smaran = new SmaranApp(app.getPath('userData'), data.portable);
+    smaran = new SmaranApp(
+      app.getPath('userData'),
+      data.portable,
+      () => !checking || (license?.valid ?? false),
+    );
     registerIpcHandlers(smaran);
     const { notice, firstRun } = smaran.start();
     if (activated) {

@@ -3,11 +3,7 @@ import { promisify } from 'node:util';
 import { BrowserWindow, dialog, shell } from 'electron';
 import * as QRCode from 'qrcode';
 import { IPC } from '@shared/channels';
-import type {
-  FileServerSettings,
-  ServerLogEntry,
-  ServerStatus,
-} from '@shared/fileserver';
+import type { FileServerSettings, ServerLogEntry, ServerStatus } from '@shared/fileserver';
 import { FileServerStore } from './FileServerStore';
 import { HfsProcessSupervisor } from './HfsProcessSupervisor';
 
@@ -17,11 +13,12 @@ export class FileServerManager {
   readonly store: FileServerStore;
   readonly supervisor: HfsProcessSupervisor;
 
-  constructor(dataDir: string) {
+  constructor(dataDir: string, isLicenseValid?: () => boolean) {
     this.store = new FileServerStore(dataDir);
     this.supervisor = new HfsProcessSupervisor(dataDir, this.store, {
       onStatusChanged: (status) => this.broadcast(IPC.fileserverStatusChanged, status),
       onLogAdded: (log) => this.broadcast(IPC.fileserverLogAdded, log),
+      isLicenseValid,
     });
   }
 
@@ -120,7 +117,10 @@ export class FileServerManager {
     };
   }
 
-  async setAdminCredentials(creds: { username: string; password: string }): Promise<{ ok: boolean; error?: string }> {
+  async setAdminCredentials(creds: {
+    username: string;
+    password: string;
+  }): Promise<{ ok: boolean; error?: string }> {
     return this.supervisor.updateAdminAccount(creds);
   }
 

@@ -63,3 +63,72 @@ describe('HfsConfigBridge', () => {
     expect(yaml).toContain('source: "D:/User/Documents"');
   });
 });
+
+describe('HfsProcessSupervisor port & environment verification', () => {
+  it('rejects privileged ports (< 1024) to avoid unnecessary UAC elevation', async () => {
+    const { checkPortAvailable } = await import('../../src/main/fileserver/HfsProcessSupervisor');
+    const res80 = await checkPortAvailable(80);
+    expect(res80.available).toBe(false);
+    expect(res80.error).toContain('system-privileged port');
+
+    const res443 = await checkPortAvailable(443);
+    expect(res443.available).toBe(false);
+    expect(res443.error).toContain('system-privileged port');
+  });
+
+  it('rejects out-of-range port numbers', async () => {
+    const { checkPortAvailable } = await import('../../src/main/fileserver/HfsProcessSupervisor');
+    const res0 = await checkPortAvailable(0);
+    expect(res0.available).toBe(false);
+    expect(res0.error).toContain('Invalid port number');
+
+    const resOver = await checkPortAvailable(70000);
+    expect(resOver.available).toBe(false);
+    expect(resOver.error).toContain('Invalid port number');
+  });
+
+  it('allows available unprivileged port numbers (>= 1024)', async () => {
+    const { checkPortAvailable } = await import('../../src/main/fileserver/HfsProcessSupervisor');
+    // Port 59199 is likely free
+    const res = await checkPortAvailable(59199);
+    expect(res.available).toBe(true);
+  });
+
+  it('verifies directory write permissions accurately', async () => {
+    const { checkDirectoryPermissions } =
+      await import('../../src/main/fileserver/HfsProcessSupervisor');
+    const os = await import('node:os');
+    const checkValid = checkDirectoryPermissions(os.tmpdir());
+    expect(checkValid.ok).toBe(true);
+
+    const checkInvalid = checkDirectoryPermissions('Z:\\NonExistentPath_XYZ123');
+    expect(checkInvalid.ok).toBe(false);
+    expect(checkInvalid.error).toContain('not writable');
+  });
+
+  it('enforces license validation before starting HFS engine', async () => {
+    const { HfsProcessSupervisor } = await import('../../src/main/fileserver/HfsProcessSupervisor');
+    const { FileServerStore } = await import('../../src/main/fileserver/FileServerStore');
+    const os = await import('node:os');
+    const path = await import('node:path');
+
+    const tempDir = path.join(os.tmpdir(), `smaran_test_${Date.now()}`);
+    const store = new FileServerStore(tempDir);
+
+    const licenseValid = false;
+    const supervisor = new HfsProcessSupervisor(tempDir, store, {
+      isLicenseValid: () => licenseValid,
+    });
+
+    // When license is invalid
+    const resultInvalid = await supervisor.start();
+    expect(resultInvalid.ok).toBe(false);
+    expect(resultInvalid.error).toContain('License activation required');
+    expect(supervisor.getStatus().running).toBe(false);
+
+    // Resolve engine script path check
+    const resolved = supervisor.resolveEngineScript();
+    expect(resolved.scriptPath).toContain('index.js');
+    expect(resolved.engineDir).toContain('dist');
+  });
+});

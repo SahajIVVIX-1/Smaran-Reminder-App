@@ -54,6 +54,7 @@ export class SmaranApp {
   constructor(
     dataDir: string,
     private readonly portable: boolean,
+    private readonly isLicenseValid?: () => boolean,
   ) {
     this.store = new ConfigStore(dataDir, {
       primaryDisplayId: () => screen.getPrimaryDisplay().id,
@@ -81,7 +82,7 @@ export class SmaranApp {
       run: runAction,
       idleSeconds: () => powerMonitor.getSystemIdleTime(),
     });
-    this.fileserver = new FileServerManager(dataDir);
+    this.fileserver = new FileServerManager(dataDir, this.isLicenseValid);
   }
 
   /** Loads data and starts everything. Returns a notice to show the user, if any. */
@@ -156,7 +157,8 @@ export class SmaranApp {
 
     this.engine.start();
     const serverSettings = this.fileserver.getSettings();
-    if (serverSettings.enabled || serverSettings.autoStart) {
+    const canStart = !this.isLicenseValid || this.isLicenseValid();
+    if (canStart && (serverSettings.enabled || serverSettings.autoStart)) {
       void this.fileserver.start();
     }
     const signIn = launchedHidden();

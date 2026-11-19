@@ -11,10 +11,13 @@ export interface HfsApiStatusResponse {
 export class HfsApiClient {
   constructor(
     private readonly port: number,
-    private readonly token: string
+    private readonly token: string,
   ) {}
 
-  public async callApi<T = unknown>(endpoint: string, params: Record<string, unknown> = {}): Promise<T> {
+  public async callApi<T = unknown>(
+    endpoint: string,
+    params: Record<string, unknown> = {},
+  ): Promise<T> {
     return new Promise((resolve, reject) => {
       const payload = JSON.stringify(params);
       const req = http.request(
@@ -27,7 +30,8 @@ export class HfsApiClient {
             'Content-Type': 'application/json',
             'Content-Length': Buffer.byteLength(payload),
             'x-smaran-internal-token': this.token,
-            'x-csrf': '1',
+            'x-hfs-anti-csrf': '1',
+            'User-Agent': 'Smaran-HFS-Bridge/3.3.7',
           },
           timeout: 4000,
         },
@@ -46,10 +50,12 @@ export class HfsApiClient {
                 resolve({} as T);
               }
             } else {
-              reject(new Error(`HFS API /~/api/${endpoint} returned HTTP ${res.statusCode}: ${data}`));
+              reject(
+                new Error(`HFS API /~/api/${endpoint} returned HTTP ${res.statusCode}: ${data}`),
+              );
             }
           });
-        }
+        },
       );
 
       req.on('error', (err) => reject(err));
@@ -63,19 +69,58 @@ export class HfsApiClient {
     });
   }
 
+  public getPort(): number {
+    return this.port;
+  }
+
+  public async checkHttpHealth(): Promise<boolean> {
+    return new Promise((resolve) => {
+      const req = http.request(
+        {
+          hostname: '127.0.0.1',
+          port: this.port,
+          path: '/',
+          method: 'GET',
+          headers: {
+            'User-Agent': 'Smaran-HFS-Bridge/3.3.7',
+          },
+          timeout: 2500,
+        },
+        (res) => {
+          resolve(Boolean(res.statusCode && res.statusCode >= 200 && res.statusCode < 500));
+        },
+      );
+      req.on('error', () => resolve(false));
+      req.on('timeout', () => {
+        req.destroy();
+        resolve(false);
+      });
+      req.end();
+    });
+  }
+
   async getStatus(): Promise<HfsApiStatusResponse> {
     return this.callApi<HfsApiStatusResponse>('get_status');
   }
 
-  async getConnections(): Promise<{ connections: Array<{ id: string; ip: string; speed?: number }> }> {
-    return this.callApi<{ connections: Array<{ id: string; ip: string; speed?: number }> }>('get_connections');
+  async getConnections(): Promise<{
+    connections: Array<{ id: string; ip: string; speed?: number }>;
+  }> {
+    return this.callApi<{ connections: Array<{ id: string; ip: string; speed?: number }> }>(
+      'get_connections',
+    );
   }
 
   async disconnect(id: string): Promise<{ ok: boolean }> {
     return this.callApi<{ ok: boolean }>('disconnect', { id });
   }
 
-  async addAccount(account: { username: string; password?: string; admin?: boolean; srp?: unknown }): Promise<{ ok: boolean }> {
+  async addAccount(account: {
+    username: string;
+    password?: string;
+    admin?: boolean;
+    srp?: unknown;
+  }): Promise<{ ok: boolean }> {
     return this.callApi<{ ok: boolean }>('add_account', account);
   }
 

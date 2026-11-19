@@ -1,6 +1,6 @@
 // Creates release/<version>/installer and release/<version>/portable before electron-builder runs.
 // NSIS will not create a missing output folder, so the artifactName subfolders must exist up front.
-import { cpSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,7 +8,15 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 
 for (const kind of ['installer', 'portable']) {
-  mkdirSync(join(root, 'release', version, kind), { recursive: true });
+  const dir = join(root, 'release', version, kind);
+  mkdirSync(dir, { recursive: true });
+  try {
+    for (const f of readdirSync(dir)) {
+      rmSync(join(dir, f), { force: true });
+    }
+  } catch {
+    // ignore
+  }
 }
 console.log(`Prepared release/${version}/{installer,portable}`);
 

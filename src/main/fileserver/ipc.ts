@@ -11,11 +11,11 @@ export function registerFileServerIpc(manager: FileServerManager): void {
 
   ipcMain.handle(IPC.fileserverSettingsGet, () => manager.getSettings());
   ipcMain.handle(IPC.fileserverSettingsSave, (_event, patch: Partial<FileServerSettings>) =>
-    manager.updateSettings(patch)
+    manager.updateSettings(patch),
   );
   ipcMain.handle(IPC.fileserverPickRootDir, () => manager.pickRootDir());
   ipcMain.handle(IPC.fileserverOpenFolder, (_event, folderPath?: string) =>
-    manager.openFolder(folderPath)
+    manager.openFolder(folderPath),
   );
 
   ipcMain.handle(IPC.fileserverLogsGet, () => manager.getLogs());
@@ -25,15 +25,15 @@ export function registerFileServerIpc(manager: FileServerManager): void {
   ipcMain.handle(
     IPC.fileserverMountDrive,
     (_event, payload?: { driveLetter?: string; username?: string; password?: string }) =>
-      manager.mountLocalDrive(payload)
+      manager.mountLocalDrive(payload),
   );
   ipcMain.handle(IPC.fileserverUnmountDrive, (_event, driveLetter?: string) =>
-    manager.unmountLocalDrive(driveLetter)
+    manager.unmountLocalDrive(driveLetter),
   );
 
   ipcMain.handle(IPC.fileserverAdminGet, () => manager.getAdminCredentials());
   ipcMain.handle(IPC.fileserverAdminSet, (_event, creds: { username: string; password: string }) =>
-    manager.setAdminCredentials(creds)
+    manager.setAdminCredentials(creds),
   );
   ipcMain.handle(IPC.fileserverOpenUrl, (_event, url: string) => shell.openExternal(url));
 }
