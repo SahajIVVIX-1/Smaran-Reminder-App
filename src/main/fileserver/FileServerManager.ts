@@ -17,14 +17,20 @@ import type {
 } from '@shared/fileserver';
 import { FileServerStore } from './FileServerStore';
 import { HttpServer } from './HttpServer';
+import { HfsProcessSupervisor } from './HfsProcessSupervisor';
 import { generateToken, hashPassword, resolveSafePath } from './security';
 
 export class FileServerManager {
   readonly store: FileServerStore;
+  readonly supervisor: HfsProcessSupervisor;
   readonly http: HttpServer;
 
   constructor(dataDir: string) {
     this.store = new FileServerStore(dataDir);
+    this.supervisor = new HfsProcessSupervisor(this.store, dataDir, {
+      onStatusChanged: (status) => this.broadcast(IPC.fileserverStatusChanged, status),
+      onLogAdded: (log) => this.broadcast(IPC.fileserverLogAdded, log),
+    });
     this.http = new HttpServer(this.store, {
       onStatusChanged: (status) => this.broadcast(IPC.fileserverStatusChanged, status),
       onTransfersUpdated: (transfers) => this.broadcast(IPC.fileserverTransfersUpdated, transfers),
@@ -35,20 +41,31 @@ export class FileServerManager {
   async start(): Promise<{ ok: boolean; error?: string }> {
     const settings = this.store.getSettings();
     if (settings.enabled) {
-      return this.http.start();
+      const res = await this.supervisor.start();
+      if (!res.ok) {
+        console.warn('HFS sidecar start failed, falling back to embedded HttpServer:', res.error);
+        return this.http.start();
+      }
+      return res;
     }
     return { ok: true };
   }
 
   async stop(): Promise<void> {
+    await this.supervisor.stop();
     await this.http.stop();
   }
 
   async restart(): Promise<{ ok: boolean; error?: string }> {
-    return this.http.restart();
+    await this.supervisor.stop();
+    await this.http.stop();
+    return this.start();
   }
 
   getStatus(): ServerStatus {
+    if (this.supervisor.isRunning) {
+      return this.supervisor.getStatus();
+    }
     return this.http.getStatus();
   }
 
@@ -59,14 +76,15 @@ export class FileServerManager {
   async updateSettings(patch: Partial<FileServerSettings>): Promise<FileServerSettings> {
     const updated = this.store.updateSettings(patch);
     // If port, bind, root, or HTTPS changed and server is running, restart
-    if (this.http.isRunning) {
+    const isRunning = this.supervisor.isRunning || this.http.isRunning;
+    if (isRunning) {
       if (
         patch.port !== undefined ||
         patch.bindAddress !== undefined ||
         patch.rootDir !== undefined ||
         patch.httpsEnabled !== undefined
       ) {
-        await this.http.restart();
+        await this.restart();
       }
     }
     this.broadcast(IPC.fileserverStatusChanged, this.getStatus());
@@ -182,6 +200,11 @@ export class FileServerManager {
   }
 
   killConnection(id: string): boolean {
+    if (this.supervisor.isRunning) {
+      void this.supervisor.apiClient.disconnect(id);
+      this.broadcast(IPC.fileserverStatusChanged, this.getStatus());
+      return true;
+    }
     const res = this.http.killConnection(id);
     this.broadcast(IPC.fileserverStatusChanged, this.getStatus());
     return res;
@@ -361,7 +384,7 @@ export class FileServerManager {
       return { ok: false, error: 'Local drive mapping is currently supported on Windows' };
     }
     const settings = this.store.getSettings();
-    if (!this.http.isRunning) {
+    if (!this.getStatus().running) {
       return { ok: false, error: 'Smaran File Server is not running. Please start the server first.' };
     }
     const port = settings.port;

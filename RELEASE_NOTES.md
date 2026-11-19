@@ -1,3 +1,13 @@
+# Smaran 3.3.4
+
+- **Integrated Official HFS 3.4.1 File Server Engine:** Replaced custom HTTP file serving with the production-grade HFS (HTTP File Server by Rejetto) v3.4.1 engine running as a managed, high-performance isolated sidecar process.
+- **Zero-Trust Security & Hardened Localhost Administration:** Completely resolved HFS's default `localhost_admin` vulnerability by explicitly enforcing `localhost_admin: false` and establishing an unforgeable, cryptographically random internal bridge token (`SMARAN_INTERNAL_TOKEN`) with anti-CSRF protection between Smaran's Electron process and the engine.
+- **Smaran HFS Dark Theme & Visual Identity:** Customized the HFS web explorer and admin dashboard with the official Smaran charcoal dark theme palette (`#0c0c0e`, `#16161a`), warm amber brand accents (`#e06c43`), and high-resolution Smaran vector logos.
+- **Automated Process Lifecycle Supervision:** Built `HfsProcessSupervisor` with automated child process spawning, non-blocking health check polling, PID tracking, stdout/stderr audit logging, and clean exit handling with zero orphaned processes on shutdown.
+- **Self-Contained Bundling & Packaging:** Embedded the complete precompiled HFS engine, frontend assets, admin console, and production dependencies directly into `resources/engine/dist`, running seamlessly via Electron's internal Node runtime without requiring any external Node.js installation.
+
+---
+
 # Smaran 3.3.3
 
 - **HFS-Inspired Reliability & Zero-Trust Authentication:** Hardened the embedded Smaran file server engine with industrial-grade session validation, rejecting bad credentials immediately with 401 Unauthorized and eliminating any possibility of authentication fallthrough into guest mode.
