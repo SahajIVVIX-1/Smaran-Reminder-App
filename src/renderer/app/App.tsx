@@ -20,12 +20,10 @@ import {
   KeyIcon,
   MoonIcon,
   PlusIcon,
-  ServerIcon,
   SparkIcon,
   SunIcon,
 } from './icons';
 import { Automations } from './pages/Automations';
-import { FileServer } from './pages/FileServer';
 import { History } from './pages/History';
 import { License } from './pages/License';
 import { Reminders } from './pages/Reminders';
@@ -43,7 +41,6 @@ const NAV: { route: Route; label: string; icon: ReactNode }[] = [
   { route: 'today', label: 'Today', icon: <SunIcon size={16} /> },
   { route: 'reminders', label: 'Reminders', icon: <BellIcon size={16} /> },
   { route: 'automations', label: 'Automations', icon: <BoltIcon size={16} /> },
-  { route: 'fileserver', label: 'File Server', icon: <ServerIcon size={16} /> },
   { route: 'history', label: 'History', icon: <ClockIcon size={16} /> },
 ];
 
@@ -152,8 +149,6 @@ export function App() {
                 <Reminders />
               ) : route === 'automations' ? (
                 <Automations />
-              ) : route === 'fileserver' ? (
-                <FileServer />
               ) : route === 'history' ? (
                 <History />
               ) : route === 'license' ? (

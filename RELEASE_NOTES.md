@@ -1,3 +1,11 @@
+# Smaran 3.3.6
+
+- **Complete Removal of File Server Subsystem:** Fully eliminated all file server and HFS engine components, sidecar supervisor, HTTP servers, WebDAV modules, VFS mounts, and related background processes.
+- **Pure Core Reminder & Automation Experience:** Restored Smaran to its focused, lightweight, and calm reminder and automation utility with zero background network listening ports or extra server overhead.
+- **Reduced Binary Size & Dependencies:** Removed all external file server dependencies (`@rejetto/nat-upnp`, `mime-types`, `qrcode`, `yazl`), returning the executable and installation packages to a minimal footprint.
+
+---
+
 # Smaran 3.3.5
 
 - **Full In-Browser HFS 3.4.1 Administration (`/~/admin/`):** Full web-based administrative management matching original HFS capabilities. Manage Virtual File System (VFS) nodes, user accounts and roles, granular folder permissions, upload/download limits, plugins, logs, and server options directly in the browser.

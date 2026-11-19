@@ -136,18 +136,6 @@ export const COLORS = ['clay', 'amber', 'olive', 'sage', 'sky', 'iris', 'rose', 
 export const ColorSchema = z.enum(COLORS);
 export type ReminderColor = z.infer<typeof ColorSchema>;
 
-// ---------- Reminder Attachments (from File Server) ----------
-
-export const ReminderAttachmentSchema = z.object({
-  id: IdSchema,
-  name: z.string().min(1),
-  size: z.number().int().nonnegative(),
-  relativePath: z.string().min(1),
-  mimeType: z.string().default('application/octet-stream'),
-  addedAt: z.iso.datetime({ offset: true }),
-});
-export type ReminderAttachment = z.infer<typeof ReminderAttachmentSchema>;
-
 export const ReminderSchema = z.object({
   id: IdSchema,
   title: z.string().trim().min(1, 'Give the reminder a title').max(200),
@@ -175,8 +163,6 @@ export const ReminderSchema = z.object({
   card: CardShapeSchema.optional(),
   /** This reminder's own attention motion; absent = the one in Settings. */
   motion: NotificationMotionSchema.optional(),
-  /** Attached files from File Server */
-  attachments: z.array(ReminderAttachmentSchema).optional(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });

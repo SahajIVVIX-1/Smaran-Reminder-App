@@ -128,7 +128,6 @@ export type Route =
   | 'today'
   | 'reminders'
   | 'automations'
-  | 'fileserver'
   | 'history'
   | 'license'
   | 'settings';

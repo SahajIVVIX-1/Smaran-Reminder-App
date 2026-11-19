@@ -17,7 +17,6 @@ import {
 } from '@shared/ipc';
 import { detectBrowsers } from '../automations/browsers';
 import type { SmaranApp } from '../SmaranApp';
-import { registerFileServerIpc } from '../fileserver/ipc';
 import { exportJson, mergeReminders, parseBackupJson } from '../store/backup';
 import { setTitleBarTheme } from '../windows/AppWindow';
 
@@ -58,7 +57,6 @@ function broadcast(channel: string, payload: unknown): void {
 /** Registers IPC handlers. Every input from a renderer is validated here with zod. */
 export function registerIpcHandlers(smaran: SmaranApp): void {
   const { store, history, engine, automations } = smaran;
-  registerFileServerIpc(smaran.fileserver);
 
   ipcMain.handle(IPC.configGet, () => store.get());
   ipcMain.handle(IPC.logoGet, () => smaran.logoState);

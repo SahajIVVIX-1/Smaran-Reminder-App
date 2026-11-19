@@ -1,7 +1,7 @@
 {
   "name": "smaran",
   "productName": "Smaran",
-  "version": "3.3.5",
+  "version": "3.3.6",
   "description": "Styled, always-on-top reminder popups shown in bursts on schedules.",
   "author": "SahajS",
   "license": "UNLICENSED",
@@ -37,12 +37,9 @@
     "@fontsource-variable/source-serif-4": "^5.3.0",
     "@playwright/test": "^1.64.0",
     "@tailwindcss/vite": "^4.3.3",
-    "@types/mime-types": "^3.0.1",
     "@types/node": "^24.0.0",
-    "@types/qrcode": "^1.5.6",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
-    "@types/yazl": "^3.3.1",
     "@vitejs/plugin-react": "^5.1.4",
     "@vitest/coverage-v8": "^5.0.3",
     "electron": "^44.7.0",
@@ -70,13 +67,9 @@
     "electron-winstaller@5.4.0": true
   },
   "dependencies": {
-    "@rejetto/nat-upnp": "^2.1.4",
     "date-fns": "^4.4.0",
     "font-list": "^2.1.0",
-    "mime-types": "^3.0.2",
     "motion": "^14.14.0",
-    "qrcode": "^1.5.4",
-    "yazl": "^3.3.1",
     "zod": "^4.6.5"
   }
 }

@@ -18,7 +18,6 @@ import type { Config } from '@shared/schema';
 import { runAction } from './automations/actions';
 import { AutomationEngine, CARD_PREFIX } from './automations/AutomationEngine';
 import { Engine, isPaused } from './engine/Engine';
-import { FileServerManager } from './fileserver/FileServerManager';
 import { LogoAnimator } from './logo/LogoAnimator';
 import { LogoConductor } from './logo/LogoConductor';
 import { ConfigStore } from './store/ConfigStore';
@@ -44,7 +43,6 @@ export class SmaranApp {
   readonly automations: AutomationEngine;
   readonly fonts: FontLibrary;
   readonly menu: MenuWindow;
-  readonly fileserver: FileServerManager;
   private tray: AppTray | null = null;
   private logoAnimator: LogoAnimator | null = null;
   private logo: LogoConductor | null = null;
@@ -81,7 +79,6 @@ export class SmaranApp {
       run: runAction,
       idleSeconds: () => powerMonitor.getSystemIdleTime(),
     });
-    this.fileserver = new FileServerManager(dataDir);
   }
 
   /** Loads data and starts everything. Returns a notice to show the user, if any. */
@@ -155,7 +152,6 @@ export class SmaranApp {
     powerMonitor.on('on-battery', () => this.automations.onEvent('onBattery'));
 
     this.engine.start();
-    void this.fileserver.start();
     const signIn = launchedHidden();
     this.automations.start({ signIn, boot: signIn && uptime() < BOOT_WINDOW_SEC });
     this.syncSystem(config);
@@ -168,7 +164,6 @@ export class SmaranApp {
   }
 
   stop(): void {
-    void this.fileserver.stop();
     this.engine.stop();
     this.automations.stop();
     this.notifications.closeAll();

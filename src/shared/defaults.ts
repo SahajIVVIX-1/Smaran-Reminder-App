@@ -85,7 +85,6 @@ export function createReminder(
     color: 'clay',
     sound: 'default',
     animation: 'auto',
-    attachments: [],
     createdAt: stamp,
     updatedAt: stamp,
   };
