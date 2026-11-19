@@ -74,6 +74,8 @@ export const IPC = {
   fileserverAdminSet: 'fileserver:admin:set',
   fileserverOpenUrl: 'fileserver:openUrl',
   fileserverResetDefaults: 'fileserver:reset-defaults',
+  fileserverEnableWebClient: 'fileserver:enableWebClient',
+  fileserverExportMountScript: 'fileserver:exportMountScript',
   // Broadcast events
   fileserverStatusChanged: 'fileserver:event:statusChanged',
   fileserverLogAdded: 'fileserver:event:logAdded',

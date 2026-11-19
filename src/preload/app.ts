@@ -129,6 +129,10 @@ const api = {
       ipcRenderer.invoke(IPC.fileserverAdminSet, creds),
     resetDefaults: (): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke(IPC.fileserverResetDefaults),
+    enableWebClient: (): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverEnableWebClient),
+    exportMountScript: (): Promise<{ ok: boolean; filePath?: string; error?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverExportMountScript),
     openUrl: (url: string): Promise<void> =>
       ipcRenderer.invoke(IPC.fileserverOpenUrl, url),
     onStatusChanged: (listener: (status: ServerStatus) => void): (() => void) =>

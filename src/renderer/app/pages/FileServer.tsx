@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { FileServerSettings, ServerStatus } from '@shared/fileserver';
 import {
+  ArrowDownIcon,
+  BoltIcon,
   CheckIcon,
   CopyIcon,
   FolderIcon,
@@ -49,6 +51,8 @@ export function FileServer() {
   // WebDAV Drive Mount State
   const [driveMounting, setDriveMounting] = useState(false);
   const [driveFeedback, setDriveFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [isEnablingWebClient, setIsEnablingWebClient] = useState(false);
+  const [isExportingMountScript, setIsExportingMountScript] = useState(false);
 
   // Reset Modal
   const [showResetDialog, setShowResetDialog] = useState(false);
@@ -266,6 +270,7 @@ export function FileServer() {
           type: 'success',
           message: `Drive ${res.driveLetter || 'Z:'} successfully mounted & verified in Windows Explorer.`,
         });
+        setTimeout(() => setDriveFeedback(null), 6000);
       } else {
         setDriveFeedback({
           type: 'error',
@@ -279,7 +284,6 @@ export function FileServer() {
       });
     } finally {
       setDriveMounting(false);
-      setTimeout(() => setDriveFeedback(null), 6000);
     }
   };
 
@@ -293,6 +297,7 @@ export function FileServer() {
           type: 'success',
           message: 'Drive Z: unmounted successfully.',
         });
+        setTimeout(() => setDriveFeedback(null), 5000);
       } else {
         setDriveFeedback({
           type: 'error',
@@ -306,7 +311,59 @@ export function FileServer() {
       });
     } finally {
       setDriveMounting(false);
-      setTimeout(() => setDriveFeedback(null), 5000);
+    }
+  };
+
+  const handleEnableWebClient = async () => {
+    setIsEnablingWebClient(true);
+    setDriveFeedback(null);
+    try {
+      const res = await window.smaran.fileserver.enableWebClient();
+      if (res.ok) {
+        setDriveFeedback({
+          type: 'success',
+          message: 'Windows WebDAV service (WebClient) & registry configured successfully! You can now click "Mount as Drive Z:".',
+        });
+        setTimeout(() => setDriveFeedback(null), 10000);
+      } else {
+        setDriveFeedback({
+          type: 'error',
+          message: res.error || 'Failed to configure Windows WebClient service.',
+        });
+      }
+    } catch (err: unknown) {
+      setDriveFeedback({
+        type: 'error',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setIsEnablingWebClient(false);
+    }
+  };
+
+  const handleExportMountScript = async () => {
+    setIsExportingMountScript(true);
+    try {
+      const res = await window.smaran.fileserver.exportMountScript();
+      if (res.ok && res.filePath) {
+        setDriveFeedback({
+          type: 'success',
+          message: `Mount script successfully exported to ${res.filePath}. Run it as Administrator on any PC on your network.`,
+        });
+        setTimeout(() => setDriveFeedback(null), 10000);
+      } else if (!res.ok && res.error) {
+        setDriveFeedback({
+          type: 'error',
+          message: res.error,
+        });
+      }
+    } catch (err: unknown) {
+      setDriveFeedback({
+        type: 'error',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setIsExportingMountScript(false);
     }
   };
 
@@ -746,6 +803,19 @@ export function FileServer() {
                 </button>
               </div>
             )}
+            <div className="pt-1 flex items-center justify-between">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-[11px] text-zinc-300 hover:text-white px-2 py-1 h-auto"
+                onClick={handleExportMountScript}
+                disabled={isExportingMountScript}
+                title="Export a standalone .bat script to mount this server from any Windows computer on the network"
+              >
+                <ArrowDownIcon size={12} />
+                {isExportingMountScript ? 'Exporting...' : 'Export Mount Script (.bat)'}
+              </Button>
+            </div>
           </div>
 
           {/* Windows Drive Mount Card */}
@@ -779,18 +849,70 @@ export function FileServer() {
                 Unmount
               </Button>
             </div>
+            <div className="pt-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="w-full justify-center text-[11px] text-zinc-400 hover:text-accent px-2 py-1 h-auto border border-line/40 hover:border-accent/40"
+                onClick={handleEnableWebClient}
+                disabled={isEnablingWebClient}
+                title="Configures Windows WebClient service & BasicAuthLevel=2 in registry for HTTP WebDAV mounting"
+              >
+                <BoltIcon size={12} />
+                {isEnablingWebClient ? 'Configuring Windows WebDAV...' : 'Enable WebDAV on this PC (Run Admin Fix)'}
+              </Button>
+            </div>
           </div>
         </div>
 
         {driveFeedback && (
           <div
-            className={`text-xs p-3 rounded-xl border ${
+            className={`text-xs p-3.5 rounded-xl border space-y-2 ${
               driveFeedback.type === 'success'
                 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'
                 : 'bg-rose-500/10 text-rose-300 border-rose-500/25'
             }`}
           >
-            {driveFeedback.message}
+            <div className="flex items-start justify-between gap-2">
+              <p className="leading-relaxed flex-1">{driveFeedback.message}</p>
+              <button
+                type="button"
+                onClick={() => setDriveFeedback(null)}
+                className="text-zinc-400 hover:text-zinc-200 text-xs px-1"
+                title="Dismiss"
+              >
+                ✕
+              </button>
+            </div>
+            {driveFeedback.type === 'error' &&
+              (driveFeedback.message.includes('WebClient') ||
+                driveFeedback.message.includes('BasicAuth') ||
+                driveFeedback.message.includes('Enable WebDAV')) && (
+                <div className="pt-1 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleEnableWebClient}
+                    disabled={isEnablingWebClient}
+                    className="bg-amber-500/20 text-amber-200 border-amber-500/30 hover:bg-amber-500/30 text-xs"
+                  >
+                    <BoltIcon size={12} />
+                    {isEnablingWebClient
+                      ? 'Configuring Windows WebDAV...'
+                      : '⚡ Fix Windows WebDAV Service (Requires Admin)'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleExportMountScript}
+                    disabled={isExportingMountScript}
+                    className="text-xs text-zinc-300 hover:text-white"
+                  >
+                    <ArrowDownIcon size={12} />
+                    Export Mount Script (.bat)
+                  </Button>
+                </div>
+              )}
           </div>
         )}
       </div>

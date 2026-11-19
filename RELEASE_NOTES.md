@@ -1,3 +1,14 @@
+# Smaran 3.3.12
+
+- **Full Shared Files Permissions by Default:** Configured default Virtual File System (VFS) permissions to full shared access (`can_see: "*"`, `can_read: "*"`, `can_list: "*"`, `can_upload: "*"`, `can_delete: "*"`, `can_archive: "*"`), allowing seamless read, write, upload, delete, and archiving across all client devices on the local network.
+- **Default Storage Directory Set to Documents/Smaran Files:** Updated default root storage directory to `Documents/Smaran Files` (`app.getPath('documents')/Smaran Files`), providing an easily accessible, dedicated personal file hub in the user's Documents library.
+- **Custom Themed Error Pages (403 Forbidden & 404 Not Found):** Integrated custom dark obsidian (`#0d0d11`) and warm amber (`#e06c43`) error templates into HFS `custom.html`, featuring official Smaran vector branding, clear error descriptions, return-to-files navigation (`$URL`), and direct link to the Admin Panel.
+- **Automated Windows WebDAV Fix (WebClient Service & BasicAuthLevel):** Resolved Windows Explorer WebDAV mounting error ("Windows could not reach the WebDAV endpoint / Ensure WebClient service is enabled") caused by Windows default `BasicAuthLevel=1`. Added an automated Administrator setup tool (`enable-webdav.bat` and 1-click in-app action) that configures the Windows `WebClient` service to Automatic, enables unencrypted HTTP Basic Authentication (`BasicAuthLevel=2`), sets the file transfer size limit to 4GB, and restarts the service.
+- **Network WebDAV Client Mount Script & In-Browser Widget:** Built an automatic mount script generator and added an in-browser WebDAV connection widget to the frontend (`[top]`). Any client on the network can download a customized `mount-smaran-drive.bat` directly via `/~/webdav/mount.bat` to mount Drive Z: with 1 click.
+- **Export Mount Script from Desktop UI:** Added an "Export Mount Script (.bat)" button in the desktop WebDAV control card, allowing users to save and share the pre-configured mount script with any Windows PC on their network.
+
+---
+
 # Smaran 3.3.11
 
 - **Complete WebDAV Integration & Verified Drive Mounting:** Fully enabled and verified WebDAV protocol compliance (RFC 4918), supporting OPTIONS and PROPFIND methods, Basic authentication, and native Windows File Explorer network drive mapping (`net use Z:`). Includes robust drive verification check (`fs.existsSync('Z:\\')`), automated WebClient service startup query, and meaningful, human-friendly error messages on connection failures.

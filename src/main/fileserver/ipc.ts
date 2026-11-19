@@ -36,5 +36,7 @@ export function registerFileServerIpc(manager: FileServerManager): void {
     manager.setAdminCredentials(creds),
   );
   ipcMain.handle(IPC.fileserverResetDefaults, () => manager.resetDefaults());
+  ipcMain.handle(IPC.fileserverEnableWebClient, () => manager.enableWebClientService());
+  ipcMain.handle(IPC.fileserverExportMountScript, () => manager.exportMountScript());
   ipcMain.handle(IPC.fileserverOpenUrl, (_event, url: string) => shell.openExternal(url));
 }

@@ -12,7 +12,7 @@ import type {
   ServerStatus,
 } from '@shared/fileserver';
 import { HfsApiClient } from './HfsApiClient';
-import { syncHfsConfigFile } from './HfsConfigBridge';
+import { DEFAULT_CUSTOM_HTML, syncHfsConfigFile } from './HfsConfigBridge';
 import type { FileServerStore } from './FileServerStore';
 
 export interface SupervisorCallbacks {
@@ -77,7 +77,7 @@ export function checkDirectoryPermissions(dirPath: string): { ok: boolean; error
 
 export class HfsProcessSupervisor {
   private child: ChildProcess | null = null;
-  private runtimeDir: string;
+  public readonly runtimeDir: string;
   private configYamlPath: string;
   private internalToken: string;
   private apiClient: HfsApiClient | null = null;
@@ -138,12 +138,42 @@ export class HfsProcessSupervisor {
   }
 
   public getDefaultStorageDir(): string {
-    const base = typeof app?.getPath === 'function' ? app.getPath('userData') : os.tmpdir();
-    return path.join(base, 'Smaran Files');
+    try {
+      if (typeof app?.getPath === 'function') {
+        const docDir = app.getPath('documents');
+        if (docDir) {
+          return path.join(docDir, 'Smaran Files');
+        }
+      }
+    } catch {
+      // fallback
+    }
+    const home = os.homedir();
+    return path.join(home, 'Documents', 'Smaran Files');
   }
 
   public getConfigYamlPath(): string {
     return this.configYamlPath;
+  }
+
+  public ensureCustomHtml(engineDir: string): void {
+    const dstCustomHtml = path.join(this.runtimeDir, 'custom.html');
+    if (!fs.existsSync(dstCustomHtml)) {
+      const srcCustomHtml = path.join(engineDir, 'custom.html');
+      if (fs.existsSync(srcCustomHtml)) {
+        try {
+          fs.copyFileSync(srcCustomHtml, dstCustomHtml);
+          return;
+        } catch {
+          // Fallback
+        }
+      }
+      try {
+        fs.writeFileSync(dstCustomHtml, DEFAULT_CUSTOM_HTML, 'utf8');
+      } catch (err) {
+        console.warn('Failed to write custom.html to runtimeDir:', err);
+      }
+    }
   }
 
   public ensureBundledPlugins(engineDir: string): void {
@@ -310,8 +340,9 @@ export class HfsProcessSupervisor {
       }
     }
 
-    // Ensure all bundled plugins are copied to runtime directory
+    // Ensure all bundled plugins and custom.html are copied to runtime directory
     this.ensureBundledPlugins(engineInfo.engineDir);
+    this.ensureCustomHtml(engineInfo.engineDir);
 
     const settings = this.store.getSettings();
 

@@ -1,4 +1,6 @@
 import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { BrowserWindow, dialog, shell } from 'electron';
@@ -11,7 +13,12 @@ import {
   checkPortAvailable,
   HfsProcessSupervisor,
 } from './HfsProcessSupervisor';
-import { generateHfsConfigYaml, syncHfsConfigFile } from './HfsConfigBridge';
+import {
+  DEFAULT_CUSTOM_HTML,
+  generateHfsConfigYaml,
+  generateMountBatScript,
+  syncHfsConfigFile,
+} from './HfsConfigBridge';
 
 const execAsync = promisify(exec);
 
@@ -259,8 +266,17 @@ export class FileServerManager {
 
         fs.writeFileSync(this.supervisor.getConfigYamlPath(), yaml, 'utf8');
 
+        // Reset custom.html to default theme error pages and web client WebDAV helper
+        const customHtmlPath = path.join(this.supervisor.runtimeDir, 'custom.html');
+        try {
+          fs.writeFileSync(customHtmlPath, DEFAULT_CUSTOM_HTML, 'utf8');
+        } catch {
+          // ignore
+        }
+
         const engineInfo = this.supervisor.resolveEngineScript();
         this.supervisor.ensureBundledPlugins(engineInfo.engineDir);
+        this.supervisor.ensureCustomHtml(engineInfo.engineDir);
 
         const res = await this.supervisor.start();
         this.broadcast(IPC.fileserverStatusChanged, this.getStatus());
@@ -348,14 +364,91 @@ export class FileServerManager {
       const rawMsg = lastErr instanceof Error ? lastErr.message : String(lastErr || 'Drive not mounted');
       let friendlyError = rawMsg;
       if (rawMsg.includes('1244') || rawMsg.includes('authenticated') || rawMsg.includes('BasicAuth')) {
-        friendlyError = `Windows WebClient rejected unencrypted HTTP authentication (Windows requires BasicAuthLevel=2 in registry for HTTP WebDAV). You can open WebDAV at ${url} directly in Windows Explorer ("Add a network location") or via Cyberduck/WinSCP.`;
+        friendlyError = `Windows WebClient rejected unencrypted HTTP authentication (Windows requires BasicAuthLevel=2 in registry for HTTP WebDAV). Click "Enable WebDAV on this PC" to configure Windows automatically.`;
       } else if (rawMsg.includes('85') || rawMsg.includes('already in use')) {
         friendlyError = `Drive letter ${drive} is already assigned to another network location.`;
       } else if (rawMsg.includes('67') || rawMsg.includes('network name cannot be found')) {
-        friendlyError = `Windows could not reach the WebDAV endpoint on port ${port}. Ensure the WebClient Windows service is enabled.`;
+        friendlyError = `Windows could not reach the WebDAV endpoint on port ${port}. Windows WebClient service is stopped or requires BasicAuthLevel=2. Click "Enable WebDAV on this PC" below to configure Windows automatically.`;
       }
 
       return { ok: false, error: friendlyError };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: msg };
+    }
+  }
+
+  async enableWebClientService(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const batScript = `@echo off
+setlocal EnableDelayedExpansion
+title Enabling Windows WebDAV Client
+
+:: Check Administrator permissions
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    powershell -NoProfile -Command "Start-Process cmd -ArgumentList '/c \\"\\"%~f0\\"\\"' -Verb RunAs"
+    exit /b
+)
+
+echo Configuring WebClient service...
+sc config WebClient start= auto >nul 2>&1
+net start WebClient >nul 2>&1
+
+echo Enabling WebDAV Basic Authentication in Registry...
+reg add "HKLM\\SYSTEM\\CurrentControlSet\\Services\\WebClient\\Parameters" /v BasicAuthLevel /t REG_DWORD /d 2 /f >nul 2>&1
+reg add "HKLM\\SYSTEM\\CurrentControlSet\\Services\\WebClient\\Parameters" /v FileSizeLimitInBytes /t REG_DWORD /d 4294967295 /f >nul 2>&1
+
+echo Restarting WebClient service to apply settings...
+net stop WebClient /y >nul 2>&1
+net start WebClient >nul 2>&1
+`;
+      const tempPath = path.join(os.tmpdir(), `smaran-enable-webdav-${Date.now()}.bat`);
+      fs.writeFileSync(tempPath, batScript, 'utf8');
+
+      await execAsync(
+        `powershell -NoProfile -Command "Start-Process -FilePath '${tempPath}' -Verb RunAs -Wait"`,
+      );
+
+      try {
+        fs.unlinkSync(tempPath);
+      } catch {
+        // ignore
+      }
+
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: msg };
+    }
+  }
+
+  async exportMountScript(): Promise<{ ok: boolean; filePath?: string; error?: string }> {
+    try {
+      const settings = this.store.getSettings();
+      const port = settings.port || 5901;
+      const status = this.getStatus();
+      let ip = '127.0.0.1';
+      if (status.lanUrls?.[0]) {
+        try {
+          ip = new URL(status.lanUrls[0]).hostname;
+        } catch {
+          // fallback
+        }
+      }
+
+      const script = generateMountBatScript(ip, port);
+      const res = await dialog.showSaveDialog({
+        title: 'Export Windows WebDAV Mount Script',
+        defaultPath: 'mount-smaran-drive.bat',
+        filters: [{ name: 'Batch Script (*.bat)', extensions: ['bat'] }],
+      });
+
+      if (!res.canceled && res.filePath) {
+        fs.writeFileSync(res.filePath, script, 'utf8');
+        return { ok: true, filePath: res.filePath };
+      }
+      return { ok: false };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return { ok: false, error: msg };

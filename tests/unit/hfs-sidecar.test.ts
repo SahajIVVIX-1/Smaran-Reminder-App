@@ -78,6 +78,28 @@ describe('HfsConfigBridge', () => {
     expect(yaml).toContain('  share-links:');
     expect(yaml).toContain('  trashbin:');
   });
+
+  it('configures default VFS permissions to full shared access (*)', () => {
+    const yaml = generateHfsConfigYaml({
+      settings: dummySettings,
+    });
+
+    expect(yaml).toContain('can_see: "*"');
+    expect(yaml).toContain('can_read: "*"');
+    expect(yaml).toContain('can_upload: "*"');
+    expect(yaml).toContain('can_delete: "*"');
+    expect(yaml).toContain('can_archive: "*"');
+  });
+
+  it('generates Windows WebDAV mount batch script with UAC elevation & BasicAuthLevel=2', async () => {
+    const { generateMountBatScript } = await import('../../src/main/fileserver/HfsConfigBridge');
+    const bat = generateMountBatScript('192.168.1.100', 5901);
+
+    expect(bat).toContain('net session >nul 2>&1');
+    expect(bat).toContain('sc config WebClient start= auto');
+    expect(bat).toContain('BasicAuthLevel /t REG_DWORD /d 2 /f');
+    expect(bat).toContain('net use Z: "http://192.168.1.100:5901/"');
+  });
 });
 
 describe('HfsProcessSupervisor port & environment verification', () => {
