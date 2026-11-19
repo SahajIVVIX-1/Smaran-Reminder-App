@@ -1261,7 +1261,7 @@ export function getWebManagerHtml(serverName: string, initialClientIp: string = 
         <svg class="smaran-brand-logo" id="smaran-brand-dots" data-dots="smark,dance,bell,check,heart" data-hold="2.6" width="32" height="32" viewBox="-4 -4 72 72"></svg>
         <div class="brand-title">
           <span>${escapeHtml(serverName)}</span>
-          <span class="badge-nas hide-mobile">v3.3.1</span>
+          <span class="badge-nas hide-mobile">v3.3.2</span>
         </div>
       </a>
       <div class="status-beacon hide-mobile" id="status-beacon" title="LAN File Server Online">

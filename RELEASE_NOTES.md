@@ -1,3 +1,19 @@
+# Smaran 3.3.2
+
+- **Enterprise NAS UI/UX Redesign:** Transformed the Smaran HFS web manager into a modern, enterprise-grade LAN file server interface inspired by Synology DSM, Linear, Dropbox, and Google Drive.
+- **Dark-First Modern Aesthetics:** Deep charcoal styling (`#0c0c0e`), elevated panels (`#16161a`), subtle borders, Inter typography with tabular numerals, and refined Smaran warm amber accents (`#e06c43`).
+- **Fixed App Shell & Collapsible Navigation Sidebar:** Fixed 54px header with glassmorphism, responsive sidebar drawer for tablets and mobile devices, and smooth transitions without viewport jumps.
+- **Sidebar Sections with Real Data:** Quick access to My Files, Recent Activity (backed by real server transfer history), Shared Links (live token management), and Virtual File System (VFS) drives, plus a real-time docked Storage & System Info card with dynamic storage meters and live upload/download speed gauges.
+- **Dual File Explorer Views:** Instant toggle between a clean table view with inline image thumbnails, Lucide-style type icons, formatted sizes, relative dates, and hover actions, and a NAS card grid view with folder cards and rich preview headers.
+- **Folder-Specific Drag & Drop Targeting:** Dragging files over any folder row or card highlights that specific folder with an amber glow and uploads directly into it.
+- **Floating Upload Manager:** Asynchronous background upload dock with real-time transfer speeds in MB/s, estimated time remaining (ETA), queue progress, and minimize/expand controls.
+- **Floating Multi-Item Selection Dock:** Select multiple files or folders to stream as a ZIP archive or perform batch deletions with confirmation dialogs.
+- **Self-Contained Vector SVG QR Code Generator:** Generate instant vector QR codes for local LAN shares without any external CDN or internet dependency.
+- **Comprehensive 10-Tab Enterprise Admin Dashboard:** Full NAS management suite covering Server Overview metrics, Server Settings, Users & Roles (with 8 granular permission toggles), VFS Mounts, Shared Links, Live Client Sockets with 1-click disconnect, Bandwidth & Throttling, WebDAV & Tunneling guidance, Security & IP controls, and Real-Time Audit Logs.
+- **Network Transfer Benchmark (Speed Test):** Integrated speed test modal measuring ping latency, streaming download MB/s, and chunked upload MB/s directly between browser and server.
+
+---
+
 # Smaran 3.3.1
 
 - **Application Logo as Official Web Favicon:** The file server web manager now serves the official Smaran logo icon as its favicon (`/favicon.png` and `/favicon.ico`) with HTTP caching and embedded fallback, ensuring the Smaran brand appears consistently in browser tabs and bookmarks.
