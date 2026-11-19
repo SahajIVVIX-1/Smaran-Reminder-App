@@ -1,0 +1,93 @@
+import http from 'node:http';
+
+export interface HfsApiStatusResponse {
+  version?: string;
+  uptime?: number;
+  connections?: number;
+  bytesSent?: number;
+  bytesReceived?: number;
+}
+
+export class HfsApiClient {
+  constructor(
+    private readonly port: number,
+    private readonly token: string
+  ) {}
+
+  public async callApi<T = unknown>(endpoint: string, params: Record<string, unknown> = {}): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const payload = JSON.stringify(params);
+      const req = http.request(
+        {
+          hostname: '127.0.0.1',
+          port: this.port,
+          path: `/~/api/${endpoint}`,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(payload),
+            'x-smaran-internal-token': this.token,
+            'x-csrf': '1',
+          },
+          timeout: 4000,
+        },
+        (res) => {
+          let data = '';
+          res.setEncoding('utf8');
+          res.on('data', (chunk) => {
+            data += chunk;
+          });
+          res.on('end', () => {
+            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+              try {
+                const parsed = JSON.parse(data);
+                resolve(parsed as T);
+              } catch {
+                resolve({} as T);
+              }
+            } else {
+              reject(new Error(`HFS API /~/api/${endpoint} returned HTTP ${res.statusCode}: ${data}`));
+            }
+          });
+        }
+      );
+
+      req.on('error', (err) => reject(err));
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error(`HFS API /~/api/${endpoint} timed out after 4000ms`));
+      });
+
+      req.write(payload);
+      req.end();
+    });
+  }
+
+  async getStatus(): Promise<HfsApiStatusResponse> {
+    return this.callApi<HfsApiStatusResponse>('get_status');
+  }
+
+  async getConnections(): Promise<{ connections: Array<{ id: string; ip: string; speed?: number }> }> {
+    return this.callApi<{ connections: Array<{ id: string; ip: string; speed?: number }> }>('get_connections');
+  }
+
+  async disconnect(id: string): Promise<{ ok: boolean }> {
+    return this.callApi<{ ok: boolean }>('disconnect', { id });
+  }
+
+  async addAccount(account: { username: string; password?: string; admin?: boolean; srp?: unknown }): Promise<{ ok: boolean }> {
+    return this.callApi<{ ok: boolean }>('add_account', account);
+  }
+
+  async setConfig(patch: Record<string, unknown>): Promise<{ ok: boolean }> {
+    return this.callApi<{ ok: boolean }>('set_config', patch);
+  }
+
+  async reload(): Promise<{ ok: boolean }> {
+    return this.callApi<{ ok: boolean }>('reload');
+  }
+
+  async quit(): Promise<{ ok: boolean }> {
+    return this.callApi<{ ok: boolean }>('quit');
+  }
+}

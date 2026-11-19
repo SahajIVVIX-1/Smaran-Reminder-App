@@ -56,6 +56,26 @@ export const IPC = {
   setupRetry: 'setup:retry',
   setupClose: 'setup:close',
   screenBorderPreview: 'screenborder:preview',
+  // ---------- File Server (Smaran HFS) ----------
+  fileserverStatus: 'fileserver:status',
+  fileserverStart: 'fileserver:start',
+  fileserverStop: 'fileserver:stop',
+  fileserverRestart: 'fileserver:restart',
+  fileserverSettingsGet: 'fileserver:settings:get',
+  fileserverSettingsSave: 'fileserver:settings:save',
+  fileserverPickRootDir: 'fileserver:pickRootDir',
+  fileserverOpenFolder: 'fileserver:fs:openFolder',
+  fileserverLogsGet: 'fileserver:logs:get',
+  fileserverLogsClear: 'fileserver:logs:clear',
+  fileserverQrGenerate: 'fileserver:qr:generate',
+  fileserverMountDrive: 'fileserver:mount:drive',
+  fileserverUnmountDrive: 'fileserver:unmount:drive',
+  fileserverAdminGet: 'fileserver:admin:get',
+  fileserverAdminSet: 'fileserver:admin:set',
+  fileserverOpenUrl: 'fileserver:openUrl',
+  // Broadcast events
+  fileserverStatusChanged: 'fileserver:event:statusChanged',
+  fileserverLogAdded: 'fileserver:event:logAdded',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];

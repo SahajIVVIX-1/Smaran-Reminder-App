@@ -1,7 +1,7 @@
 {
   "name": "smaran",
   "productName": "Smaran",
-  "version": "3.3.6",
+  "version": "3.3.7",
   "description": "Styled, always-on-top reminder popups shown in bursts on schedules.",
   "author": "SahajS",
   "license": "UNLICENSED",
@@ -67,9 +67,11 @@
     "electron-winstaller@5.4.0": true
   },
   "dependencies": {
+    "@types/qrcode": "^1.5.6",
     "date-fns": "^4.4.0",
     "font-list": "^2.1.0",
     "motion": "^14.14.0",
+    "qrcode": "^1.5.4",
     "zod": "^4.6.5"
   }
 }

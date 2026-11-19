@@ -1,3 +1,14 @@
+# Smaran 3.3.7
+
+- **Full Native Integration of HFS 3.4.1 Engine as Smaran HFS:** Directly integrated the complete, official HFS (HTTP File Server) v3.4.1 engine into Smaran as a fully native, managed subsystem while keeping all core reminder and automation features cleanly isolated and untouched.
+- **Dedicated Desktop Controller with In-Browser Web Admin:** Desktop application features a streamlined file server control center with power toggles, real-time status badges, LAN & Localhost client links, 1-click In-Browser Web Admin Panel (`/~/admin/`), live Admin Credentials Manager (Username & Password with SRP sync), and live audit logs drawer.
+- **Zero-Trust Hardened Security:** Enforces `localhost_admin: false` with unforgeable internal tokens (`SMARAN_INTERNAL_TOKEN`) and CSRF protection to prevent any unauthorized localhost or network administrative bypasses.
+- **Persistent Web Admin Configurations:** Changes made in the web admin panel (VFS mounts, granular user accounts, folder permissions, speed limits, reverse proxy settings) are permanently stored and restored cleanly across restarts in `config.yaml`.
+- **Embedded Zero-Dependency Windows Packaging:** Bundles the precompiled HFS engine, web frontend, admin panel, and runtime plugins directly inside `resources/engine/dist`, running seamlessly on Electron's internal Node runtime (`ELECTRON_RUN_AS_NODE`) without requiring any separate Node.js installation.
+- **1-Click WebDAV & Network Sharing:** Instant Windows Explorer WebDAV Drive Z: mounting, vector QR code modal for mobile devices, and LAN/WAN link copying.
+
+---
+
 # Smaran 3.3.6
 
 - **Complete Removal of File Server Subsystem:** Fully eliminated all file server and HFS engine components, sidecar supervisor, HTTP servers, WebDAV modules, VFS mounts, and related background processes.

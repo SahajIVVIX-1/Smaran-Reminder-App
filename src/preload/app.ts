@@ -14,6 +14,7 @@ import type {
   Route,
   SaveResult,
 } from '@shared/ipc';
+import type { FileServerSettings, ServerLogEntry, ServerStatus } from '@shared/fileserver';
 import type { FontCatalog } from '@shared/fonts';
 import type { LicenseImportResult, LicenseInfo } from '@shared/license/info';
 import type { LogoState } from '@shared/logoState';
@@ -94,6 +95,44 @@ const api = {
     export: (): Promise<BackupResult> => ipcRenderer.invoke(IPC.backupExport),
     import: (mode: 'replace' | 'add'): Promise<BackupResult> =>
       ipcRenderer.invoke(IPC.backupImport, { mode }),
+  },
+  fileserver: {
+    status: (): Promise<ServerStatus> => ipcRenderer.invoke(IPC.fileserverStatus),
+    start: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke(IPC.fileserverStart),
+    stop: (): Promise<void> => ipcRenderer.invoke(IPC.fileserverStop),
+    restart: (): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverRestart),
+    getSettings: (): Promise<FileServerSettings> =>
+      ipcRenderer.invoke(IPC.fileserverSettingsGet),
+    saveSettings: (patch: Partial<FileServerSettings>): Promise<FileServerSettings> =>
+      ipcRenderer.invoke(IPC.fileserverSettingsSave, patch),
+    pickRootDir: (): Promise<string | null> => ipcRenderer.invoke(IPC.fileserverPickRootDir),
+    openFolder: (folderPath?: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.fileserverOpenFolder, folderPath),
+    logs: {
+      get: (): Promise<ServerLogEntry[]> => ipcRenderer.invoke(IPC.fileserverLogsGet),
+      clear: (): Promise<void> => ipcRenderer.invoke(IPC.fileserverLogsClear),
+    },
+    generateQr: (url: string): Promise<string> =>
+      ipcRenderer.invoke(IPC.fileserverQrGenerate, url),
+    mountLocalDrive: (payload?: {
+      driveLetter?: string;
+      username?: string;
+      password?: string;
+    }): Promise<{ ok: boolean; driveLetter?: string; error?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverMountDrive, payload),
+    unmountLocalDrive: (driveLetter?: string): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverUnmountDrive, driveLetter),
+    getAdminCredentials: (): Promise<{ username: string; password?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverAdminGet),
+    setAdminCredentials: (creds: { username: string; password: string }): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverAdminSet, creds),
+    openUrl: (url: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.fileserverOpenUrl, url),
+    onStatusChanged: (listener: (status: ServerStatus) => void): (() => void) =>
+      subscribe(IPC.fileserverStatusChanged, listener),
+    onLogAdded: (listener: (log: ServerLogEntry) => void): (() => void) =>
+      subscribe(IPC.fileserverLogAdded, listener),
   },
 };
 
