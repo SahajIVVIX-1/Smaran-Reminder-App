@@ -15,16 +15,22 @@ files:
   - out/**
   - package.json
 extraResources:
-  - from: resources/engine
-    to: engine
+  - from: resources/engine.tar.gz
+    to: engine.tar.gz
   - from: resources/tray
     to: tray
   - from: resources/icon.png
     to: icon.png
-  - from: resources
-    to: resources
+  - from: resources/scripts
+    to: scripts
+  - from: resources/enable-webdav.cmd
+    to: enable-webdav.cmd
 win:
   icon: build/icon.ico
+  signtoolOptions:
+    signingHashAlgorithms:
+      - sha256
+    rfc3161TimeStampServer: http://timestamp.digicert.com
   target:
     - target: portable
       arch: [x64]

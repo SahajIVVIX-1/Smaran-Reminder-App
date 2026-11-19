@@ -48,7 +48,32 @@ export async function countOtherSmarans(): Promise<number> {
   return Number.parseInt(out.trim(), 10) || 0;
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Checks whether a Smaran instance is actively running from the target directory. */
+export async function isSmaranRunningFrom(dir: string): Promise<boolean> {
+  const cleanDir = dir.replace(/\\/g, '\\\\').toLowerCase().replace(/'/g, "''");
+  const ps = `
+    $procs = @(Get-CimInstance Win32_Process -Filter "Name='${EXE_NAME}'");
+    $found = $procs | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.ToLower().StartsWith('${cleanDir}') -and $_.ProcessId -ne ${process.pid} };
+    if ($found) { 'YES' } else { 'NO' }
+  `;
+  try {
+    const out = await powershell(ps);
+    return out.trim().includes('YES');
+  } catch {
+    return false;
+  }
+}
+
+/** Waits up to timeoutMs for a Smaran instance to be confirmed running from dir. */
+export async function waitForSmaranRunningFrom(dir: string, timeoutMs = 4500): Promise<boolean> {
+  for (let waited = 0; waited <= timeoutMs; waited += 300) {
+    if (await isSmaranRunningFrom(dir)) return true;
+    await sleep(300);
+  }
+  return false;
+}
 
 /** Waits up to `ms` for every other Smaran to be gone; true if they are. */
 async function goneWithin(ms: number): Promise<boolean> {
@@ -63,6 +88,7 @@ async function goneWithin(ms: number): Promise<boolean> {
  * Closes any running Smaran (installed or portable, wherever it is), so its files can be
  * replaced or removed: first politely, so it saves its history; then by force; and if it runs
  * as administrator (so a normal force-close is refused), with Windows' permission prompt.
+ * Also cleans up any lingering Smaran HFS child processes.
  * Returns true once none are left.
  */
 export async function closeOtherSmarans(quitArg: string): Promise<boolean> {
@@ -78,6 +104,14 @@ export async function closeOtherSmarans(quitArg: string): Promise<boolean> {
       `${others()} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`,
     ),
   );
+
+  // Terminate any orphaned HFS Node engine child processes
+  await quietly(
+    powershell(
+      `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*fileserver_engine*' -or ($_.CommandLine -like '*ELECTRON_RUN_AS_NODE*' -and $_.CommandLine -like '*index.js*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`,
+    ),
+  );
+
   if (await goneWithin(1500)) return true;
 
   // Still there: it was started as administrator. Ask Windows to end just those processes.

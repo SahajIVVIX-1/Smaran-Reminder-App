@@ -11,6 +11,7 @@ import {
   EXE_NAME,
   existingInstallDir,
   legacyUninstallKeys,
+  waitForSmaranRunningFrom,
   writeShortcuts,
   writeUninstallEntry,
 } from './winSystem';
@@ -18,10 +19,10 @@ import {
 /** Asks a running Smaran to quit (handled in index.ts). */
 export const QUIT_ARG = '--quit';
 
-/** Same place the old NSIS installer used, so updates land on top of it. */
+/** Default per-user install directory (%LOCALAPPDATA%\Programs\Smaran). */
 export function defaultInstallDir(): string {
   const local = process.env['LOCALAPPDATA'] ?? join(app.getPath('home'), 'AppData', 'Local');
-  return join(local, 'Programs', 'smaran');
+  return join(local, 'Programs', 'Smaran');
 }
 
 const same = (a: string, b: string) => resolve(a).toLowerCase() === resolve(b).toLowerCase();
@@ -111,16 +112,75 @@ export async function install(target: string, report: (p: SetupProgress) => void
   report({ phase: 'done', progress: 1 });
 }
 
-/**
- * Opens the installed Smaran as the signed-in user. Windows often runs a file named "Setup" as
- * administrator; started directly, Smaran would inherit that and then couldn't be closed by a
- * normal uninstall or update. Explorer starts it with the user's normal rights instead.
- */
-export function launchInstalled(target: string): void {
+export function verifyInstalledFiles(target: string): { ok: boolean; error?: string } {
   const exe = join(target, EXE_NAME);
-  const child = spawn('explorer.exe', [exe], { detached: true, stdio: 'ignore' });
-  child.once('error', () =>
-    spawn(exe, [], { cwd: target, env: appEnv(), detached: true, stdio: 'ignore' }).unref(),
-  );
-  child.unref();
+  if (!fs.existsSync(exe)) {
+    return { ok: false, error: `Executable missing after install: ${exe}` };
+  }
+  const resourcesDir = join(target, 'resources');
+  if (!fs.existsSync(resourcesDir)) {
+    return { ok: false, error: `Resources directory missing after install: ${resourcesDir}` };
+  }
+  return { ok: true };
+}
+
+/**
+ * Launches the installed Smaran directly with a clean environment (stripping portable launcher
+ * variables) and verifies that the process is alive before reporting success.
+ */
+export async function launchAndVerifyInstalled(
+  target: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const verify = verifyInstalledFiles(target);
+  if (!verify.ok) return verify;
+
+  const exe = join(target, EXE_NAME);
+  const cleanEnv = appEnv();
+
+  try {
+    const child = spawn(exe, [], {
+      cwd: target,
+      env: cleanEnv,
+      detached: true,
+      stdio: 'ignore',
+    });
+    child.unref();
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Could not launch ${exe}: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  // Poll for up to 4.5 seconds to confirm process startup
+  const isRunning = await waitForSmaranRunningFrom(target, 4500);
+  if (!isRunning) {
+    // Fallback: try explorer.exe
+    try {
+      const child2 = spawn('explorer.exe', [exe], {
+        cwd: target,
+        env: cleanEnv,
+        detached: true,
+        stdio: 'ignore',
+      });
+      child2.unref();
+      if (await waitForSmaranRunningFrom(target, 3000)) {
+        return { ok: true };
+      }
+    } catch {
+      // Fallback failed
+    }
+
+    return {
+      ok: false,
+      error:
+        'Smaran was installed successfully, but did not start automatically. You can launch it from your Desktop or Start Menu.',
+    };
+  }
+
+  return { ok: true };
+}
+
+export function launchInstalled(target: string): void {
+  void launchAndVerifyInstalled(target);
 }

@@ -5,6 +5,7 @@ import { LicenseStore } from './license/LicenseStore';
 import { openLicenseWindow } from './license/LicenseWindow';
 import { isSetupRun, isUninstallRun, QUIT_ARG, runSetup, runUninstall } from './setup';
 import { SmaranApp } from './SmaranApp';
+import { recordMilestone } from './system/diagnostics';
 import { chooseDataFolder } from './system/dataFolder';
 import { registerFontScheme } from './system/fonts';
 import { launchedHidden } from './system/loginItem';
@@ -13,9 +14,9 @@ const APP_ID = 'com.sahaj.smaran';
 /** How often a running Smaran re-checks its license (it may expire while open). */
 const LICENSE_RECHECK_MS = 60 * 60_000;
 
-// The same exe also installs (as Smaran-Setup-<version>.exe) and uninstalls (--uninstall).
-if (isSetupRun()) runSetup();
-else if (isUninstallRun()) runUninstall();
+// Check uninstaller first so an explicit --uninstall argument is always respected.
+if (isUninstallRun()) runUninstall();
+else if (isSetupRun()) runSetup();
 else runApp();
 
 function runApp(): void {
@@ -49,12 +50,14 @@ function runApp(): void {
   });
 
   app.whenReady().then(() => {
+    recordMilestone('app_when_ready');
     app.setAppUserModelId(APP_ID);
     license = new LicenseStore(app.getPath('userData'), {
       decodeOther: decodeWithNativeImage,
     });
     // Only an unpackaged development build may skip the license (the e2e tests do).
     checking = app.isPackaged || process.env['SMARAN_LICENSE_CHECK'] !== 'off';
+    recordMilestone('license_checked');
 
     /** The license screen: nothing else of Smaran runs while it shows. */
     const showGate = () => {
@@ -114,6 +117,7 @@ function runApp(): void {
     );
     registerIpcHandlers(smaran);
     const { notice, firstRun } = smaran.start();
+    recordMilestone('smaran_started');
     if (activated) {
       smaran.openApp(firstRun ? 'today' : undefined);
       return;

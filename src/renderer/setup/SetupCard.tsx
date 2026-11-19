@@ -230,6 +230,13 @@ export function SetupCard({ init }: { init: SetupInit }) {
                 </button>
                 <button
                   type="button"
+                  onClick={() => window.smaranSetup.openFolder(init.target)}
+                  className="glass-button h-[30px] flex-1 rounded-[10px] text-[12.5px] font-medium text-ink"
+                >
+                  Open Folder
+                </button>
+                <button
+                  type="button"
                   onClick={() => window.smaranSetup.close()}
                   className="glass-button h-[30px] flex-1 rounded-[10px] text-[12.5px] font-medium text-ink"
                 >

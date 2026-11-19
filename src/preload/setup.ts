@@ -11,6 +11,7 @@ const CH = {
   setupClose: 'setup:close',
   setupLicense: 'setup:license',
   setupUninstall: 'setup:uninstall',
+  setupOpenFolder: 'setup:openFolder',
 } as const satisfies Partial<typeof IPC>;
 
 // Main may send before the page has subscribed (React mounts after the init arrives), so the
@@ -46,6 +47,7 @@ const api = {
   chooseLicense: (): void => ipcRenderer.send(CH.setupLicense),
   /** Uninstall: go ahead, optionally deleting reminders and settings too. */
   uninstall: (deleteData: boolean): void => ipcRenderer.send(CH.setupUninstall, deleteData),
+  openFolder: (dir?: string): void => ipcRenderer.send(CH.setupOpenFolder, dir),
 };
 
 export type SmaranSetupApi = typeof api;

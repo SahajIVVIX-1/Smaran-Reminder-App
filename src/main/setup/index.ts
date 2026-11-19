@@ -1,14 +1,14 @@
 import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeTheme, shell } from 'electron';
 import { IPC } from '@shared/ipc';
 import type { SetupInit, SetupProgress } from '@shared/setup';
 import { decodeWithNativeImage, pickAndImport } from '../license/ipc';
 import { LICENSE_FILE, LicenseStore } from '../license/LicenseStore';
 import { iconPath } from '../tray/Tray';
 import { loadRenderer, preloadPath } from '../windows/loadRenderer';
-import { chooseTarget, install, launchInstalled, QUIT_ARG } from './install';
+import { chooseTarget, install, launchAndVerifyInstalled, QUIT_ARG } from './install';
 import {
   APP_ID,
   closeOtherSmarans,
@@ -32,7 +32,10 @@ export function isSetupRun(): boolean {
 }
 
 export function isUninstallRun(): boolean {
-  return app.isPackaged && process.argv.includes(UNINSTALL_ARG);
+  return (
+    app.isPackaged &&
+    process.argv.some((arg) => /^[-/]+uninstall$/i.test(arg.trim()))
+  );
 }
 
 /** Card plus room for its shadow and the coloured border light. */
@@ -90,7 +93,17 @@ function cardWindow(title: string): BrowserWindow {
       win.setEnabled(true);
     });
   }
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => {
+    win.show();
+    win.focus();
+  });
+  // Guarantee window is displayed even if ready-to-show is delayed
+  setTimeout(() => {
+    if (!win.isDestroyed() && !win.isVisible()) {
+      win.show();
+      win.focus();
+    }
+  }, 1000);
   return win;
 }
 
@@ -116,9 +129,16 @@ export function runSetup(): void {
       running = true;
       try {
         await install(target, send);
+        send({ phase: 'finishing', progress: 0.96 });
+        const launched = await launchAndVerifyInstalled(target);
+        if (!launched.ok) {
+          running = false;
+          send({ phase: 'error', progress: 0, error: launched.error });
+          return;
+        }
         running = false;
+        send({ phase: 'done', progress: 1 });
         setTimeout(() => {
-          launchInstalled(target);
           if (!win.isDestroyed()) win.destroy();
           app.quit();
         }, DONE_MS);
@@ -147,6 +167,12 @@ export function runSetup(): void {
 
     ipcMain.on(IPC.setupRetry, (event) => {
       if (event.sender === win.webContents) void start();
+    });
+    ipcMain.on(IPC.setupOpenFolder, (event, folderPath: unknown) => {
+      if (event.sender === win.webContents) {
+        const p = typeof folderPath === 'string' && folderPath ? folderPath : target;
+        void shell.openPath(p);
+      }
     });
     ipcMain.on(IPC.setupClose, (event) => {
       if (event.sender === win.webContents && !running) app.quit();

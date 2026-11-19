@@ -1,6 +1,6 @@
 // Creates release/<version>/installer and release/<version>/portable before electron-builder runs.
 // NSIS will not create a missing output folder, so the artifactName subfolders must exist up front.
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -20,17 +20,27 @@ for (const kind of ['installer', 'portable']) {
 }
 console.log(`Prepared release/${version}/{installer,portable}`);
 
-// Bundle HFS engine into resources/engine/dist for self-contained distribution
-const hfsDistDir = 'D:\\03_Projects\\hfs-3.4.1\\dist';
+// Bundle HFS engine into resources/engine.tar.gz for self-contained, lightning-fast distribution
+const targetArchive = join(root, 'resources', 'engine.tar.gz');
 const targetEngineDir = join(root, 'resources', 'engine', 'dist');
 
-if (existsSync(hfsDistDir)) {
-  console.log(`Bundling Smaran HFS engine from ${hfsDistDir} to ${targetEngineDir}...`);
-  mkdirSync(targetEngineDir, { recursive: true });
-  cpSync(hfsDistDir, targetEngineDir, { recursive: true });
-  console.log('Smaran HFS engine bundled into resources/engine/dist.');
+if (!existsSync(targetArchive) && existsSync(targetEngineDir)) {
+  console.log(`Packaging engine archive ${targetArchive} from ${targetEngineDir}...`);
+  try {
+    const { execFileSync } = await import('node:child_process');
+    execFileSync('tar.exe', ['-czf', targetArchive, '-C', targetEngineDir, '.'], {
+      windowsHide: true,
+    });
+    console.log(`Packed ${targetArchive}`);
+  } catch (err) {
+    console.warn(`Failed to package engine archive: ${err.message}`);
+  }
+}
+
+if (existsSync(targetArchive)) {
+  console.log(`Self-contained HFS engine archive verified at ${targetArchive}`);
 } else {
-  console.log('Using existing resources/engine/dist bundle.');
+  console.warn(`Warning: Engine archive ${targetArchive} not found!`);
 }
 
 

@@ -1,4 +1,4 @@
-import { ChildProcess, exec, spawn } from 'node:child_process';
+import { ChildProcess, exec, execFile, spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -157,6 +157,9 @@ export class HfsProcessSupervisor {
   }
 
   public ensureCustomHtml(engineDir: string): void {
+    if (path.resolve(engineDir) === path.resolve(this.runtimeDir)) {
+      return;
+    }
     const dstCustomHtml = path.join(this.runtimeDir, 'custom.html');
     if (!fs.existsSync(dstCustomHtml)) {
       const srcCustomHtml = path.join(engineDir, 'custom.html');
@@ -179,6 +182,10 @@ export class HfsProcessSupervisor {
   public ensureBundledPlugins(engineDir: string): void {
     const srcPluginsDir = path.join(engineDir, 'plugins');
     const dstPluginsDir = path.join(this.runtimeDir, 'plugins');
+
+    if (path.resolve(srcPluginsDir) === path.resolve(dstPluginsDir)) {
+      return;
+    }
 
     if (!fs.existsSync(srcPluginsDir)) {
       return;
@@ -278,7 +285,64 @@ export class HfsProcessSupervisor {
     }
   }
 
+  public async ensureEngineExtracted(): Promise<void> {
+    const runtimeScript = path.join(this.runtimeDir, 'src', 'index.js');
+    if (fs.existsSync(runtimeScript)) {
+      return;
+    }
+
+    // Locate engine.tar.gz archive
+    const resPath = process.resourcesPath || '';
+    const appPath = typeof app?.getAppPath === 'function' ? app.getAppPath() : process.cwd();
+    const candidateArchives = [
+      path.join(resPath, 'engine.tar.gz'),
+      path.join(resPath, 'resources', 'engine.tar.gz'),
+      path.join(appPath, 'resources', 'engine.tar.gz'),
+      path.join(__dirname, '..', '..', 'resources', 'engine.tar.gz'),
+      path.join(process.cwd(), 'resources', 'engine.tar.gz'),
+    ];
+
+    let foundArchive: string | null = null;
+    for (const archive of candidateArchives) {
+      if (fs.existsSync(archive)) {
+        foundArchive = archive;
+        break;
+      }
+    }
+
+    if (!foundArchive) {
+      // In dev mode, uncompressed engine in resources/engine/dist may already exist
+      return;
+    }
+
+    if (!fs.existsSync(this.runtimeDir)) {
+      fs.mkdirSync(this.runtimeDir, { recursive: true });
+    }
+
+    this.addLog('info', 'Extracting self-contained Smaran HFS engine components...');
+    const startTime = Date.now();
+    await new Promise<void>((resolve, reject) => {
+      execFile('tar.exe', ['-xzf', foundArchive, '-C', this.runtimeDir], (err) => {
+        if (err) {
+          this.addLog('error', `Failed to extract HFS engine: ${err.message}`);
+          reject(err);
+        } else {
+          const elapsed = Date.now() - startTime;
+          this.addLog('info', `Smaran HFS engine extracted in ${elapsed}ms.`);
+          resolve();
+        }
+      });
+    });
+  }
+
   public resolveEngineScript(): { scriptPath: string; engineDir: string } {
+    // 1. Check if engine is extracted in runtimeDir
+    const runtimeScript = path.join(this.runtimeDir, 'src', 'index.js');
+    if (fs.existsSync(runtimeScript)) {
+      return { scriptPath: runtimeScript, engineDir: this.runtimeDir };
+    }
+
+    // 2. Candidate uncompressed directories (e.g. dev mode fallback)
     const resPath = process.resourcesPath || '';
     const appPath = typeof app?.getAppPath === 'function' ? app.getAppPath() : process.cwd();
     const candidateDirs = [
@@ -286,6 +350,7 @@ export class HfsProcessSupervisor {
       path.join(resPath, 'resources', 'engine', 'dist'),
       path.join(appPath, 'resources', 'engine', 'dist'),
       path.join(__dirname, '..', '..', 'resources', 'engine', 'dist'),
+      path.join(process.cwd(), 'resources', 'engine', 'dist'),
     ];
 
     for (const dir of candidateDirs) {
@@ -296,7 +361,7 @@ export class HfsProcessSupervisor {
     }
 
     throw new Error(
-      `Smaran HFS engine script not found. Searched paths:\n${candidateDirs.map((d) => path.join(d, 'src', 'index.js')).join('\n')}`,
+      `Smaran HFS engine script not found. Searched runtimeDir (${this.runtimeDir}) and candidate paths:\n${candidateDirs.map((d) => path.join(d, 'src', 'index.js')).join('\n')}`,
     );
   }
 
@@ -317,9 +382,10 @@ export class HfsProcessSupervisor {
       return { ok: false, error: errorMsg };
     }
 
-    // 2. Engine File Resolution
+    // 2. Engine Extraction & File Resolution
     let engineInfo: { scriptPath: string; engineDir: string };
     try {
+      await this.ensureEngineExtracted();
       engineInfo = this.resolveEngineScript();
     } catch (resolveErr: unknown) {
       const errorMsg = resolveErr instanceof Error ? resolveErr.message : String(resolveErr);
