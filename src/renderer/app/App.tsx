@@ -249,8 +249,8 @@ function Sidebar() {
       ))}
 
       <div className="mt-auto space-y-1">
-        <div className="mb-1 rounded-lg px-2.5 py-2 text-[12px]">
-          {paused && pausedUntil ? (
+        {paused && pausedUntil && (
+          <div className="mb-1 rounded-lg px-2.5 py-2 text-[12px]">
             <div className="flex items-center gap-2">
               <MoonIcon size={15} className="shrink-0 text-accent" />
               <span className="flex-1 leading-tight text-muted">
@@ -267,16 +267,8 @@ function Sidebar() {
                 Resume
               </button>
             </div>
-          ) : (
-            <div className="flex items-center gap-2 text-muted">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ok/40 [animation-duration:2.4s]" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-ok" />
-              </span>
-              Reminders are on
-            </div>
-          )}
-        </div>
+          </div>
+        )}
         <NavItem
           active={route === 'license'}
           onClick={() => go('license')}
