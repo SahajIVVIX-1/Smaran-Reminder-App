@@ -12,6 +12,8 @@ const CH = {
   setupLicense: 'setup:license',
   setupUninstall: 'setup:uninstall',
   setupOpenFolder: 'setup:openFolder',
+  setupStart: 'setup:start',
+  setupLaunch: 'setup:launch',
 } as const satisfies Partial<typeof IPC>;
 
 // Main may send before the page has subscribed (React mounts after the init arrives), so the
@@ -48,6 +50,10 @@ const api = {
   /** Uninstall: go ahead, optionally deleting reminders and settings too. */
   uninstall: (deleteData: boolean): void => ipcRenderer.send(CH.setupUninstall, deleteData),
   openFolder: (dir?: string): void => ipcRenderer.send(CH.setupOpenFolder, dir),
+  /** Begins installation when user explicitly clicks Start Installation. */
+  startInstall: (): void => ipcRenderer.send(CH.setupStart),
+  /** Launches installed Smaran when user clicks Launch Smaran on completion screen. */
+  launchApp: (): void => ipcRenderer.send(CH.setupLaunch),
 };
 
 export type SmaranSetupApi = typeof api;

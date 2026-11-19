@@ -56,6 +56,8 @@ export const IPC = {
   setupRetry: 'setup:retry',
   setupClose: 'setup:close',
   setupOpenFolder: 'setup:openFolder',
+  setupStart: 'setup:start',
+  setupLaunch: 'setup:launch',
   screenBorderPreview: 'screenborder:preview',
   // ---------- File Server (Smaran HFS) ----------
   fileserverStatus: 'fileserver:status',

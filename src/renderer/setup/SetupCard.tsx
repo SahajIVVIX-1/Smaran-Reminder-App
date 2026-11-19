@@ -52,15 +52,16 @@ const secondary = 'glass-button h-[30px] flex-1 rounded-[10px] text-[12.5px] fon
 export function SetupCard({ init }: { init: SetupInit }) {
   const uninstalling = init.mode === 'uninstall';
   const [state, setState] = useState<SetupProgress>({
-    phase: uninstalling ? 'confirm' : 'preparing',
+    phase: uninstalling ? 'confirm' : init.licensee ? 'ready' : 'license',
     progress: 0,
+    licensee: init.licensee,
   });
   const [glyph, setGlyph] = useState(0);
   const [verb, setVerb] = useState(() => pick(-1));
   const [seconds, setSeconds] = useState(0);
   const [deleteData, setDeleteData] = useState(false);
   const [doneCountdown, setDoneCountdown] = useState(5);
-  const working = !['done', 'error', 'license', 'confirm'].includes(state.phase);
+  const working = !['done', 'error', 'license', 'confirm', 'ready'].includes(state.phase);
 
   // The licensee's name stays once known, as the install goes on.
   useEffect(
@@ -83,13 +84,19 @@ export function SetupCard({ init }: { init: SetupInit }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || (e.key === 'Enter' && state.phase === 'done')) {
+      if (e.key === 'Escape') {
         if (!working) window.smaranSetup.close();
+      } else if (e.key === 'Enter') {
+        if (state.phase === 'ready') window.smaranSetup.startInstall();
+        else if (state.phase === 'done') {
+          if (uninstalling) window.smaranSetup.close();
+          else window.smaranSetup.launchApp();
+        }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [working, state.phase]);
+  }, [working, state.phase, uninstalling]);
 
   useEffect(() => {
     if (!working) return undefined;
@@ -111,12 +118,14 @@ export function SetupCard({ init }: { init: SetupInit }) {
         : 'Smaran was removed'
       : (UNINSTALL_STEPS[Math.min(3, Math.floor(state.progress * 4))] ?? 'Tidying up')
     : state.phase === 'done'
-      ? 'Opening Smaran'
-      : state.phase === 'error'
-        ? 'Setup stopped'
-        : state.phase === 'finishing'
-          ? 'Adding shortcuts'
-          : VERBS[verb];
+      ? 'Installation complete'
+      : state.phase === 'ready'
+        ? 'Ready to install'
+        : state.phase === 'error'
+          ? 'Setup stopped'
+          : state.phase === 'finishing'
+            ? 'Adding shortcuts'
+            : VERBS[verb];
   const title = uninstalling
     ? state.phase === 'done'
       ? 'Goodbye for now'
@@ -124,10 +133,12 @@ export function SetupCard({ init }: { init: SetupInit }) {
         ? 'Uninstall Smaran?'
         : 'Uninstalling Smaran'
     : state.phase === 'done'
-      ? 'Smaran is ready'
-      : state.phase === 'license'
-        ? 'Your License, Please'
-        : 'Installing Smaran';
+      ? 'Smaran is Ready'
+      : state.phase === 'ready'
+        ? 'Install Smaran'
+        : state.phase === 'license'
+          ? 'Your License, Please'
+          : 'Installing Smaran';
 
   return (
     <div className="grid h-screen place-items-center p-[22px] select-none">
@@ -154,7 +165,9 @@ export function SetupCard({ init }: { init: SetupInit }) {
                 Version {init.version} ·{' '}
                 {state.licensee
                   ? `Licensed to ${state.licensee}`
-                  : 'Gentle reminders, on your schedule'}
+                  : state.phase === 'license'
+                    ? 'License Required'
+                    : 'Gentle reminders, on your schedule'}
               </div>
             </div>
           </div>
@@ -197,7 +210,7 @@ export function SetupCard({ init }: { init: SetupInit }) {
                 role={state.error ? 'alert' : undefined}
               >
                 {state.error ??
-                  'Smaran installs with a license. Choose your license image.'}
+                  'Smaran requires a license to install. Choose your license image to begin.'}
               </p>
               <div className="no-drag relative z-10 mt-3 flex gap-2">
                 <button
@@ -205,7 +218,7 @@ export function SetupCard({ init }: { init: SetupInit }) {
                   onClick={() => window.smaranSetup.chooseLicense()}
                   className="h-[30px] flex-1 rounded-[10px] bg-accent text-[12.5px] font-medium text-on-accent hover:bg-accent-hover"
                 >
-                  Choose License Image…
+                  Choose License File…
                 </button>
                 <button
                   type="button"
@@ -214,6 +227,66 @@ export function SetupCard({ init }: { init: SetupInit }) {
                 >
                   Cancel
                 </button>
+              </div>
+            </div>
+          ) : state.phase === 'ready' ? (
+            <div className="mt-4">
+              <p className="text-[12.5px] leading-snug text-muted">
+                Ready to install Smaran on this computer.
+              </p>
+              <div className="mt-2.5 flex items-center gap-1.5 rounded-lg border border-line bg-surface/50 px-2.5 py-1.5 text-[11px] text-faint">
+                <span className="font-medium text-muted">Destination:</span>
+                <span className="truncate font-mono" title={init.target}>
+                  {init.target}
+                </span>
+              </div>
+              <div className="no-drag relative z-10 mt-3.5 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.smaranSetup.startInstall()}
+                  className="h-[30px] flex-[1.4] rounded-[10px] bg-accent text-[12.5px] font-medium text-on-accent hover:bg-accent-hover"
+                >
+                  Start Installation
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.smaranSetup.chooseLicense()}
+                  className="glass-button h-[30px] flex-1 rounded-[10px] text-[12.5px] font-medium text-ink"
+                >
+                  Change License…
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.smaranSetup.close()}
+                  className="glass-button h-[30px] flex-[0.7] rounded-[10px] text-[12.5px] font-medium text-ink"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : state.phase === 'done' && !uninstalling ? (
+            <div className="mt-4">
+              <p className="text-[12.5px] leading-snug text-muted">
+                Installation completed successfully. Smaran is ready to run.
+              </p>
+              <div className="no-drag relative z-10 mt-3.5 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.smaranSetup.launchApp()}
+                  className="h-[30px] flex-1 rounded-[10px] bg-accent text-[12.5px] font-medium text-on-accent hover:bg-accent-hover"
+                >
+                  Launch Smaran
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.smaranSetup.close()}
+                  className="glass-button h-[30px] flex-1 rounded-[10px] text-[12.5px] font-medium text-ink"
+                >
+                  Finish
+                </button>
+              </div>
+              <div className="mt-2.5 truncate text-[11px] text-faint" title={init.target}>
+                {init.target}
               </div>
             </div>
           ) : state.phase === 'error' ? (

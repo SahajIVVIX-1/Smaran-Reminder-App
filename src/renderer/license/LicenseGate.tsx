@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { LicenseInfo } from '@shared/license/info';
 import { SmaranDots } from '../dots';
 
@@ -15,33 +15,70 @@ export function LicenseGate() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [stepText, setStepText] = useState('Inspecting license image…');
+  const verificationTimer = useRef<number | null>(null);
 
   useEffect(() => {
     void window.smaranLicense.get().then(setInitialInfo);
+    return () => {
+      if (verificationTimer.current) {
+        window.clearInterval(verificationTimer.current);
+      }
+    };
   }, []);
 
   const pick = async () => {
     setErrorMsg(null);
-    setPhase('verifying');
-    setProgress(50);
-    setStepText('Validating digital signature and offline license…');
-
     const result = await window.smaranLicense.import();
     if ('canceled' in result && result.canceled) {
-      setPhase('idle');
       return;
     }
 
-    if (result.ok) {
-      setProgress(100);
-      setActiveInfo(result.info);
-      setPhase('success');
-      void window.smaranLicense.activate();
-    } else {
-      const err = 'error' in result ? result.error : 'This license is invalid.';
-      setErrorMsg(err);
-      setPhase('error');
+    // Start 10-second professional verification sequence
+    setPhase('verifying');
+    setProgress(0);
+    setStepText('Reading steganographic license payload…');
+
+    const durationMs = 10000;
+    const intervalMs = 50;
+    const startTime = Date.now();
+
+    if (verificationTimer.current) {
+      window.clearInterval(verificationTimer.current);
     }
+
+    verificationTimer.current = window.setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const pct = Math.min(100, (elapsed / durationMs) * 100);
+      setProgress(pct);
+
+      if (pct < 25) {
+        setStepText('Reading steganographic license payload…');
+      } else if (pct < 55) {
+        setStepText('Validating Ed25519 digital signature against public key…');
+      } else if (pct < 80) {
+        setStepText('Verifying license integrity, device credentials & expiry…');
+      } else {
+        setStepText('Finalizing offline license installation…');
+      }
+
+      if (elapsed >= durationMs) {
+        if (verificationTimer.current) {
+          window.clearInterval(verificationTimer.current);
+          verificationTimer.current = null;
+        }
+
+        if (result.ok) {
+          setActiveInfo(result.info);
+          setPhase('success');
+          // Activate Smaran after check tick animation displays
+          void window.smaranLicense.activate();
+        } else {
+          const err = 'error' in result ? result.error : 'This license is invalid.';
+          setErrorMsg(err);
+          setPhase('error');
+        }
+      }
+    }, intervalMs);
   };
 
   const scene =

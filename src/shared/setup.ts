@@ -6,7 +6,15 @@
  * 'done'. Uninstall: 'confirm' → 'removing' → 'done'. Either can end in 'error'.
  */
 export type SetupPhase =
-  'license' | 'preparing' | 'copying' | 'finishing' | 'confirm' | 'removing' | 'done' | 'error';
+  | 'license'
+  | 'ready'
+  | 'preparing'
+  | 'copying'
+  | 'finishing'
+  | 'confirm'
+  | 'removing'
+  | 'done'
+  | 'error';
 
 export interface SetupProgress {
   phase: SetupPhase;
@@ -24,4 +32,6 @@ export interface SetupInit {
   dark: boolean;
   /** Where Smaran is (being) installed, shown in small print. */
   target: string;
+  /** Pre-loaded licensee name if valid license already exists on disk. */
+  licensee?: string;
 }

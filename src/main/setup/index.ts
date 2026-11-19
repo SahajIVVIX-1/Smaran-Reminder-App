@@ -45,8 +45,6 @@ export function isUninstallRun(): boolean {
 /** Card plus room for its shadow and the coloured border light. */
 const WIDTH = 460;
 const HEIGHT = 320;
-/** How long "Smaran is ready" stays before the window goes. */
-const DONE_MS = 2400;
 /** How long "Smaran was removed" stays before the uninstaller window closes. */
 const UNINSTALL_DONE_MS = 5000;
 /** A moment for the window to appear before anything starts. */
@@ -133,19 +131,9 @@ export function runSetup(): void {
       running = true;
       try {
         await install(target, send);
-        send({ phase: 'finishing', progress: 0.96 });
-        const launched = await launchAndVerifyInstalled(target);
-        if (!launched.ok) {
-          running = false;
-          send({ phase: 'error', progress: 0, error: launched.error });
-          return;
-        }
         running = false;
-        send({ phase: 'done', progress: 1 });
-        setTimeout(() => {
-          if (!win.isDestroyed()) win.destroy();
-          app.quit();
-        }, DONE_MS);
+        const current = license.info();
+        send({ phase: 'done', progress: 1, licensee: current.license?.name });
       } catch (error) {
         running = false;
         send({ phase: 'error', progress: 0, error: friendly(error) });
@@ -163,10 +151,35 @@ export function runSetup(): void {
       void pickAndImport(license, win).then((result) => {
         choosing = false;
         if (result.ok) {
-          send({ phase: 'preparing', progress: 0, licensee: result.info.license?.name });
-          void start();
+          send({ phase: 'ready', progress: 0, licensee: result.info.license?.name });
         } else if (!('canceled' in result)) askForLicense(result.error);
       });
+    });
+
+    ipcMain.on(IPC.setupStart, (event) => {
+      if (event.sender !== win.webContents || running) return;
+      const current = license.info();
+      if (current.status !== 'valid') {
+        askForLicense('Please choose a valid license before installing.');
+        return;
+      }
+      void start();
+    });
+
+    ipcMain.on(IPC.setupLaunch, async (event) => {
+      if (event.sender !== win.webContents) return;
+      try {
+        const launched = await launchAndVerifyInstalled(target);
+        if (!launched.ok) {
+          send({ phase: 'error', progress: 0, error: launched.error });
+          return;
+        }
+      } catch (err) {
+        send({ phase: 'error', progress: 0, error: (err as Error).message });
+        return;
+      }
+      if (!win.isDestroyed()) win.destroy();
+      app.quit();
     });
 
     ipcMain.on(IPC.setupRetry, (event) => {
@@ -179,25 +192,29 @@ export function runSetup(): void {
       }
     });
     ipcMain.on(IPC.setupClose, (event) => {
-      if (event.sender === win.webContents && !running) app.quit();
+      if (event.sender === win.webContents && !running) {
+        if (!win.isDestroyed()) win.destroy();
+        app.quit();
+      }
     });
     // Closing halfway through the copy would leave a broken install.
     win.on('close', (event) => {
       if (running) event.preventDefault();
     });
     win.webContents.once('did-finish-load', () => {
+      const current = license.info();
+      const isLicenseValid = current.status === 'valid';
       const init: SetupInit = {
         mode: 'install',
         version: app.getVersion(),
         dark: nativeTheme.shouldUseDarkColors,
         target,
+        licensee: isLicenseValid ? current.license?.name : undefined,
       };
       win.webContents.send(IPC.setupInit, init);
       setTimeout(() => {
-        const current = license.info();
-        if (current.status === 'valid') {
-          send({ phase: 'preparing', progress: 0, licensee: current.license?.name });
-          void start();
+        if (isLicenseValid) {
+          send({ phase: 'ready', progress: 0, licensee: current.license?.name });
         } else {
           askForLicense(current.status === 'missing' ? undefined : (current.message ?? undefined));
         }

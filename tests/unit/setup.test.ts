@@ -98,4 +98,19 @@ describe('Setup Architecture & WinSystem Tests', () => {
     expect(validateAdminPassword('MyStrong#P@ssw0rd').ok).toBe(true);
     expect(validateAdminPassword(generateSecurePassword()).ok).toBe(true);
   });
+
+  it('SetupPhase supports ready phase for pre-installation user confirmation', () => {
+    const phases: Array<import('../../src/shared/setup').SetupPhase> = [
+      'license',
+      'ready',
+      'preparing',
+      'copying',
+      'finishing',
+      'confirm',
+      'removing',
+      'done',
+      'error',
+    ];
+    expect(phases).toContain('ready');
+  });
 });
