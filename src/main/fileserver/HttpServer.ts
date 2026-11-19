@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as https from 'node:https';
 import * as path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import type { Socket } from 'node:net';
 import type {
   ActiveTransfer,
@@ -10,6 +10,8 @@ import type {
   LiveConnection,
   ServerLogEntry,
   ServerStatus,
+  ShareLink,
+  ShareLinkPermission,
   TransferHistoryEntry,
   UserAccount,
   UserRole,
@@ -1058,6 +1060,65 @@ export class HttpServer {
       const itemsRaw = parsedUrl.searchParams.get('items') || '';
       const itemsList = itemsRaw.split(';').map((s) => s.trim()).filter(Boolean);
       await this.handleSelectionZipDownload(itemsList, user, req, res);
+      return;
+    }
+
+    // 12.1 Create Share API
+    if (pathname === '/api/share/create' && req.method === 'POST') {
+      const body = await this.readJsonBody(req);
+      if (!body?.relativePath || !body?.name) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing share details' }));
+        return;
+      }
+      const token = randomBytes(12).toString('hex');
+      const share: ShareLink = {
+        id: randomUUID(),
+        token,
+        name: String(body.name),
+        relativePath: String(body.relativePath),
+        isFolder: Boolean(body.isFolder),
+        permission: (body.permission as ShareLinkPermission) || 'download',
+        passwordProtected: Boolean(body.password),
+        passwordHash: body.password ? hashPassword(String(body.password)) : null,
+        expiresAt: body.expiresAt ? String(body.expiresAt) : null,
+        maxDownloads: body.maxDownloads ? Number(body.maxDownloads) : null,
+        downloadCount: 0,
+        createdAt: new Date().toISOString(),
+      };
+      this.store.saveShare(share);
+      this.log('info', `Share link created for '${share.relativePath}' (token: ${share.token})`, req, 200);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, share }));
+      return;
+    }
+
+    // 12.2 List Shares API
+    if (pathname === '/api/shares' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ shares: this.store.getShares() }));
+      return;
+    }
+
+    // 12.3 Revoke Share API
+    if (pathname === '/api/share/revoke' && req.method === 'POST') {
+      const body = await this.readJsonBody(req);
+      if (body?.id) {
+        this.store.revokeShare(String(body.id));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+        this.log('info', `Share link '${body.id}' revoked`, req, 200);
+        return;
+      }
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Share ID required' }));
+      return;
+    }
+
+    // 12.4 Transfer History API
+    if (pathname === '/api/history' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ history: this.store.getHistory() }));
       return;
     }
 
