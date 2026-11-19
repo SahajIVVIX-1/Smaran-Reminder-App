@@ -8,7 +8,7 @@ import { decodeWithNativeImage, pickAndImport } from '../license/ipc';
 import { LICENSE_FILE, LicenseStore } from '../license/LicenseStore';
 import { iconPath } from '../tray/Tray';
 import { loadRenderer, preloadPath } from '../windows/loadRenderer';
-import { chooseTarget, install, launchAndVerifyInstalled, QUIT_ARG } from './install';
+import { chooseTarget, install, launchInstalled, QUIT_ARG } from './install';
 import {
   APP_ID,
   closeOtherSmarans,
@@ -43,8 +43,8 @@ export function isUninstallRun(): boolean {
 }
 
 /** Card plus room for its shadow and the coloured border light. */
-const WIDTH = 460;
-const HEIGHT = 320;
+const WIDTH = 500;
+const HEIGHT = 340;
 /** How long "Smaran was removed" stays before the uninstaller window closes. */
 const UNINSTALL_DONE_MS = 5000;
 /** A moment for the window to appear before anything starts. */
@@ -67,6 +67,7 @@ function cardWindow(title: string): BrowserWindow {
   const win = new BrowserWindow({
     width: WIDTH,
     height: HEIGHT,
+    useContentSize: true,
     title,
     icon: iconPath(),
     frame: false,
@@ -166,19 +167,18 @@ export function runSetup(): void {
       void start();
     });
 
-    ipcMain.on(IPC.setupLaunch, async (event) => {
+    ipcMain.on(IPC.setupLaunch, (event) => {
       if (event.sender !== win.webContents) return;
+      // Close the setup window immediately so it disappears before the app opens
       try {
-        const launched = await launchAndVerifyInstalled(target);
-        if (!launched.ok) {
-          send({ phase: 'error', progress: 0, error: launched.error });
-          return;
+        if (!win.isDestroyed()) {
+          win.hide();
+          win.destroy();
         }
-      } catch (err) {
-        send({ phase: 'error', progress: 0, error: (err as Error).message });
-        return;
+      } catch {
+        // ignore
       }
-      if (!win.isDestroyed()) win.destroy();
+      launchInstalled(target);
       app.quit();
     });
 
@@ -193,7 +193,14 @@ export function runSetup(): void {
     });
     ipcMain.on(IPC.setupClose, (event) => {
       if (event.sender === win.webContents && !running) {
-        if (!win.isDestroyed()) win.destroy();
+        try {
+          if (!win.isDestroyed()) {
+            win.hide();
+            win.destroy();
+          }
+        } catch {
+          // ignore
+        }
         app.quit();
       }
     });

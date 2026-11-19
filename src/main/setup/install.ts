@@ -245,5 +245,21 @@ export async function launchAndVerifyInstalled(
 }
 
 export function launchInstalled(target: string): void {
-  void launchAndVerifyInstalled(target);
+  const exe = join(target, EXE_NAME);
+  try {
+    const child = spawn(exe, [], {
+      cwd: target,
+      env: appEnv(),
+      detached: true,
+      stdio: 'ignore',
+    });
+    child.unref();
+  } catch {
+    try {
+      const child2 = spawn('explorer.exe', [exe], { detached: true, stdio: 'ignore' });
+      child2.unref();
+    } catch {
+      // ignore
+    }
+  }
 }

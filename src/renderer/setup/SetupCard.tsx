@@ -141,8 +141,8 @@ export function SetupCard({ init }: { init: SetupInit }) {
           : 'Installing Smaran';
 
   return (
-    <div className="grid h-screen place-items-center p-[22px] select-none">
-      <div className="relative w-full animate-modal rounded-[22px]" data-testid="setup">
+    <div className="grid h-screen place-items-center p-[20px] select-none">
+      <div className="relative w-full max-w-[460px] animate-modal rounded-[22px]" data-testid="setup">
         <div className="glass-card absolute inset-0" style={{ borderRadius: 'inherit' }} />
 
         <div className="relative px-6 pt-5 pb-5">
@@ -234,31 +234,31 @@ export function SetupCard({ init }: { init: SetupInit }) {
               <p className="text-[12.5px] leading-snug text-muted">
                 Ready to install Smaran on this computer.
               </p>
-              <div className="mt-2.5 flex items-center gap-1.5 rounded-lg border border-line bg-surface/50 px-2.5 py-1.5 text-[11px] text-faint">
-                <span className="font-medium text-muted">Destination:</span>
-                <span className="truncate font-mono" title={init.target}>
+              <div className="mt-2.5 flex items-center gap-1.5 rounded-lg border border-line bg-surface/50 px-2.5 py-1.5 text-[11px] text-faint min-w-0">
+                <span className="font-medium text-muted shrink-0">Destination:</span>
+                <span className="truncate font-mono min-w-0 flex-1" title={init.target}>
                   {init.target}
                 </span>
               </div>
-              <div className="no-drag relative z-10 mt-3.5 flex gap-2">
+              <div className="no-drag relative z-10 mt-3.5 flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => window.smaranSetup.startInstall()}
-                  className="h-[30px] flex-[1.4] rounded-[10px] bg-accent text-[12.5px] font-medium text-on-accent hover:bg-accent-hover"
+                  className="h-[30px] flex-1 rounded-[10px] bg-accent px-3 text-[12.5px] font-medium text-on-accent hover:bg-accent-hover transition-colors shadow-sm whitespace-nowrap"
                 >
                   Start Installation
                 </button>
                 <button
                   type="button"
                   onClick={() => window.smaranSetup.chooseLicense()}
-                  className="glass-button h-[30px] flex-1 rounded-[10px] text-[12.5px] font-medium text-ink"
+                  className="glass-button h-[30px] rounded-[10px] px-3 text-[12.5px] font-medium text-ink transition-colors whitespace-nowrap"
                 >
                   Change License…
                 </button>
                 <button
                   type="button"
                   onClick={() => window.smaranSetup.close()}
-                  className="glass-button h-[30px] flex-[0.7] rounded-[10px] text-[12.5px] font-medium text-ink"
+                  className="glass-button h-[30px] rounded-[10px] px-3 text-[12.5px] font-medium text-ink transition-colors whitespace-nowrap"
                 >
                   Cancel
                 </button>
@@ -269,18 +269,18 @@ export function SetupCard({ init }: { init: SetupInit }) {
               <p className="text-[12.5px] leading-snug text-muted">
                 Installation completed successfully. Smaran is ready to run.
               </p>
-              <div className="no-drag relative z-10 mt-3.5 flex gap-2">
+              <div className="no-drag relative z-10 mt-3.5 flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => window.smaranSetup.launchApp()}
-                  className="h-[30px] flex-1 rounded-[10px] bg-accent text-[12.5px] font-medium text-on-accent hover:bg-accent-hover"
+                  className="h-[30px] flex-1 rounded-[10px] bg-accent px-4 text-[12.5px] font-medium text-on-accent hover:bg-accent-hover transition-colors shadow-sm whitespace-nowrap"
                 >
                   Launch Smaran
                 </button>
                 <button
                   type="button"
                   onClick={() => window.smaranSetup.close()}
-                  className="glass-button h-[30px] flex-1 rounded-[10px] text-[12.5px] font-medium text-ink"
+                  className="glass-button h-[30px] rounded-[10px] px-4 text-[12.5px] font-medium text-ink transition-colors whitespace-nowrap"
                 >
                   Finish
                 </button>
