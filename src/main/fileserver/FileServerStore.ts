@@ -10,6 +10,23 @@ export function generateSecurePassword(): string {
   return crypto.randomBytes(12).toString('base64url');
 }
 
+/**
+ * Auto-generated password pattern for the default administrator user ("smaran"):
+ * smaran@DDMMYYYY-Exacttime-Day(in short) with sec
+ * E.g. smaran@20112026-025530-Fri
+ */
+export function generateDefaultAdminPassword(date: Date = new Date()): string {
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const yyyy = String(date.getFullYear());
+  const hours = String(date.getHours()).padStart(2, '0');
+  const mins = String(date.getMinutes()).padStart(2, '0');
+  const secs = String(date.getSeconds()).padStart(2, '0');
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dayShort = days[date.getDay()];
+  return `smaran@${dd}${mm}${yyyy}-${hours}${mins}${secs}-${dayShort}`;
+}
+
 export function validateAdminPassword(password: string): { ok: boolean; error?: string } {
   if (!password || typeof password !== 'string') {
     return { ok: false, error: 'Password cannot be empty.' };
@@ -49,7 +66,7 @@ export class FileServerStore {
       rootDir: '',
       autoStart: true,
       autoOpenAdminOnStart: false,
-      adminUsername: 'admin',
+      adminUsername: 'smaran',
       adminPassword: '',
     };
 
@@ -60,15 +77,15 @@ export class FileServerStore {
         let settings: FileServerSettings = { ...defaultSettings, ...(parsed.settings || {}) };
         let users: UserAccount[] = parsed.users || [];
 
-        // Upgrade insecure or empty legacy default passwords to a unique cryptographically generated password
-        if (!settings.adminPassword || settings.adminPassword === 'smaran') {
-          const securePass = generateSecurePassword();
-          settings = { ...settings, adminPassword: securePass };
+        // Upgrade insecure or empty legacy default passwords to the pattern password
+        if (!settings.adminPassword || settings.adminPassword === 'smaran' || settings.adminPassword === 'admin') {
+          const defaultAdminPass = generateDefaultAdminPassword();
+          settings = { ...settings, adminUsername: settings.adminUsername || 'smaran', adminPassword: defaultAdminPass };
           users = [
             {
               id: 'admin',
-              username: settings.adminUsername || 'admin',
-              password: securePass,
+              username: settings.adminUsername || 'smaran',
+              password: defaultAdminPass,
               role: 'admin',
               isSystem: true,
             },
@@ -87,17 +104,17 @@ export class FileServerStore {
       }
     }
 
-    // First initialization: generate unique, high-entropy credentials
-    const initialPassword = generateSecurePassword();
+    // First initialization: generate credentials matching default pattern
+    const initialPassword = generateDefaultAdminPassword();
     const initialSettings: FileServerSettings = {
       ...defaultSettings,
-      adminUsername: 'admin',
+      adminUsername: 'smaran',
       adminPassword: initialPassword,
     };
     const initialUsers: UserAccount[] = [
       {
         id: 'admin',
-        username: 'admin',
+        username: 'smaran',
         password: initialPassword,
         role: 'admin',
         isSystem: true,

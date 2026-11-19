@@ -738,41 +738,455 @@ export const DEFAULT_CUSTOM_HTML = `[403]
 </body>
 </html>
 
+[style]
+:root {
+  color-scheme: dark;
+  --bg: #0d0d11 !important;
+  --color: #e06c43 !important;
+  --faint-contrast: #16161d !important;
+  --mild-contrast: #1c1c24 !important;
+  --good-contrast: #242430 !important;
+  --ghost-contrast: rgba(255, 255, 255, 0.04) !important;
+  --ghost-contrast-alt: rgba(255, 255, 255, 0.02) !important;
+  --text: #e4e4e7 !important;
+  --text-high-contrast: #ffffff !important;
+  --link: #e07850 !important;
+  --button-bg: #1c1c24 !important;
+  --button-text: #f5f4ef !important;
+  --focus-color: #e06c43 !important;
+  --separator: rgba(255, 255, 255, 0.08) !important;
+  --success: #34d399 !important;
+  --warning: #fbbf24 !important;
+  --error: #f87171 !important;
+}
+
+/* Smaran Base Obsidian Atmosphere */
+html, body {
+  background-color: #0d0d11 !important;
+  color: #f5f4ef !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+  background: transparent !important;
+  min-height: 100vh;
+}
+
+/* Bigger Smaran Watermark Logo in Center of Background */
+.smaran-bg-watermark {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(560px, 85vw);
+  height: min(560px, 85vw);
+  max-width: 560px;
+  max-height: 560px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.09;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 0 50px rgba(224, 108, 67, 0.2));
+  transition: opacity 0.3s ease;
+}
+.smaran-bg-watermark svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Ambient Radial Lighting */
+body::before {
+  content: "";
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(224, 108, 67, 0.08) 0%, rgba(224, 108, 67, 0.02) 40%, rgba(13, 13, 17, 0) 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Top Right WebDAV / Windows Drive Mount Widget */
+.smaran-webdav-widget {
+  position: fixed;
+  top: 14px;
+  right: 18px;
+  z-index: 999999;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.smaran-webdav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(22, 22, 29, 0.94);
+  color: #f5f4ef;
+  border: 1px solid rgba(224, 108, 67, 0.45);
+  border-radius: 9999px;
+  padding: 7px 15px;
+  font-size: 12.5px;
+  font-weight: 600;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(224, 108, 67, 0.15);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.smaran-webdav-btn:hover {
+  background: rgba(32, 32, 42, 0.98);
+  border-color: rgba(224, 108, 67, 0.75);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(224, 108, 67, 0.3);
+}
+
+.smaran-pulse-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e06c43;
+  box-shadow: 0 0 8px #e06c43;
+  animation: smaranPulse 2.2s infinite;
+}
+
+@keyframes smaranPulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(224, 108, 67, 0.7); }
+  70% { transform: scale(1.15); box-shadow: 0 0 0 7px rgba(224, 108, 67, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(224, 108, 67, 0); }
+}
+
+.smaran-webdav-pop {
+  display: none;
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 350px;
+  background: #15151c !important;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  padding: 1.25rem;
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(224, 108, 67, 0.2);
+  color: #f5f4ef;
+  box-sizing: border-box;
+  z-index: 2147483647;
+}
+
+.smaran-webdav-pop.open {
+  display: block;
+}
+
+@keyframes smaranPopIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.smaran-pop-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.smaran-pop-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #ffffff;
+}
+
+.smaran-pop-close {
+  background: transparent;
+  border: none;
+  color: #888;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: color 0.15s;
+}
+
+.smaran-pop-close:hover {
+  color: #ffffff;
+}
+
+.smaran-pop-desc {
+  font-size: 0.8rem;
+  color: #9c9ca4;
+  line-height: 1.5;
+  margin-bottom: 1rem;
+}
+
+.smaran-pop-action {
+  margin-bottom: 1rem;
+}
+
+.smaran-pop-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #e06c43;
+  color: #ffffff;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(224, 108, 67, 0.35);
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+}
+
+.smaran-pop-btn:hover {
+  background: #ea7a53;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(224, 108, 67, 0.45);
+}
+
+.smaran-pop-subtext {
+  display: block;
+  font-size: 0.72rem;
+  color: #777;
+  margin-top: 0.4rem;
+  text-align: center;
+}
+
+.smaran-pop-url-box {
+  background: #0d0d11;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0.7rem 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.smaran-pop-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: #888;
+  margin-bottom: 0.3rem;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.smaran-copy-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f5f4ef;
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.smaran-copy-btn:hover {
+  background: rgba(224, 108, 67, 0.3);
+  color: #ffffff;
+}
+
+.smaran-pop-url {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+  color: #e07850;
+  word-break: break-all;
+  user-select: all;
+}
+
+.smaran-pop-guide {
+  font-size: 0.72rem;
+  color: #888;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.smaran-pop-guide code {
+  color: #e07850;
+  font-family: monospace;
+}
+
+/* Smaran Theme Polish for HFS Web UI & Plugins */
+.list-wrapper {
+  background: transparent !important;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.entry-panel, .entry-row {
+  border-radius: 10px !important;
+  transition: background-color 0.15s ease, transform 0.1s ease !important;
+}
+
+.entry-panel:hover, .entry-row:hover {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.breadcrumb {
+  font-weight: 500;
+}
+
+.dialog-backdrop {
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  background: rgba(0, 0, 0, 0.68) !important;
+}
+
+.dialog {
+  background: rgba(22, 22, 28, 0.97) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(224, 108, 67, 0.15) !important;
+  color: #f5f4ef !important;
+}
+
+/* Plugin Protection & Harmonization */
+#player, #video-player {
+  background: rgba(22, 22, 28, 0.95) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 12px !important;
+  backdrop-filter: blur(12px) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7) !important;
+}
+
+.play-button {
+  background: rgba(224, 108, 67, 0.2) !important;
+  color: #e06c43 !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(224, 108, 67, 0.35) !important;
+}
+
+.play-button:hover {
+  background: #e06c43 !important;
+  color: #ffffff !important;
+}
+
+.smaran-btn-text-short {
+  display: none;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .smaran-webdav-widget {
+    top: 11px !important;
+    right: 12px !important;
+    z-index: 2147483647 !important;
+  }
+  .smaran-webdav-btn {
+    padding: 5px 11px !important;
+    font-size: 11.5px !important;
+    gap: 6px !important;
+  }
+  .smaran-btn-text-full {
+    display: none !important;
+  }
+  .smaran-btn-text-short {
+    display: inline !important;
+  }
+  .smaran-webdav-pop {
+    position: absolute !important;
+    top: calc(100% + 8px) !important;
+    right: 0 !important;
+    left: auto !important;
+    width: min(340px, calc(100vw - 24px)) !important;
+    background: #15151c !important;
+    z-index: 2147483647 !important;
+    padding: 1.1rem !important;
+  }
+  .smaran-bg-watermark {
+    width: min(320px, 80vw);
+    height: min(320px, 80vw);
+    opacity: 0.07;
+  }
+  .list-wrapper {
+    padding: 0 0.5rem;
+  }
+}
+
 [top]
-<div id="smaran-webdav-widget" style="position:fixed;bottom:1.25rem;right:1.25rem;z-index:999999;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <button id="smaran-webdav-btn" onclick="var m=document.getElementById('smaran-webdav-pop');m.style.display=(m.style.display==='none'||!m.style.display)?'block':'none';" style="display:inline-flex;align-items:center;gap:0.5rem;background:#18181e;color:#f5f4ef;border:1px solid rgba(224,108,67,0.45);border-radius:9999px;padding:0.6rem 1.15rem;font-size:0.82rem;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,0.6);cursor:pointer;transition:transform 0.15s ease;">
-    <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#e06c43;box-shadow:0 0 8px #e06c43;"></span>
-    Mount as Windows Drive / WebDAV
+<div class="smaran-bg-watermark" aria-hidden="true">
+  <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <g transform="translate(32 32) scale(1.18) translate(-32 -32)">
+      <path d="M32 32L30.91 31.93L29.82 31.76L28.77 31.47L27.74 31.07L26.77 30.56L25.86 29.94L25.02 29.24L24.26 28.45L23.58 27.58L23.01 26.64L22.54 25.65L22.18 24.61L21.92 23.54L21.8 22.45L21.78 21.35L21.89 20.26L22.1 19.18L22.43 18.14L22.88 17.13L23.43 16.18L24.08 15.29L24.81 14.48L25.64 13.75L26.53 13.12L27.49 12.58L28.5 12.14L29.55 11.83L30.63 11.63L31.73 11.54L32.82 11.56L33.91 11.71L34.98 11.98L36.01 12.35L37 12.83L37.93 13.42L38.78 14.11L39.56 14.88L40.26 15.73L40.87 16.65" stroke="#f5f4ef" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M23.15 47.32L23.76 48.24L24.45 49.09L25.23 49.87L26.08 50.56L27.01 51.14L28 51.63L29.03 52L30.09 52.27L31.18 52.42L32.27 52.45L33.37 52.36L34.45 52.16L35.5 51.85L36.51 51.41L37.46 50.88L38.36 50.24L39.19 49.52L39.92 48.71L40.57 47.82L41.12 46.87L41.57 45.86L41.9 44.82L42.12 43.74L42.22 42.65L42.21 41.55L42.08 40.46L41.83 39.39L41.46 38.35L40.99 37.36L40.42 36.42L39.75 35.56L38.99 34.77L38.14 34.06L37.23 33.45L36.26 32.93L35.24 32.53L34.18 32.24L33.1 32.07L32 32" stroke="#f5f4ef" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M50.1 13.9h0.01" stroke="#e06c43" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </svg>
+</div>
+
+<div id="smaran-webdav-widget" class="smaran-webdav-widget">
+  <button id="smaran-webdav-btn" class="smaran-webdav-btn" onclick="var m=document.getElementById('smaran-webdav-pop');m.classList.toggle('open');" aria-label="Mount as Windows Drive or WebDAV">
+    <span class="smaran-pulse-dot"></span>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    <span class="smaran-btn-text-full">Mount as Drive Z:</span>
+    <span class="smaran-btn-text-short">Mount Drive</span>
   </button>
-  <div id="smaran-webdav-pop" style="display:none;position:absolute;bottom:3.25rem;right:0;width:340px;background:#15151b;border:1px solid rgba(255,255,255,0.12);border-radius:18px;padding:1.25rem;box-shadow:0 24px 48px rgba(0,0,0,0.85);color:#f5f4ef;box-sizing:border-box;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
-      <span style="font-weight:700;font-size:0.95rem;color:#ffffff;">WebDAV Drive Connection</span>
-      <button onclick="document.getElementById('smaran-webdav-pop').style.display='none';" style="background:none;border:none;color:#888;cursor:pointer;font-size:1.1rem;line-height:1;padding:0.2rem;">✕</button>
+  <div id="smaran-webdav-pop" class="smaran-webdav-pop">
+    <div class="smaran-pop-header">
+      <div class="smaran-pop-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e06c43" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        <span>WebDAV Network Drive</span>
+      </div>
+      <button class="smaran-pop-close" onclick="document.getElementById('smaran-webdav-pop').classList.remove('open');" aria-label="Close">✕</button>
     </div>
-    <p style="font-size:0.8rem;color:#9c9ca4;line-height:1.45;margin-bottom:1rem;">
-      Mount files from this Smaran server directly into Windows Explorer as a network drive (Drive Z:).
+    <p class="smaran-pop-desc">
+      Mount files from this Smaran server directly into Windows Explorer, macOS Finder, or mobile WebDAV apps as a native network drive.
     </p>
-    <div style="margin-bottom:1rem;">
-      <a href="/~/webdav/mount.bat" download="mount-smaran-drive.bat" style="display:flex;align-items:center;justify-content:center;gap:0.5rem;width:100%;padding:0.7rem;background:#e06c43;color:#ffffff;border-radius:10px;font-size:0.85rem;font-weight:600;text-decoration:none;box-shadow:0 4px 14px rgba(224,108,67,0.35);text-align:center;box-sizing:border-box;">
-        ⚡ Download Windows Mount Script (.bat)
+    <div class="smaran-pop-action">
+      <a href="/~/webdav/mount.bat" download="mount-smaran-drive.bat" class="smaran-pop-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>
+        <span>1-Click Windows Mount Script (.bat)</span>
       </a>
-      <span style="display:block;font-size:0.72rem;color:#777;margin-top:0.35rem;text-align:center;">1-Click Setup: Automatically configures WebClient & maps Z:</span>
+      <span class="smaran-pop-subtext">Automatically starts WebClient &amp; maps Drive Z:</span>
     </div>
-    <div style="background:#0d0d11;border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:0.65rem;margin-bottom:0.85rem;">
-      <div style="font-size:0.7rem;text-transform:uppercase;color:#888;margin-bottom:0.25rem;letter-spacing:0.05em;font-weight:600;">Direct WebDAV URL</div>
-      <div style="font-family:monospace;font-size:0.75rem;color:#e06c43;word-break:break-all;user-select:all;" id="smaran-pop-url"></div>
+    <div class="smaran-pop-url-box">
+      <div class="smaran-pop-label">
+        <span>Direct WebDAV URL</span>
+        <button class="smaran-copy-btn" id="smaran-copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('smaran-pop-url').innerText);this.innerText='Copied!';setTimeout(()=>{this.innerText='Copy';},2000);" title="Copy URL">Copy</button>
+      </div>
+      <div class="smaran-pop-url" id="smaran-pop-url"></div>
     </div>
-    <div style="font-size:0.73rem;color:#888;line-height:1.45;">
-      <strong style="color:#d4d4d8;">macOS Finder:</strong> Press <code style="color:#e06c43;">Cmd+K</code> and enter the URL above.<br>
-      <strong style="color:#d4d4d8;">Credentials:</strong> Enter your Smaran username & password if prompted.
+    <div class="smaran-pop-guide">
+      <div><strong>Windows:</strong> Run downloaded <code>.bat</code> as Admin or use Map Network Drive.</div>
+      <div><strong>macOS:</strong> Finder &rarr; Go &rarr; Connect to Server (<code>Cmd+K</code>).</div>
+      <div><strong>Mobile:</strong> Compatible with Documents, FE File Explorer, Solid Explorer.</div>
     </div>
   </div>
 </div>
+
+[bottom]
 <script>
   (function(){
     var u = window.location.protocol + '//' + window.location.host + '/';
     var el = document.getElementById('smaran-pop-url');
     if (el) el.innerText = u;
+    document.addEventListener('click', function(e){
+      var w = document.getElementById('smaran-webdav-widget');
+      var p = document.getElementById('smaran-webdav-pop');
+      if (w && p && p.classList.contains('open') && !w.contains(e.target)) {
+        p.classList.remove('open');
+      }
+    });
   })();
 </script>
 `;

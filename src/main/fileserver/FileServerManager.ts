@@ -7,7 +7,7 @@ import { BrowserWindow, dialog, shell } from 'electron';
 import * as QRCode from 'qrcode';
 import { IPC } from '@shared/channels';
 import type { FileServerSettings, ServerLogEntry, ServerStatus } from '@shared/fileserver';
-import { FileServerStore, generateSecurePassword, validateAdminPassword } from './FileServerStore';
+import { FileServerStore, generateDefaultAdminPassword, validateAdminPassword } from './FileServerStore';
 import {
   checkDirectoryPermissions,
   checkPortAvailable,
@@ -256,14 +256,14 @@ export class FileServerManager {
         await this.supervisor.stop();
 
         const defaultDir = this.supervisor.getDefaultStorageDir();
-        const freshPassword = generateSecurePassword();
+        const freshPassword = generateDefaultAdminPassword();
         const defaultSettings: FileServerSettings = {
           enabled: true,
           port: 5901,
           rootDir: defaultDir,
           autoStart: true,
           autoOpenAdminOnStart: false,
-          adminUsername: 'admin',
+          adminUsername: 'smaran',
           adminPassword: freshPassword,
         };
 

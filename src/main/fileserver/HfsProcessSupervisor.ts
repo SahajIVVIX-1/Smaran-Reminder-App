@@ -161,21 +161,26 @@ export class HfsProcessSupervisor {
       return;
     }
     const dstCustomHtml = path.join(this.runtimeDir, 'custom.html');
-    if (!fs.existsSync(dstCustomHtml)) {
-      const srcCustomHtml = path.join(engineDir, 'custom.html');
-      if (fs.existsSync(srcCustomHtml)) {
-        try {
-          fs.copyFileSync(srcCustomHtml, dstCustomHtml);
-          return;
-        } catch {
-          // Fallback
-        }
-      }
+    const srcCustomHtml = path.join(engineDir, 'custom.html');
+    if (fs.existsSync(srcCustomHtml)) {
       try {
-        fs.writeFileSync(dstCustomHtml, DEFAULT_CUSTOM_HTML, 'utf8');
-      } catch (err) {
-        console.warn('Failed to write custom.html to runtimeDir:', err);
+        const srcContent = fs.readFileSync(srcCustomHtml, 'utf8');
+        const dstContent = fs.existsSync(dstCustomHtml) ? fs.readFileSync(dstCustomHtml, 'utf8') : '';
+        if (srcContent !== dstContent) {
+          fs.writeFileSync(dstCustomHtml, srcContent, 'utf8');
+        }
+        return;
+      } catch {
+        // Fallback
       }
+    }
+    try {
+      const dstContent = fs.existsSync(dstCustomHtml) ? fs.readFileSync(dstCustomHtml, 'utf8') : '';
+      if (DEFAULT_CUSTOM_HTML !== dstContent) {
+        fs.writeFileSync(dstCustomHtml, DEFAULT_CUSTOM_HTML, 'utf8');
+      }
+    } catch (err) {
+      console.warn('Failed to write custom.html to runtimeDir:', err);
     }
   }
 

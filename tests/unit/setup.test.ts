@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { appEnv, EXE_NAME } from '../../src/main/setup/winSystem';
 import { defaultInstallDir, verifyEngineArchive, verifyInstalledFiles } from '../../src/main/setup/install';
-import { generateSecurePassword, validateAdminPassword } from '../../src/main/fileserver/FileServerStore';
+import { generateDefaultAdminPassword, generateSecurePassword, validateAdminPassword } from '../../src/main/fileserver/FileServerStore';
 
 describe('Setup Architecture & WinSystem Tests', () => {
   it('appEnv strictly strips all PORTABLE_EXECUTABLE_* variables while preserving others', () => {
@@ -75,6 +75,17 @@ describe('Setup Architecture & WinSystem Tests', () => {
     } finally {
       fs.rmSync(fakeDir, { recursive: true, force: true });
     }
+  });
+
+  it('generateDefaultAdminPassword adheres strictly to smaran@DDMMYYYY-Exacttime-Day(in short) with sec pattern', () => {
+    const fixedDate = new Date(2026, 10, 20, 2, 51, 30); // November 20, 2026 (Friday) 02:51:30
+    const pass = generateDefaultAdminPassword(fixedDate);
+    expect(pass).toBe('smaran@20112026-025130-Fri');
+    expect(validateAdminPassword(pass).ok).toBe(true);
+
+    const nowPass = generateDefaultAdminPassword();
+    expect(nowPass).toMatch(/^smaran@\d{8}-\d{6}-(Sun|Mon|Tue|Wed|Thu|Fri|Sat)$/);
+    expect(validateAdminPassword(nowPass).ok).toBe(true);
   });
 
   it('generateSecurePassword generates high-entropy, unique 16-character alphanumeric passwords', () => {
