@@ -490,80 +490,89 @@ export function FileServer() {
 
       {/* Top Hero / Live Server Status Card */}
       <div className="p-5 sm:p-6 rounded-2xl border border-line bg-surface shadow-xs space-y-5">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5 min-w-0">
             <div className="w-12 h-12 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent shadow-xs shrink-0">
               <ServerIcon size={24} />
             </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight text-ink">Smaran HFS</h1>
-              <p className="text-xs text-muted mt-0.5">
+            <div className="min-w-0 space-y-1">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-xl font-bold tracking-tight text-ink">Smaran HFS</h1>
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border tracking-wide transition-all ${
+                    actionLoading
+                      ? 'border-accent/30 bg-accent/10 text-accent'
+                      : isRunning
+                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                        : 'border-zinc-700/60 bg-zinc-800/40 text-muted'
+                  }`}
+                >
+                  {actionLoading ? (
+                    <RefreshIcon size={11} className="animate-spin text-accent" />
+                  ) : isRunning ? (
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                    </span>
+                  ) : (
+                    <span className="w-2 h-2 rounded-full bg-zinc-500" />
+                  )}
+                  {actionLoading === 'starting' && 'Starting Server...'}
+                  {actionLoading === 'stopping' && 'Stopping Server...'}
+                  {actionLoading === 'restarting' && 'Restarting Server...'}
+                  {actionLoading === 'applying' && 'Applying Configuration...'}
+                  {!actionLoading && (isRunning ? `Running on port ${currentPort}` : 'Server Offline')}
+                </span>
+              </div>
+              <p className="text-xs text-muted truncate">
                 Fast, self-hosted local file server &amp; WebDAV storage.
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Live Status Pill */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-line bg-surface-raised">
-              {actionLoading ? (
-                <RefreshIcon size={12} className="animate-spin text-accent" />
-              ) : isRunning ? (
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-                </span>
-              ) : (
-                <span className="w-2.5 h-2.5 rounded-full bg-zinc-500" />
-              )}
-              <span className="text-xs font-medium text-ink">
-                {actionLoading === 'starting' && 'Starting Server...'}
-                {actionLoading === 'stopping' && 'Stopping Server...'}
-                {actionLoading === 'restarting' && 'Restarting Server...'}
-                {actionLoading === 'applying' && 'Applying Configuration...'}
-                {!actionLoading && (isRunning ? `Running on port ${currentPort}` : 'Server Offline')}
-              </span>
-            </div>
-
-            {/* Power Action Buttons */}
+          <div className="flex items-center gap-2 shrink-0">
             {isRunning ? (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={handleStop}
-                  disabled={actionLoading !== null}
-                >
-                  <PowerIcon size={13} />
-                  Stop Server
-                </Button>
-                <IconButton
-                  aria-label="Restart Server"
-                  title="Restart Server"
-                  onClick={handleRestart}
-                  disabled={actionLoading !== null}
-                >
-                  <RefreshIcon
-                    size={14}
-                    className={actionLoading === 'restarting' ? 'animate-spin text-accent' : ''}
-                  />
-                </IconButton>
+              <>
                 <Button
                   variant="secondary"
                   size="sm"
                   onClick={() => handleOpenUrl(adminUrl)}
+                  className="h-8 gap-1.5 text-xs font-medium"
                 >
-                  <ShieldIcon size={13} />
+                  <ShieldIcon size={13} className="text-muted" />
                   Admin Panel ↗
                 </Button>
-              </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleRestart}
+                  disabled={actionLoading !== null}
+                  title="Restart Server"
+                  className="h-8 gap-1.5 text-xs font-medium"
+                >
+                  <RefreshIcon
+                    size={13}
+                    className={actionLoading === 'restarting' ? 'animate-spin text-accent' : ''}
+                  />
+                  Restart
+                </Button>
+                <button
+                  type="button"
+                  onClick={handleStop}
+                  disabled={actionLoading !== null}
+                  className="h-8 px-3 rounded-lg border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 active:scale-[0.97] text-rose-300 hover:text-rose-100 text-xs font-medium flex items-center gap-1.5 transition-all disabled:opacity-40 cursor-pointer shadow-xs"
+                >
+                  <PowerIcon size={13} />
+                  Stop Server
+                </button>
+              </>
             ) : (
               <Button
                 variant="primary"
-                size="md"
+                size="sm"
                 onClick={handleStart}
                 disabled={actionLoading !== null}
-                className="shadow-sm"
+                className="h-8 px-4 gap-1.5 text-xs font-semibold shadow-xs"
               >
                 <PlayIcon size={14} />
                 Start Server
