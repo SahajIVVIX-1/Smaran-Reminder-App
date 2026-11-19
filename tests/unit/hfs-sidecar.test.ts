@@ -62,6 +62,21 @@ describe('HfsConfigBridge', () => {
     expect(yaml).toContain('docs:');
     expect(yaml).toContain('source: "D:/User/Documents"');
   });
+
+  it('includes all 19 default plugins and plugin configurations', () => {
+    const yaml = generateHfsConfigYaml({
+      settings: dummySettings,
+    });
+
+    expect(yaml).toContain('enable_plugins:');
+    expect(yaml).toContain('  - antibrute');
+    expect(yaml).toContain('  - share-links');
+    expect(yaml).toContain('  - thumbnails');
+    expect(yaml).toContain('  - trashbin');
+    expect(yaml).toContain('plugins_config:');
+    expect(yaml).toContain('  share-links:');
+    expect(yaml).toContain('  trashbin:');
+  });
 });
 
 describe('HfsProcessSupervisor port & environment verification', () => {

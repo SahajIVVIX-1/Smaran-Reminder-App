@@ -1,3 +1,4 @@
+import * as fs from 'node:fs';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { BrowserWindow, dialog, shell } from 'electron';
@@ -6,6 +7,7 @@ import { IPC } from '@shared/channels';
 import type { FileServerSettings, ServerLogEntry, ServerStatus } from '@shared/fileserver';
 import { FileServerStore } from './FileServerStore';
 import { HfsProcessSupervisor } from './HfsProcessSupervisor';
+import { generateHfsConfigYaml } from './HfsConfigBridge';
 
 const execAsync = promisify(exec);
 
@@ -122,6 +124,42 @@ export class FileServerManager {
     password: string;
   }): Promise<{ ok: boolean; error?: string }> {
     return this.supervisor.updateAdminAccount(creds);
+  }
+
+  async resetDefaults(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      await this.supervisor.stop();
+
+      const defaultDir = this.supervisor.getDefaultStorageDir();
+      const defaultSettings: FileServerSettings = {
+        enabled: true,
+        port: 5901,
+        rootDir: defaultDir,
+        autoStart: true,
+        adminUsername: 'smaran',
+        adminPassword: 'smaran',
+      };
+
+      this.store.updateSettings(defaultSettings);
+
+      const yaml = generateHfsConfigYaml({
+        settings: defaultSettings,
+        users: [],
+        adminPassword: 'smaran',
+      });
+
+      fs.writeFileSync(this.supervisor.getConfigYamlPath(), yaml, 'utf8');
+
+      const engineInfo = this.supervisor.resolveEngineScript();
+      this.supervisor.ensureBundledPlugins(engineInfo.engineDir);
+
+      const res = await this.supervisor.start();
+      this.broadcast(IPC.fileserverStatusChanged, this.getStatus());
+      return res;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: msg };
+    }
   }
 
   async mountLocalDrive(payload?: {

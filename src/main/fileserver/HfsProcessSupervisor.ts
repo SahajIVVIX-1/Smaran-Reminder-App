@@ -142,6 +142,36 @@ export class HfsProcessSupervisor {
     return path.join(base, 'Smaran Files');
   }
 
+  public getConfigYamlPath(): string {
+    return this.configYamlPath;
+  }
+
+  public ensureBundledPlugins(engineDir: string): void {
+    const srcPluginsDir = path.join(engineDir, 'plugins');
+    const dstPluginsDir = path.join(this.runtimeDir, 'plugins');
+
+    if (!fs.existsSync(srcPluginsDir)) {
+      return;
+    }
+
+    if (!fs.existsSync(dstPluginsDir)) {
+      fs.mkdirSync(dstPluginsDir, { recursive: true });
+    }
+
+    try {
+      const plugins = fs.readdirSync(srcPluginsDir);
+      for (const p of plugins) {
+        const srcPath = path.join(srcPluginsDir, p);
+        const dstPath = path.join(dstPluginsDir, p);
+        if (!fs.existsSync(dstPath)) {
+          fs.cpSync(srcPath, dstPath, { recursive: true });
+        }
+      }
+    } catch (err) {
+      console.warn('Failed copying bundled plugins to runtimeDir:', err);
+    }
+  }
+
   private getLanUrls(port: number): string[] {
     const urls: string[] = [];
     const nets = os.networkInterfaces();
@@ -338,6 +368,9 @@ export class HfsProcessSupervisor {
       }
     }
 
+    // Ensure all bundled plugins are copied to runtime directory
+    this.ensureBundledPlugins(engineInfo.engineDir);
+
     const settings = this.store.getSettings();
 
     // 3. Storage Directory & Permission Check
@@ -419,6 +452,8 @@ export class HfsProcessSupervisor {
         this.apiClient = null;
         this.stopHealthCheck();
 
+        const shouldRestart = !this.isStopping && this.store.getSettings().enabled;
+
         this.updateStatus({
           running: false,
           liveConnections: 0,
@@ -426,6 +461,15 @@ export class HfsProcessSupervisor {
             ? undefined
             : this.startupErrorLogs.slice(-3).join('; ') || exitMsg,
         });
+
+        if (shouldRestart) {
+          this.addLog('info', 'Restarting Smaran HFS engine...');
+          setTimeout(() => {
+            if (!this.isStopping && this.store.getSettings().enabled) {
+              void this.start();
+            }
+          }, 1500);
+        }
       });
 
       await this.waitForHealthy(activePort, 12000);

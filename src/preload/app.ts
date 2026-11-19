@@ -127,6 +127,8 @@ const api = {
       ipcRenderer.invoke(IPC.fileserverAdminGet),
     setAdminCredentials: (creds: { username: string; password: string }): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke(IPC.fileserverAdminSet, creds),
+    resetDefaults: (): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverResetDefaults),
     openUrl: (url: string): Promise<void> =>
       ipcRenderer.invoke(IPC.fileserverOpenUrl, url),
     onStatusChanged: (listener: (status: ServerStatus) => void): (() => void) =>

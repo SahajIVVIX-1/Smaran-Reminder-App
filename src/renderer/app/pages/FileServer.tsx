@@ -31,6 +31,8 @@ export function FileServer() {
   const [driveMounting, setDriveMounting] = useState(false);
   const [driveResult, setDriveResult] = useState<string | null>(null);
   const [showLogs, setShowLogs] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     void window.smaran.fileserver.status().then(setStatus);
@@ -124,6 +126,28 @@ export function FileServer() {
     } finally {
       setCredSaving(false);
       setTimeout(() => setCredMessage(null), 4000);
+    }
+  };
+
+  const handleResetDefaults = async () => {
+    setResetting(true);
+    try {
+      const res = await window.smaran.fileserver.resetDefaults();
+      if (res.ok) {
+        setCredMessage('File server has been reset to factory defaults.');
+        const s = await window.smaran.fileserver.getSettings();
+        setSettings(s);
+        const creds = await window.smaran.fileserver.getAdminCredentials();
+        setAdminUsername(creds.username || 'smaran');
+        setAdminPassword(creds.password || 'smaran');
+        setShowResetDialog(false);
+      } else {
+        alert(res.error || 'Failed to reset file server');
+      }
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -497,7 +521,27 @@ export function FileServer() {
         </div>
       </div>
 
-      {/* 6. Real-time Activity Logs */}
+      {/* 6. Reset to Factory Defaults */}
+      <div className="p-5 rounded-xl border border-rose-950/40 bg-rose-950/10 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-rose-300">Reset Server to Defaults</h2>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Revert port to 5901, reset credentials to smaran / smaran, and enable all 19 default plugins. Shared files will not be touched.
+            </p>
+          </div>
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => setShowResetDialog(true)}
+            disabled={actionLoading || resetting}
+          >
+            {resetting ? 'Resetting...' : 'Reset to Defaults'}
+          </Button>
+        </div>
+      </div>
+
+      {/* 7. Real-time Activity Logs */}
       <div className="p-5 rounded-xl border border-line bg-surface space-y-3">
         <div className="flex items-center justify-between">
           <button
@@ -570,6 +614,51 @@ export function FileServer() {
               Scan with your phone or tablet camera to open Smaran HFS on your local network:
             </p>
             <p className="font-mono text-xs text-[#e06c43] break-all text-center">{qrModalUrl}</p>
+          </div>
+        </Dialog>
+      )}
+
+      {/* Reset Confirmation Modal */}
+      {showResetDialog && (
+        <Dialog
+          open={showResetDialog}
+          title="Reset File Server to Default Settings?"
+          onClose={() => !resetting && setShowResetDialog(false)}
+          actions={
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowResetDialog(false)}
+                disabled={resetting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleResetDefaults}
+                disabled={resetting}
+              >
+                {resetting ? 'Resetting...' : 'Confirm Reset to Defaults'}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4 text-xs text-zinc-300">
+            <p>
+              Are you sure you want to reset all Smaran HFS settings back to factory defaults?
+            </p>
+            <div className="p-3 rounded-lg bg-[#0c0c0e] border border-line space-y-1.5 font-mono text-[11px]">
+              <div>• Port: <span className="text-[#e06c43]">5901</span></div>
+              <div>• Admin Username: <span className="text-[#e06c43]">smaran</span></div>
+              <div>• Admin Password: <span className="text-[#e06c43]">smaran</span></div>
+              <div>• Default Plugins: <span className="text-emerald-400">19 bundled plugins enabled</span></div>
+              <div>• Web Reset URL: <span className="text-zinc-400">http://&lt;lan-ip&gt;:5901/~/admin/reset</span></div>
+            </div>
+            <p className="text-amber-400/90 text-[11px]">
+              Note: Files stored in your shared directories will remain safe and untouched.
+            </p>
           </div>
         </Dialog>
       )}

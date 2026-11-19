@@ -73,6 +73,7 @@ export const IPC = {
   fileserverAdminGet: 'fileserver:admin:get',
   fileserverAdminSet: 'fileserver:admin:set',
   fileserverOpenUrl: 'fileserver:openUrl',
+  fileserverResetDefaults: 'fileserver:reset-defaults',
   // Broadcast events
   fileserverStatusChanged: 'fileserver:event:statusChanged',
   fileserverLogAdded: 'fileserver:event:logAdded',
