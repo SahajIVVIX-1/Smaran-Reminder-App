@@ -1,3 +1,23 @@
+# Smaran 3.3.10
+
+- **Redesigned Desktop File Server Dashboard:** Completely overhauled the desktop application File Server interface (`src/renderer/app/pages/FileServer.tsx`) into an elegant, high-contrast, modern control center adhering strictly to Smaran's design system (`bg-surface`, `bg-sheet`, `border-line`, `text-ink`, `text-muted`, and warm amber `#e06c43`).
+- **Removed Engine Version Badges:** Removed all user-facing `HFS 3.4.1 Engine` badges and labels from the desktop File Server page, maintaining a unified commercial product presentation while preserving internal technical compatibility.
+- **Removed Desktop Activity Logs Table:** Completely removed the desktop activity logs table, clear log buttons, and log display controls from the desktop UI to eliminate clutter while leaving internal diagnostic logging, error reporting, and backend process capture fully intact.
+- **Enhanced Start Server Experience:** Redesigned the running state with a live pulsating status beacon, real-time metrics summary (Port, Active Client Connections, Web Access State, and Root Directory name with Explorer button), and organized network endpoint cards.
+- **Polished Network Endpoints & Drive Mount Card:** Split live access into dedicated LAN Wi-Fi cards (with 1-click URL copy and QR Code modal) and Localhost/WebDAV cards with integrated Windows Explorer Drive Z: mounting status feedback.
+- **Refined Admin & Storage Settings Grid:** Beautiful two-column configuration section for live Admin Credentials (username and password with visibility toggle) and Storage/Networking parameters (Root folder picker, HTTP port, and auto-start toggle).
+- **Safe Reset to Defaults Modal:** Added a dedicated Danger Zone card with a 2-step confirmation modal to restore factory configuration without accidental clicks.
+
+---
+
+# Smaran 3.3.9
+
+- **Pre-bundled 19 Official Plugins:** Included 19 high-value HFS plugins out-of-the-box (`archive-viewer`, `file-resumer`, `image-tools`, `mediainfo`, `pdf-viewer`, `search`, `srt-subtitles`, etc.) pre-configured as defaults.
+- **Client Frontend Favicon:** Added official Smaran branding favicon to the client browser dashboard.
+- **Reset Configuration to Defaults:** Added factory reset capabilities both via desktop app confirmation and in-browser endpoint (`/~/admin/reset`).
+
+---
+
 # Smaran 3.3.8
 
 - **Professional Redesigned Web Admin Sidebar:** Replaced the default bright orange sidebar with an obsidian dark theme palette (`#111114`), high-contrast typography, warm amber accents (`#e06c43`), smooth hover and selection transitions, and active navigation indicators.
