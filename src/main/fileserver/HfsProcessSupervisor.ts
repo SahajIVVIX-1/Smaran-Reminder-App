@@ -287,7 +287,11 @@ export class HfsProcessSupervisor {
 
   public async ensureEngineExtracted(): Promise<void> {
     const runtimeScript = path.join(this.runtimeDir, 'src', 'index.js');
-    if (fs.existsSync(runtimeScript)) {
+    const runtimePkg = path.join(this.runtimeDir, 'package.json');
+    const runtimeCentral = path.join(this.runtimeDir, 'central.json');
+
+    // If already extracted and verified, zero work needed
+    if (fs.existsSync(runtimeScript) && fs.existsSync(runtimePkg) && fs.existsSync(runtimeCentral)) {
       return;
     }
 
@@ -315,24 +319,56 @@ export class HfsProcessSupervisor {
       return;
     }
 
+    // Pre-extraction integrity verification
+    const stat = fs.statSync(foundArchive);
+    if (stat.size < 1_000_000) {
+      const err = `HFS engine archive is incomplete or truncated (${stat.size} bytes): ${foundArchive}`;
+      this.addLog('error', err);
+      throw new Error(err);
+    }
+
     if (!fs.existsSync(this.runtimeDir)) {
       fs.mkdirSync(this.runtimeDir, { recursive: true });
     }
 
     this.addLog('info', 'Extracting self-contained Smaran HFS engine components...');
     const startTime = Date.now();
-    await new Promise<void>((resolve, reject) => {
-      execFile('tar.exe', ['-xzf', foundArchive, '-C', this.runtimeDir], (err) => {
-        if (err) {
-          this.addLog('error', `Failed to extract HFS engine: ${err.message}`);
-          reject(err);
-        } else {
-          const elapsed = Date.now() - startTime;
-          this.addLog('info', `Smaran HFS engine extracted in ${elapsed}ms.`);
-          resolve();
-        }
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        execFile('tar.exe', ['-xzf', foundArchive, '-C', this.runtimeDir], (err) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
       });
-    });
+    } catch (extractErr) {
+      this.addLog('error', `Failed to extract HFS engine: ${extractErr instanceof Error ? extractErr.message : String(extractErr)}`);
+      // Clean up partial extraction
+      try {
+        if (fs.existsSync(runtimeScript)) fs.rmSync(runtimeScript, { force: true });
+      } catch {
+        // Ignore cleanup failure
+      }
+      throw extractErr;
+    }
+
+    // Post-extraction verification
+    if (!fs.existsSync(runtimeScript) || !fs.existsSync(runtimePkg) || !fs.existsSync(runtimeCentral)) {
+      const missing = [
+        !fs.existsSync(runtimeScript) ? 'src/index.js' : null,
+        !fs.existsSync(runtimePkg) ? 'package.json' : null,
+        !fs.existsSync(runtimeCentral) ? 'central.json' : null,
+      ].filter(Boolean).join(', ');
+      const err = `HFS engine extraction incomplete. Missing entry points: ${missing}`;
+      this.addLog('error', err);
+      throw new Error(err);
+    }
+
+    const elapsed = Date.now() - startTime;
+    this.addLog('info', `Smaran HFS engine verified and ready in ${elapsed}ms.`);
   }
 
   public resolveEngineScript(): { scriptPath: string; engineDir: string } {

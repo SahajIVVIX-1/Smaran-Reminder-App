@@ -27,8 +27,12 @@ export const UNINSTALL_ARG = '--uninstall';
  * it carries instead of starting Smaran. See scripts/make-setup.mjs.
  */
 export function isSetupRun(): boolean {
-  const file = process.env['PORTABLE_EXECUTABLE_FILE'];
-  return app.isPackaged && !!file && /setup/i.test(basename(file));
+  if (!app.isPackaged) return false;
+  if (process.argv.some((arg) => /^[-/]+install$/i.test(arg.trim()))) return true;
+  const portableFile = process.env['PORTABLE_EXECUTABLE_FILE'];
+  if (portableFile && /setup|install/i.test(basename(portableFile))) return true;
+  const exeName = basename(process.execPath);
+  return /setup|installer/i.test(exeName);
 }
 
 export function isUninstallRun(): boolean {

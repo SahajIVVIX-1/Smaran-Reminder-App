@@ -462,7 +462,7 @@ pause
 export function generateHfsConfigYaml(options: GenerateConfigOptions): string {
   const { settings, users = [], vfs = [], adminPassword } = options;
   const adminUser = settings.adminUsername || 'smaran';
-  const adminPwd = adminPassword || settings.adminPassword || 'smaran';
+  const adminPwd = adminPassword || settings.adminPassword || '';
 
   const accountsRecord: Record<string, unknown> = {
     [adminUser]: {
@@ -543,7 +543,7 @@ export function syncHfsConfigFile(
 ): void {
   const { settings, adminPassword, previousAdminUsername, defaultStorageDir } = options;
   const adminUser = settings.adminUsername || 'smaran';
-  const adminPwd = adminPassword || settings.adminPassword || 'smaran';
+  const adminPwd = adminPassword || settings.adminPassword || '';
   const storageRoot = settings.rootDir || defaultStorageDir;
   const rootDir = storageRoot.replace(/\\/g, '/');
 

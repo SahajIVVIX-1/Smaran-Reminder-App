@@ -1,8 +1,32 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FileServerSettings, UserAccount } from '@shared/fileserver';
 
 const FILE_SERVER_STORE_NAME = 'fileserver.json';
+
+export function generateSecurePassword(): string {
+  // 16-character cryptographically secure URL-safe password
+  return crypto.randomBytes(12).toString('base64url');
+}
+
+export function validateAdminPassword(password: string): { ok: boolean; error?: string } {
+  if (!password || typeof password !== 'string') {
+    return { ok: false, error: 'Password cannot be empty.' };
+  }
+  const trimmed = password.trim();
+  if (trimmed.length < 8) {
+    return { ok: false, error: 'Password must be at least 8 characters long.' };
+  }
+  const banned = ['smaran', 'admin', 'password', '12345678', '123456789', 'administrator'];
+  if (banned.includes(trimmed.toLowerCase())) {
+    return {
+      ok: false,
+      error: 'Password cannot be a common default or weak password (e.g. smaran, admin, password).',
+    };
+  }
+  return { ok: true };
+}
 
 export interface FileServerData {
   settings: FileServerSettings;
@@ -25,35 +49,77 @@ export class FileServerStore {
       rootDir: '',
       autoStart: true,
       autoOpenAdminOnStart: false,
-      adminUsername: 'smaran',
-      adminPassword: 'smaran',
+      adminUsername: 'admin',
+      adminPassword: '',
     };
 
     if (fs.existsSync(this.filePath)) {
       try {
         const raw = fs.readFileSync(this.filePath, 'utf8');
         const parsed = JSON.parse(raw);
+        let settings: FileServerSettings = { ...defaultSettings, ...(parsed.settings || {}) };
+        let users: UserAccount[] = parsed.users || [];
+
+        // Upgrade insecure or empty legacy default passwords to a unique cryptographically generated password
+        if (!settings.adminPassword || settings.adminPassword === 'smaran') {
+          const securePass = generateSecurePassword();
+          settings = { ...settings, adminPassword: securePass };
+          users = [
+            {
+              id: 'admin',
+              username: settings.adminUsername || 'admin',
+              password: securePass,
+              role: 'admin',
+              isSystem: true,
+            },
+            ...users.filter((u) => u.username !== 'smaran' && u.username !== 'admin'),
+          ];
+          this.data = { settings, users };
+          this.save();
+        }
+
         return {
-          settings: { ...defaultSettings, ...(parsed.settings || {}) },
-          users: parsed.users || [],
+          settings,
+          users,
         };
       } catch (err) {
         console.error('Failed to parse fileserver.json:', err);
       }
     }
 
-    return {
-      settings: defaultSettings,
-      users: [
-        {
-          id: 'smaran',
-          username: 'smaran',
-          password: 'smaran',
-          role: 'admin',
-          isSystem: true,
-        },
-      ],
+    // First initialization: generate unique, high-entropy credentials
+    const initialPassword = generateSecurePassword();
+    const initialSettings: FileServerSettings = {
+      ...defaultSettings,
+      adminUsername: 'admin',
+      adminPassword: initialPassword,
     };
+    const initialUsers: UserAccount[] = [
+      {
+        id: 'admin',
+        username: 'admin',
+        password: initialPassword,
+        role: 'admin',
+        isSystem: true,
+      },
+    ];
+
+    const initialData: FileServerData = {
+      settings: initialSettings,
+      users: initialUsers,
+    };
+
+    try {
+      const dir = path.dirname(this.filePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(this.filePath, JSON.stringify(initialData, null, 2), 'utf8');
+    } catch {
+      // Ignore initial write failure
+    }
+
+    return initialData;
   }
 
   private save(): void {

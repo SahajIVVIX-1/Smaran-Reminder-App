@@ -376,6 +376,21 @@ export function FileServer() {
       });
       return;
     }
+    if (adminPassword.trim().length < 8) {
+      setCredFeedback({
+        type: 'error',
+        message: 'Password must be at least 8 characters long.',
+      });
+      return;
+    }
+    const banned = ['smaran', 'admin', 'password', '12345678', '123456789'];
+    if (banned.includes(adminPassword.trim().toLowerCase())) {
+      setCredFeedback({
+        type: 'error',
+        message: 'Password cannot be a common default or weak password (e.g. smaran, admin, password).',
+      });
+      return;
+    }
     setCredSaving(true);
     setCredFeedback(null);
     if (status?.running) {
@@ -429,8 +444,8 @@ export function FileServer() {
         setSettings(s);
         setPortInput(String(s.port || 5901));
         const creds = await window.smaran.fileserver.getAdminCredentials();
-        setAdminUsername(creds.username || 'smaran');
-        setAdminPassword(creds.password || 'smaran');
+        setAdminUsername(creds.username || 'admin');
+        setAdminPassword(creds.password || '');
         setShowResetDialog(false);
         setServerError(null);
         setPortFeedback({ type: 'success', message: 'Reset to factory defaults completed.' });
@@ -1232,8 +1247,8 @@ export function FileServer() {
             </p>
             <div className="p-3 rounded-lg bg-[#0c0c0e] border border-line space-y-1.5 font-mono text-[11px]">
               <div>• Port: <span className="text-accent">5901</span></div>
-              <div>• Admin Username: <span className="text-accent">smaran</span></div>
-              <div>• Admin Password: <span className="text-accent">smaran</span></div>
+              <div>• Admin Username: <span className="text-accent">admin</span></div>
+              <div>• Admin Password: <span className="text-accent">A unique, high-entropy password is generated</span></div>
               <div>• Default Plugins: <span className="text-emerald-400">19 bundled plugins enabled</span></div>
               <div>• Web Reset URL: <span className="text-zinc-400">http://&lt;lan-ip&gt;:5901/~/admin/reset</span></div>
             </div>

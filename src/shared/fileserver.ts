@@ -26,8 +26,8 @@ export const FileServerSettingsSchema = z.object({
   rootDir: z.string().default(''),
   autoStart: z.boolean().default(true),
   autoOpenAdminOnStart: z.boolean().default(false),
-  adminUsername: z.string().default('smaran'),
-  adminPassword: z.string().default('smaran'),
+  adminUsername: z.string().default('admin'),
+  adminPassword: z.string().default(''),
 });
 
 export type FileServerSettings = z.infer<typeof FileServerSettingsSchema>;

@@ -7,7 +7,7 @@ import { BrowserWindow, dialog, shell } from 'electron';
 import * as QRCode from 'qrcode';
 import { IPC } from '@shared/channels';
 import type { FileServerSettings, ServerLogEntry, ServerStatus } from '@shared/fileserver';
-import { FileServerStore } from './FileServerStore';
+import { FileServerStore, generateSecurePassword, validateAdminPassword } from './FileServerStore';
 import {
   checkDirectoryPermissions,
   checkPortAvailable,
@@ -87,8 +87,11 @@ export class FileServerManager {
         throw new Error('Admin username cannot be empty.');
       }
 
-      if (patch.adminPassword !== undefined && !patch.adminPassword.trim()) {
-        throw new Error('Admin password cannot be empty.');
+      if (patch.adminPassword !== undefined) {
+        const val = validateAdminPassword(patch.adminPassword);
+        if (!val.ok) {
+          throw new Error(val.error);
+        }
       }
 
       // 2. Persist to store
@@ -228,9 +231,16 @@ export class FileServerManager {
     username: string;
     password: string;
   }): Promise<{ ok: boolean; error?: string }> {
+    const val = validateAdminPassword(creds.password);
+    if (!val.ok) {
+      return { ok: false, error: val.error };
+    }
+    if (!creds.username || !creds.username.trim()) {
+      return { ok: false, error: 'Admin username cannot be empty.' };
+    }
     try {
       await this.updateSettings({
-        adminUsername: creds.username,
+        adminUsername: creds.username.trim(),
         adminPassword: creds.password,
       });
       return { ok: true };
@@ -246,14 +256,15 @@ export class FileServerManager {
         await this.supervisor.stop();
 
         const defaultDir = this.supervisor.getDefaultStorageDir();
+        const freshPassword = generateSecurePassword();
         const defaultSettings: FileServerSettings = {
           enabled: true,
           port: 5901,
           rootDir: defaultDir,
           autoStart: true,
           autoOpenAdminOnStart: false,
-          adminUsername: 'smaran',
-          adminPassword: 'smaran',
+          adminUsername: 'admin',
+          adminPassword: freshPassword,
         };
 
         this.store.updateSettings(defaultSettings);
@@ -261,7 +272,7 @@ export class FileServerManager {
         const yaml = generateHfsConfigYaml({
           settings: defaultSettings,
           users: [],
-          adminPassword: 'smaran',
+          adminPassword: freshPassword,
         });
 
         fs.writeFileSync(this.supervisor.getConfigYamlPath(), yaml, 'utf8');
@@ -305,8 +316,8 @@ export class FileServerManager {
     const port = settings.port || 5901;
     const url = `http://127.0.0.1:${port}/`;
     const uncPath = `\\\\127.0.0.1@${port}\\DavWWWRoot`;
-    const user = payload?.username || settings.adminUsername || 'smaran';
-    const pwd = payload?.password || settings.adminPassword || 'smaran';
+    const user = payload?.username || settings.adminUsername || 'admin';
+    const pwd = payload?.password || settings.adminPassword;
 
     try {
       // 1. Delete previous mapping on this drive letter if any

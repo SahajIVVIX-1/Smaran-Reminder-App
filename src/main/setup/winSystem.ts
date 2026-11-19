@@ -39,12 +39,20 @@ export function appEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
-/** PowerShell selecting every other Smaran process (not this one or its own helper processes). */
-const others = () =>
-  `Get-CimInstance Win32_Process -Filter "Name='${EXE_NAME}'" | Where-Object { $_.ProcessId -ne ${process.pid} -and $_.ParentProcessId -ne ${process.pid} }`;
+/**
+ * Selects only strictly verified Smaran processes:
+ * 1. Process name is Smaran.exe, distinct from current PID/parent, and verified by path containing 'smaran'.
+ * 2. Or child process spawned specifically for Smaran HFS (CommandLine contains 'fileserver_engine' AND 'config.yaml').
+ * Unrelated Electron, Node or third-party applications will NEVER match this.
+ */
+const verifiedSmaranProcs = () =>
+  `Get-CimInstance Win32_Process | Where-Object { ` +
+  `($_.Name -eq '${EXE_NAME}' -and $_.ProcessId -ne ${process.pid} -and $_.ParentProcessId -ne ${process.pid} -and ($_.ExecutablePath -match '(?i)smaran')) -or ` +
+  `($_.CommandLine -and $_.CommandLine -match '(?i)fileserver_engine' -and $_.CommandLine -match '(?i)config\\.yaml') ` +
+  `}`;
 
 export async function countOtherSmarans(): Promise<number> {
-  const out = await powershell(`@(${others()}).Count`).catch(() => '0');
+  const out = await powershell(`@(${verifiedSmaranProcs()}).Count`).catch(() => '0');
   return Number.parseInt(out.trim(), 10) || 0;
 }
 
@@ -66,13 +74,72 @@ export async function isSmaranRunningFrom(dir: string): Promise<boolean> {
   }
 }
 
-/** Waits up to timeoutMs for a Smaran instance to be confirmed running from dir. */
-export async function waitForSmaranRunningFrom(dir: string, timeoutMs = 4500): Promise<boolean> {
+/**
+ * Verifies the actual application window and startup readiness, not just process existence.
+ * Returns:
+ * - 'READY': Process is alive AND has created an initialized GUI window (MainWindowHandle != 0).
+ * - 'STARTED': Process is alive and running its main message loop, initializing.
+ * - 'NONE': Process is not running or exited.
+ */
+export async function checkSmaranReadiness(dir: string): Promise<'READY' | 'STARTED' | 'NONE'> {
+  const cleanDir = dir.replace(/\\/g, '\\\\').toLowerCase().replace(/'/g, "''");
+  const ps = `
+    $procs = @(Get-Process -Name 'Smaran' -ErrorAction SilentlyContinue | Where-Object {
+      $_.Path -and $_.Path.ToLower().StartsWith('${cleanDir}') -and $_.Id -ne ${process.pid}
+    });
+    if ($procs.Count -eq 0) { 'NONE'; exit }
+    $hasWindow = $procs | Where-Object { $_.MainWindowHandle -ne 0 -or ($_.MainWindowTitle -and $_.MainWindowTitle.Length -gt 0) };
+    if ($hasWindow) { 'READY' } else { 'STARTED' }
+  `;
+  try {
+    const out = await powershell(ps);
+    const trimmed = out.trim();
+    if (trimmed.includes('READY')) return 'READY';
+    if (trimmed.includes('STARTED')) return 'STARTED';
+    return 'NONE';
+  } catch {
+    return 'NONE';
+  }
+}
+
+/**
+ * Polls for process startup AND GUI window readiness up to timeoutMs.
+ */
+export async function waitForSmaranReadyFrom(
+  dir: string,
+  timeoutMs = 7000,
+): Promise<{ ok: boolean; error?: string }> {
+  let sawStarted = false;
   for (let waited = 0; waited <= timeoutMs; waited += 300) {
-    if (await isSmaranRunningFrom(dir)) return true;
+    const state = await checkSmaranReadiness(dir);
+    if (state === 'READY') {
+      return { ok: true };
+    }
+    if (state === 'STARTED') {
+      sawStarted = true;
+    } else if (sawStarted && state === 'NONE') {
+      return {
+        ok: false,
+        error: 'Smaran process started but terminated unexpectedly before showing its window.',
+      };
+    }
     await sleep(300);
   }
-  return false;
+
+  // Final check: if process is running and responding
+  const finalState = await checkSmaranReadiness(dir);
+  if (finalState === 'READY' || finalState === 'STARTED') return { ok: true };
+
+  return {
+    ok: false,
+    error: `Timed out after ${timeoutMs}ms waiting for Smaran window to initialize.`,
+  };
+}
+
+/** Waits up to timeoutMs for a Smaran instance to be confirmed running from dir. */
+export async function waitForSmaranRunningFrom(dir: string, timeoutMs = 4500): Promise<boolean> {
+  const res = await waitForSmaranReadyFrom(dir, timeoutMs);
+  return res.ok;
 }
 
 /** Waits up to `ms` for every other Smaran to be gone; true if they are. */
@@ -88,7 +155,7 @@ async function goneWithin(ms: number): Promise<boolean> {
  * Closes any running Smaran (installed or portable, wherever it is), so its files can be
  * replaced or removed: first politely, so it saves its history; then by force; and if it runs
  * as administrator (so a normal force-close is refused), with Windows' permission prompt.
- * Also cleans up any lingering Smaran HFS child processes.
+ * Only targets strictly verified Smaran and Smaran HFS processes.
  * Returns true once none are left.
  */
 export async function closeOtherSmarans(quitArg: string): Promise<boolean> {
@@ -97,31 +164,25 @@ export async function closeOtherSmarans(quitArg: string): Promise<boolean> {
   await new Promise<void>((resolve) =>
     execFile(process.execPath, [quitArg], { env: appEnv(), windowsHide: true }, () => resolve()),
   );
-  if (await goneWithin(4000)) return true;
+  if (await goneWithin(3500)) return true;
 
+  // Terminate strictly verified Smaran and Smaran HFS processes only
   await quietly(
     powershell(
-      `${others()} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`,
-    ),
-  );
-
-  // Terminate any orphaned HFS Node engine child processes
-  await quietly(
-    powershell(
-      `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*fileserver_engine*' -or ($_.CommandLine -like '*ELECTRON_RUN_AS_NODE*' -and $_.CommandLine -like '*index.js*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`,
+      `${verifiedSmaranProcs()} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`,
     ),
   );
 
   if (await goneWithin(1500)) return true;
 
-  // Still there: it was started as administrator. Ask Windows to end just those processes.
+  // Still there: it was started as administrator. Ask Windows to end just those verified processes.
   await quietly(
     powershell(
-      `$ids = @(${others()} | ForEach-Object { '/PID'; $_.ProcessId }); ` +
+      `$ids = @(${verifiedSmaranProcs()} | ForEach-Object { '/PID'; $_.ProcessId }); ` +
         `if ($ids.Count) { Start-Process -FilePath taskkill.exe -ArgumentList (@('/F','/T') + $ids) -Verb RunAs -WindowStyle Hidden -Wait }`,
     ),
   );
-  return goneWithin(4000);
+  return goneWithin(3500);
 }
 
 // ---------- registry ----------

@@ -1,6 +1,7 @@
 // Creates release/<version>/installer and release/<version>/portable before electron-builder runs.
 // NSIS will not create a missing output folder, so the artifactName subfolders must exist up front.
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -20,27 +21,52 @@ for (const kind of ['installer', 'portable']) {
 }
 console.log(`Prepared release/${version}/{installer,portable}`);
 
-// Bundle HFS engine into resources/engine.tar.gz for self-contained, lightning-fast distribution
+// Bundle and strictly verify HFS engine into resources/engine.tar.gz
 const targetArchive = join(root, 'resources', 'engine.tar.gz');
 const targetEngineDir = join(root, 'resources', 'engine', 'dist');
 
 if (!existsSync(targetArchive) && existsSync(targetEngineDir)) {
   console.log(`Packaging engine archive ${targetArchive} from ${targetEngineDir}...`);
   try {
-    const { execFileSync } = await import('node:child_process');
     execFileSync('tar.exe', ['-czf', targetArchive, '-C', targetEngineDir, '.'], {
       windowsHide: true,
     });
     console.log(`Packed ${targetArchive}`);
   } catch (err) {
-    console.warn(`Failed to package engine archive: ${err.message}`);
+    console.error(`FATAL: Failed to package engine archive: ${err.message}`);
+    process.exit(1);
   }
 }
 
-if (existsSync(targetArchive)) {
-  console.log(`Self-contained HFS engine archive verified at ${targetArchive}`);
-} else {
-  console.warn(`Warning: Engine archive ${targetArchive} not found!`);
+// Strict archive integrity verification
+if (!existsSync(targetArchive)) {
+  console.error(`FATAL: Required HFS engine archive missing at ${targetArchive}`);
+  process.exit(1);
+}
+
+const archiveStat = statSync(targetArchive);
+if (archiveStat.size < 1_000_000) {
+  console.error(`FATAL: HFS engine archive is incomplete or truncated (${archiveStat.size} bytes)`);
+  process.exit(1);
+}
+
+try {
+  const list = execFileSync('tar.exe', ['-ztf', targetArchive], {
+    encoding: 'utf8',
+    windowsHide: true,
+    maxBuffer: 10 * 1024 * 1024,
+  });
+  const required = ['src/index.js', 'package.json', 'central.json'];
+  for (const req of required) {
+    if (!list.includes(req)) {
+      console.error(`FATAL: Engine archive is missing required entry point: ${req}`);
+      process.exit(1);
+    }
+  }
+  console.log(`[PASS] Self-contained HFS engine archive verified (${(archiveStat.size / (1024 * 1024)).toFixed(2)} MB, all entry points valid).`);
+} catch (err) {
+  console.error(`FATAL: Failed to inspect engine archive integrity: ${err.message}`);
+  process.exit(1);
 }
 
 
