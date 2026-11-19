@@ -1,3 +1,12 @@
+# Smaran 3.3.15
+
+- **Unified File Server Design System:** Completely overhauled `FileServer.tsx` to align seamlessly with Smaran's design tokens and aesthetic established across `Reminders`, `Automations`, `Today`, and `Settings`. Replaced disparate 2-column numbered developer boxes with standard Smaran containers (`max-w-[820px] px-7 pt-8 pb-16`), canonical Anthropic Serif typography (`font-serif text-[26px] leading-tight`), consistent action button layouts, and native `Card` and `Row` structures.
+- **Header Alignment & Status Toolbar:** Replaced oversized hero box with a standardized Smaran page header displaying live server controls ("Admin Panel ↗", "Restart", "Stop Server" / "Start Server") directly in the header toolbar, accompanied by an elegant live status overview card with metric badges.
+- **Left Panel Navigation Polish:** Removed the redundant "Reminders are on" status indicator from the left navigation sidebar in `App.tsx` for a cleaner, distraction-free sidebar layout.
+- **Custom Themed 404 & 403 Error Pages:** Integrated full Smaran-branded vector art and obsidian theme into HFS error pages served by the engine.
+
+---
+
 # Smaran 3.3.14
 
 - **Restored Pre-Installation Setup Screen & User Control:** Fixed installer regression where double-clicking the Setup executable started copying files immediately. Restored the dedicated pre-installation screen presenting destination path (`%LOCALAPPDATA%\Programs\Smaran`), license status, and user action buttons: "Start Installation", "Change License…", and "Cancel". The installer strictly waits for explicit user confirmation before touching the disk.

@@ -9,7 +9,7 @@ import { generateSecurePassword, validateAdminPassword } from '../../src/main/fi
 describe('Setup Architecture & WinSystem Tests', () => {
   it('appEnv strictly strips all PORTABLE_EXECUTABLE_* variables while preserving others', () => {
     const origEnv = { ...process.env };
-    process.env['PORTABLE_EXECUTABLE_FILE'] = 'C:\\Temp\\Smaran-Setup-3.3.14.exe';
+    process.env['PORTABLE_EXECUTABLE_FILE'] = 'C:\\Temp\\Smaran-Setup-3.3.15.exe';
     process.env['PORTABLE_EXECUTABLE_DIR'] = 'C:\\Temp';
     process.env['PORTABLE_EXECUTABLE_APP_FILENAME'] = 'Smaran.exe';
     process.env['USER_CUSTOM_VAR'] = 'keep_me_intact';

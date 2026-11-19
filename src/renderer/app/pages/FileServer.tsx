@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FileServerSettings, ServerStatus } from '@shared/fileserver';
+import { cx } from '../cx';
 import {
   ArrowDownIcon,
   BoltIcon,
@@ -7,8 +8,6 @@ import {
   CopyIcon,
   FolderIcon,
   GlobeIcon,
-  LinkIcon,
-  LockIcon,
   PlayIcon,
   PowerIcon,
   QrIcon,
@@ -17,7 +16,7 @@ import {
   ShieldIcon,
   XIcon,
 } from '../icons';
-import { Button, Dialog, IconButton, Input, Switch } from '../ui';
+import { Button, Card, Dialog, IconButton, Input, Row, Switch } from '../ui';
 
 export function FileServer() {
   const [status, setStatus] = useState<ServerStatus | null>(null);
@@ -148,7 +147,7 @@ export function FileServer() {
     setQrModalUrl(url);
   };
 
-  // Section 1: Server Port Apply
+  // Section: Server Port Apply
   const handleApplyPort = async () => {
     const num = parseInt(portInput.trim(), 10);
     if (isNaN(num) || num < 1024 || num > 65535) {
@@ -195,7 +194,7 @@ export function FileServer() {
     }
   };
 
-  // Section 2: Storage Root Directory
+  // Section: Storage Root Directory
   const handlePickRootDir = async () => {
     setStorageLoading(true);
     setStorageFeedback(null);
@@ -255,7 +254,7 @@ export function FileServer() {
     await window.smaran.fileserver.openFolder('');
   };
 
-  // Section 3: WebDAV Mounting & Unmounting
+  // Section: WebDAV Mounting & Unmounting
   const handleMountDrive = async () => {
     setDriveMounting(true);
     setDriveFeedback(null);
@@ -367,7 +366,7 @@ export function FileServer() {
     }
   };
 
-  // Section 4: Administrator Credentials
+  // Section: Administrator Credentials
   const handleSaveCredentials = async () => {
     if (!adminUsername.trim() || !adminPassword.trim()) {
       setCredFeedback({
@@ -424,7 +423,7 @@ export function FileServer() {
     }
   };
 
-  // Section 5: Browser & Admin Launch
+  // Section: Browser & Admin Launch
   const handleAutoOpenAdminChange = async (autoOpenAdminOnStart: boolean) => {
     try {
       const updated = await window.smaran.fileserver.saveSettings({ autoOpenAdminOnStart });
@@ -464,15 +463,70 @@ export function FileServer() {
   const adminUrl = `http://localhost:${currentPort}/~/admin/`;
   const webdavLocalUrl = `http://127.0.0.1:${currentPort}/`;
   const primaryLanUrl = status?.lanUrls?.[0] || `http://127.0.0.1:${currentPort}`;
-  const webdavLanUrl = status?.lanUrls?.[0] ? `${status.lanUrls[0]}/` : webdavLocalUrl;
-  const rootStoragePath = status?.rootDir || settings?.rootDir || 'Default (Smaran Files)';
+  const rootStoragePath = status?.rootDir || settings?.rootDir || 'Default (Documents\\Smaran Files)';
   const displayFolderName = rootStoragePath.split(/[/\\]/).filter(Boolean).pop() || 'Smaran Files';
 
   return (
-    <div className="space-y-6 p-6 max-w-5xl mx-auto">
+    <div className="mx-auto max-w-[820px] px-7 pt-8 pb-16 space-y-6">
+      {/* Canonical Smaran Header */}
+      <header className="flex animate-enter items-end gap-4">
+        <div className="flex-1">
+          <h1 className="font-serif text-[26px] leading-tight">File Server</h1>
+          <p className="mt-1 text-[13.5px] text-muted">
+            Self-hosted local file server &amp; WebDAV storage for Windows, macOS and mobile devices.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {isRunning ? (
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handleOpenUrl(adminUrl)}
+              >
+                <ShieldIcon size={14} />
+                Admin Panel ↗
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleRestart}
+                disabled={actionLoading !== null}
+                title="Restart File Server"
+              >
+                <RefreshIcon
+                  size={13}
+                  className={actionLoading === 'restarting' ? 'animate-spin text-accent' : ''}
+                />
+                Restart
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleStop}
+                disabled={actionLoading !== null}
+              >
+                <PowerIcon size={14} />
+                Stop Server
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleStart}
+              disabled={actionLoading !== null}
+            >
+              <PlayIcon size={14} />
+              {actionLoading === 'starting' ? 'Starting...' : 'Start Server'}
+            </Button>
+          )}
+        </div>
+      </header>
+
       {/* Global Error Banner */}
       {serverError && (
-        <div className="flex items-start justify-between gap-3 p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-200 text-xs shadow-xs animate-fade">
+        <div className="flex items-start justify-between gap-3 p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-200 text-xs shadow-xs animate-fade">
           <div className="flex items-start gap-2.5">
             <span className="font-semibold text-rose-300">Server Alert:</span>
             <span className="leading-relaxed">{serverError}</span>
@@ -488,24 +542,25 @@ export function FileServer() {
         </div>
       )}
 
-      {/* Top Hero / Live Server Status Card */}
-      <div className="p-5 sm:p-6 rounded-2xl border border-line bg-surface shadow-xs space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5 min-w-0">
-            <div className="w-12 h-12 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent shadow-xs shrink-0">
-              <ServerIcon size={24} />
-            </div>
-            <div className="min-w-0 space-y-1">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-xl font-bold tracking-tight text-ink">Smaran HFS</h1>
+      {/* Hero / Live Server Status Card */}
+      <div className="animate-enter rounded-xl border border-line bg-surface p-4.5 space-y-4 [animation-delay:40ms]">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
+              <ServerIcon size={20} />
+            </span>
+            <div>
+              <div className="flex items-center gap-2.5">
+                <span className="font-medium text-ink text-[15px]">Smaran HFS Engine</span>
                 <span
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border tracking-wide transition-all ${
+                  className={cx(
+                    'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium border',
                     actionLoading
                       ? 'border-accent/30 bg-accent/10 text-accent'
                       : isRunning
-                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-                        : 'border-zinc-700/60 bg-zinc-800/40 text-muted'
-                  }`}
+                        ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-400'
+                        : 'border-line bg-raised text-muted',
+                  )}
                 >
                   {actionLoading ? (
                     <RefreshIcon size={11} className="animate-spin text-accent" />
@@ -515,7 +570,7 @@ export function FileServer() {
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                     </span>
                   ) : (
-                    <span className="w-2 h-2 rounded-full bg-zinc-500" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-faint" />
                   )}
                   {actionLoading === 'starting' && 'Starting Server...'}
                   {actionLoading === 'stopping' && 'Stopping Server...'}
@@ -524,100 +579,49 @@ export function FileServer() {
                   {!actionLoading && (isRunning ? `Running on port ${currentPort}` : 'Server Offline')}
                 </span>
               </div>
-              <p className="text-xs text-muted truncate">
-                Fast, self-hosted local file server &amp; WebDAV storage.
+              <p className="mt-0.5 font-serif text-[13px] text-muted italic">
+                Self-hosted local file server with WebDAV drive mapping and Wi-Fi mobile sharing.
               </p>
             </div>
           </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            {isRunning ? (
-              <>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => handleOpenUrl(adminUrl)}
-                  className="h-8 gap-1.5 text-xs font-medium"
-                >
-                  <ShieldIcon size={13} className="text-muted" />
-                  Admin Panel ↗
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleRestart}
-                  disabled={actionLoading !== null}
-                  title="Restart Server"
-                  className="h-8 gap-1.5 text-xs font-medium"
-                >
-                  <RefreshIcon
-                    size={13}
-                    className={actionLoading === 'restarting' ? 'animate-spin text-accent' : ''}
-                  />
-                  Restart
-                </Button>
-                <button
-                  type="button"
-                  onClick={handleStop}
-                  disabled={actionLoading !== null}
-                  className="h-8 px-3 rounded-lg border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 active:scale-[0.97] text-rose-300 hover:text-rose-100 text-xs font-medium flex items-center gap-1.5 transition-all disabled:opacity-40 cursor-pointer shadow-xs"
-                >
-                  <PowerIcon size={13} />
-                  Stop Server
-                </button>
-              </>
-            ) : (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleStart}
-                disabled={actionLoading !== null}
-                className="h-8 px-4 gap-1.5 text-xs font-semibold shadow-xs"
-              >
-                <PlayIcon size={14} />
-                Start Server
-              </Button>
-            )}
-          </div>
         </div>
 
-        {/* Live Metrics Row (Shown when running) */}
         {isRunning && (
-          <div className="pt-3 border-t border-line/60 grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-3 rounded-xl border border-line bg-surface-raised space-y-1">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-3 border-t border-line">
+            <div className="rounded-lg border border-line bg-raised p-2.5 space-y-0.5">
               <span className="text-[11px] font-medium text-muted uppercase tracking-wider block">
                 HTTP Port
               </span>
-              <span className="font-mono text-sm font-semibold text-accent">{currentPort}</span>
+              <span className="font-mono text-[13px] font-semibold text-accent">{currentPort}</span>
             </div>
-            <div className="p-3 rounded-xl border border-line bg-surface-raised space-y-1">
+            <div className="rounded-lg border border-line bg-raised p-2.5 space-y-0.5">
               <span className="text-[11px] font-medium text-muted uppercase tracking-wider block">
                 Active Clients
               </span>
-              <span className="font-mono text-sm font-semibold text-ink">
+              <span className="font-mono text-[13px] font-semibold text-ink">
                 {status?.liveConnections ?? 0}{' '}
-                <span className="text-xs text-muted font-normal">
+                <span className="text-[11px] text-muted font-normal font-sans">
                   {(status?.liveConnections ?? 0) === 1 ? 'conn' : 'conns'}
                 </span>
               </span>
             </div>
-            <div className="p-3 rounded-xl border border-line bg-surface-raised space-y-1">
+            <div className="rounded-lg border border-line bg-raised p-2.5 space-y-0.5">
               <span className="text-[11px] font-medium text-muted uppercase tracking-wider block">
                 Web Access
               </span>
-              <span className="text-xs font-medium text-emerald-400 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span className="text-[12px] font-medium text-emerald-400 flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                 LAN &amp; Localhost
               </span>
             </div>
-            <div className="p-3 rounded-xl border border-line bg-surface-raised space-y-1">
+            <div className="rounded-lg border border-line bg-raised p-2.5 space-y-0.5">
               <span className="text-[11px] font-medium text-muted uppercase tracking-wider block">
                 Storage Folder
               </span>
               <button
                 type="button"
                 onClick={handleOpenStorageFolder}
-                className="text-xs font-medium text-ink hover:text-accent truncate flex items-center gap-1 cursor-pointer transition-colors max-w-full"
+                className="text-[12px] font-medium text-ink hover:text-accent truncate flex items-center gap-1 cursor-pointer transition-colors max-w-full"
                 title={rootStoragePath}
               >
                 <FolderIcon size={12} className="text-accent shrink-0" />
@@ -628,281 +632,102 @@ export function FileServer() {
         )}
       </div>
 
-      {/* SECTION 1: SERVER & SECTION 2: STORAGE (2-column on desktop) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* Section 1: Server Settings */}
-        <div className="p-5 rounded-2xl border border-line bg-surface shadow-xs space-y-4">
-          <div className="border-b border-line pb-3">
-            <div className="flex items-center gap-2">
-              <ServerIcon size={16} className="text-accent" />
-              <h2 className="text-sm font-semibold text-ink">1. Server Configuration</h2>
-            </div>
-            <p className="text-xs text-muted mt-0.5">
-              Configure HTTP listener port and startup behavior
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted">HTTP Server Port</label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  value={portInput}
-                  onChange={(e) => setPortInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') void handleApplyPort();
-                  }}
-                  min={1024}
-                  max={65535}
-                  placeholder="5901"
-                  className="font-mono text-sm"
-                />
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={handleApplyPort}
-                  disabled={portSaving || actionLoading !== null || portInput === String(currentPort)}
-                >
-                  {portSaving ? 'Applying...' : 'Apply Port'}
-                </Button>
-              </div>
-              <p className="text-[11px] text-muted">
-                Standard ports 1024–65535. Applying automatically restarts the running server.
-              </p>
-              {portFeedback && (
-                <div
-                  className={`text-xs p-2 rounded-lg ${
-                    portFeedback.type === 'success'
-                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                      : 'bg-rose-500/10 text-rose-300 border border-rose-500/20'
-                  }`}
-                >
-                  {portFeedback.message}
-                </div>
-              )}
-            </div>
-
-            <div className="pt-2 border-t border-line/60 space-y-1">
-              <Switch
-                checked={settings?.autoStart ?? true}
-                onChange={handleAutoStartChange}
-                label="Auto-start File Server when Smaran opens"
-              />
-              <p className="text-[12px] text-muted">
-                Silently launches the file server engine when the Smaran desktop application starts.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Section 2: Storage Settings */}
-        <div className="p-5 rounded-2xl border border-line bg-surface shadow-xs space-y-4">
-          <div className="border-b border-line pb-3">
-            <div className="flex items-center gap-2">
-              <FolderIcon size={16} className="text-accent" />
-              <h2 className="text-sm font-semibold text-ink">2. Storage Directory</h2>
-            </div>
-            <p className="text-xs text-muted mt-0.5">
-              Root directory served over HTTP and WebDAV
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted">Root Storage Path</label>
-              <div className="p-2.5 rounded-lg border border-line bg-surface-raised font-mono text-xs text-ink truncate select-all" title={rootStoragePath}>
-                {rootStoragePath}
-              </div>
-              <div className="flex items-center gap-2 pt-1">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={handlePickRootDir}
-                  disabled={storageLoading || actionLoading !== null}
-                >
-                  <FolderIcon size={13} />
-                  Browse Folder...
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleOpenStorageFolder}
-                  title="Open folder in Windows Explorer"
-                >
-                  Open Folder
-                </Button>
-                {settings?.rootDir && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={handleResetDefaultFolder}
-                    disabled={storageLoading || actionLoading !== null}
-                    className="text-xs text-muted hover:text-rose-400 ml-auto"
-                  >
-                    Reset to Default
-                  </Button>
-                )}
-              </div>
-              <p className="text-[11px] text-muted">
-                Selecting a new directory immediately updates HFS VFS configuration and reloads files.
-              </p>
-              {storageFeedback && (
-                <div
-                  className={`text-xs p-2 rounded-lg ${
-                    storageFeedback.type === 'success'
-                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                      : 'bg-rose-500/10 text-rose-300 border border-rose-500/20'
-                  }`}
-                >
-                  {storageFeedback.message}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* SECTION 3: WEBDAV NETWORK STORAGE */}
-      <div className="p-5 rounded-2xl border border-line bg-surface shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-line pb-3">
+      {/* WebDAV Network Storage */}
+      <Card
+        title="WebDAV Network Storage"
+        description="Access your Smaran files directly from Windows File Explorer, macOS Finder, or mobile WebDAV apps as a native network drive."
+        className="animate-enter [animation-delay:80ms]"
+      >
+        <Row
+          label="Windows Drive Mapping"
+          hint="Mount your Smaran files as local drive Z: in Windows Explorer with verified connectivity."
+        >
           <div className="flex items-center gap-2">
-            <LinkIcon size={17} className="text-accent" />
-            <h2 className="text-sm font-semibold text-ink">3. WebDAV Network Storage</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${
-                isRunning
-                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-                  : 'border-zinc-700 bg-zinc-800/60 text-zinc-400'
-              }`}
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleMountDrive}
+              disabled={!isRunning || driveMounting}
             >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  isRunning ? 'bg-emerald-400' : 'bg-zinc-500'
-                }`}
-              />
-              {isRunning ? 'WebDAV Active' : 'WebDAV Inactive (Server Offline)'}
-            </span>
+              <FolderIcon size={13} />
+              {driveMounting ? 'Mounting Drive...' : 'Mount as Drive Z:'}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleUnmountDrive}
+              disabled={driveMounting}
+            >
+              Unmount
+            </Button>
           </div>
-        </div>
+        </Row>
 
-        <p className="text-xs text-muted leading-relaxed">
-          Access your Smaran files directly from <strong>Windows File Explorer</strong>, <strong>macOS Finder</strong>, or mobile WebDAV apps as a native network drive. Supports uploading, downloading, folder creation, renaming and deletion.
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-          {/* WebDAV Connection URL Card */}
-          <div className="p-4 rounded-xl border border-line bg-surface-raised space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-medium text-muted uppercase tracking-wider">
-                WebDAV Connection URL
-              </span>
-              <IconButton
-                aria-label="Copy WebDAV URL"
-                title="Copy WebDAV URL"
-                onClick={() => handleCopyUrl(webdavLocalUrl)}
-              >
-                {copiedUrl === webdavLocalUrl ? (
-                  <CheckIcon size={14} className="text-emerald-500" />
-                ) : (
-                  <CopyIcon size={14} />
-                )}
-              </IconButton>
-            </div>
-            <div className="p-2.5 rounded-lg border border-line/60 bg-surface font-mono text-xs font-semibold text-accent break-all select-all">
+        <Row
+          label="WebDAV Connection URL"
+          hint="Endpoint URL for WebDAV clients (supports read, write, rename, folder creation, and delete)."
+        >
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs text-accent px-2.5 py-1 rounded-md bg-raised border border-line select-all">
               {webdavLocalUrl}
-            </div>
-            {status?.lanUrls?.[0] && (
-              <div className="text-[11px] text-muted flex items-center justify-between pt-1">
-                <span>LAN WebDAV:</span>
-                <button
-                  type="button"
-                  onClick={() => handleCopyUrl(webdavLanUrl)}
-                  className="font-mono text-xs text-zinc-300 hover:text-accent transition-colors cursor-pointer"
-                  title="Click to copy LAN WebDAV URL"
-                >
-                  {webdavLanUrl}
-                </button>
-              </div>
-            )}
-            <div className="pt-1 flex items-center justify-between">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-[11px] text-zinc-300 hover:text-white px-2 py-1 h-auto"
-                onClick={handleExportMountScript}
-                disabled={isExportingMountScript}
-                title="Export a standalone .bat script to mount this server from any Windows computer on the network"
-              >
-                <ArrowDownIcon size={12} />
-                {isExportingMountScript ? 'Exporting...' : 'Export Mount Script (.bat)'}
-              </Button>
-            </div>
+            </span>
+            <IconButton
+              aria-label="Copy WebDAV URL"
+              title="Copy WebDAV URL"
+              onClick={() => handleCopyUrl(webdavLocalUrl)}
+            >
+              {copiedUrl === webdavLocalUrl ? (
+                <CheckIcon size={14} className="text-emerald-500" />
+              ) : (
+                <CopyIcon size={14} />
+              )}
+            </IconButton>
           </div>
+        </Row>
 
-          {/* Windows Drive Mount Card */}
-          <div className="p-4 rounded-xl border border-line bg-surface-raised space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-medium text-muted uppercase tracking-wider">
-                Windows Drive Mapping
-              </span>
-              <span className="text-[11px] text-zinc-400 font-mono">Drive Z:</span>
-            </div>
-            <p className="text-[11px] text-muted">
-              Mount your Smaran files as local drive <strong>Z:</strong> in Windows Explorer with verified connectivity.
-            </p>
-            <div className="flex items-center gap-2 pt-1">
-              <Button
-                size="sm"
-                variant="secondary"
-                className="flex-1 justify-center"
-                onClick={handleMountDrive}
-                disabled={!isRunning || driveMounting}
-              >
-                <FolderIcon size={13} />
-                {driveMounting ? 'Mounting Drive...' : 'Mount as Drive Z:'}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={handleUnmountDrive}
-                disabled={driveMounting}
-              >
-                Unmount
-              </Button>
-            </div>
-            <div className="pt-1">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="w-full justify-center text-[11px] text-zinc-400 hover:text-accent px-2 py-1 h-auto border border-line/40 hover:border-accent/40"
-                onClick={handleEnableWebClient}
-                disabled={isEnablingWebClient}
-                title="Configures Windows WebClient service & BasicAuthLevel=2 in registry for HTTP WebDAV mounting"
-              >
-                <BoltIcon size={12} />
-                {isEnablingWebClient ? 'Configuring Windows WebDAV...' : 'Enable WebDAV on this PC (Run Admin Fix)'}
-              </Button>
-            </div>
+        <Row
+          label="Windows WebClient Service & Network Mount"
+          hint="Fix Windows WebDAV connectivity (starts WebClient service & sets BasicAuthLevel=2) or export a batch script for other PCs."
+        >
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleEnableWebClient}
+              disabled={isEnablingWebClient}
+              title="Configures Windows WebClient service & BasicAuthLevel=2 in registry"
+            >
+              <BoltIcon size={12} />
+              {isEnablingWebClient ? 'Configuring...' : 'Enable WebDAV on this PC'}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleExportMountScript}
+              disabled={isExportingMountScript}
+              title="Export a standalone .bat script to mount this server from any Windows computer on the network"
+            >
+              <ArrowDownIcon size={12} />
+              {isExportingMountScript ? 'Exporting...' : 'Export Mount Script (.bat)'}
+            </Button>
           </div>
-        </div>
+        </Row>
 
         {driveFeedback && (
           <div
-            className={`text-xs p-3.5 rounded-xl border space-y-2 ${
+            className={cx(
+              'my-2 rounded-lg border p-3 text-xs space-y-2',
               driveFeedback.type === 'success'
-                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'
-                : 'bg-rose-500/10 text-rose-300 border-rose-500/25'
-            }`}
+                ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+                : 'border-rose-500/25 bg-rose-500/10 text-rose-300',
+            )}
           >
             <div className="flex items-start justify-between gap-2">
               <p className="leading-relaxed flex-1">{driveFeedback.message}</p>
               <button
                 type="button"
                 onClick={() => setDriveFeedback(null)}
-                className="text-zinc-400 hover:text-zinc-200 text-xs px-1"
+                className="text-muted hover:text-ink text-xs cursor-pointer"
                 title="Dismiss"
               >
                 ✕
@@ -921,16 +746,14 @@ export function FileServer() {
                     className="bg-amber-500/20 text-amber-200 border-amber-500/30 hover:bg-amber-500/30 text-xs"
                   >
                     <BoltIcon size={12} />
-                    {isEnablingWebClient
-                      ? 'Configuring Windows WebDAV...'
-                      : '⚡ Fix Windows WebDAV Service (Requires Admin)'}
+                    {isEnablingWebClient ? 'Configuring Windows WebDAV...' : 'Fix Windows WebDAV Service (Run as Admin)'}
                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
                     onClick={handleExportMountScript}
                     disabled={isExportingMountScript}
-                    className="text-xs text-zinc-300 hover:text-white"
+                    className="text-xs text-muted hover:text-ink"
                   >
                     <ArrowDownIcon size={12} />
                     Export Mount Script (.bat)
@@ -939,250 +762,284 @@ export function FileServer() {
               )}
           </div>
         )}
-      </div>
+      </Card>
 
-      {/* SECTION 4: ADMINISTRATOR CREDENTIALS & SECTION 5: BROWSER & ADMIN (2-column on desktop) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* Section 4: Administrator Credentials */}
-        <div className="p-5 rounded-2xl border border-line bg-surface shadow-xs space-y-4">
-          <div className="border-b border-line pb-3">
-            <div className="flex items-center gap-2">
-              <LockIcon size={16} className="text-accent" />
-              <h2 className="text-sm font-semibold text-ink">4. Administrator Credentials</h2>
-            </div>
-            <p className="text-xs text-muted mt-0.5">
-              Credentials for Web Admin Panel and WebDAV authentication
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted">Admin Username</label>
-              <Input
-                value={adminUsername}
-                onChange={(e) => setAdminUsername(e.target.value)}
-                placeholder="smaran"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-muted">Admin Password</label>
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="text-[11px] text-accent hover:underline cursor-pointer"
-                >
-                  {showPassword ? 'Hide' : 'Show'}
-                </button>
-              </div>
-              <Input
-                type={showPassword ? 'text' : 'password'}
-                value={adminPassword}
-                onChange={(e) => setAdminPassword(e.target.value)}
-                placeholder="Enter password..."
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-2">
+      {/* Storage & Server Configuration */}
+      <Card
+        title="Storage & Server Configuration"
+        description="Select the shared folder and configure HTTP port and startup options."
+        className="animate-enter [animation-delay:120ms]"
+      >
+        <Row
+          label="Storage Directory"
+          hint={
+            <span className="truncate block font-mono text-[12px] text-ink select-all" title={rootStoragePath}>
+              {rootStoragePath}
+            </span>
+          }
+        >
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handlePickRootDir}
+              disabled={storageLoading || actionLoading !== null}
+            >
+              <FolderIcon size={13} />
+              Browse...
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleOpenStorageFolder}
+              title="Open folder in Windows Explorer"
+            >
+              Open Folder
+            </Button>
+            {settings?.rootDir && (
               <Button
                 size="sm"
-                variant="secondary"
-                onClick={handleSaveCredentials}
-                disabled={credSaving || actionLoading !== null}
+                variant="ghost"
+                onClick={handleResetDefaultFolder}
+                disabled={storageLoading || actionLoading !== null}
+                className="text-xs text-muted hover:text-rose-400"
               >
-                {credSaving ? 'Saving & Syncing...' : 'Save Credentials'}
+                Reset Default
               </Button>
-            </div>
-
-            {credFeedback && (
-              <div
-                className={`text-xs p-2 rounded-lg ${
-                  credFeedback.type === 'success'
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                    : 'bg-rose-500/10 text-rose-300 border border-rose-500/20'
-                }`}
-              >
-                {credFeedback.message}
-              </div>
             )}
           </div>
-        </div>
-
-        {/* Section 5: Browser & Administration Launch */}
-        <div className="p-5 rounded-2xl border border-line bg-surface shadow-xs space-y-4">
-          <div className="border-b border-line pb-3">
-            <div className="flex items-center gap-2">
-              <ShieldIcon size={16} className="text-accent" />
-              <h2 className="text-sm font-semibold text-ink">5. Browser &amp; Administration</h2>
-            </div>
-            <p className="text-xs text-muted mt-0.5">
-              Browser launch preference and web administration console
-            </p>
+        </Row>
+        {storageFeedback && (
+          <div
+            className={cx(
+              'my-1 rounded-lg border p-2 text-xs',
+              storageFeedback.type === 'success'
+                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+                : 'border-rose-500/20 bg-rose-500/10 text-rose-300',
+            )}
+          >
+            {storageFeedback.message}
           </div>
+        )}
 
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <Switch
-                checked={settings?.autoOpenAdminOnStart ?? false}
-                onChange={handleAutoOpenAdminChange}
-                label="Automatically open Admin Panel after server starts"
-              />
-              <p className="text-[12px] text-muted">
-                Disabled by default. When enabled, your default browser opens the Admin Panel whenever the file server starts.
-              </p>
-            </div>
-
-            <div className="p-3.5 rounded-xl border border-line bg-surface-raised space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-medium text-muted uppercase tracking-wider">
-                  Admin Console URL
-                </span>
-                <IconButton
-                  aria-label="Copy Admin URL"
-                  title="Copy Admin URL"
-                  onClick={() => handleCopyUrl(adminUrl)}
-                >
-                  {copiedUrl === adminUrl ? (
-                    <CheckIcon size={14} className="text-emerald-500" />
-                  ) : (
-                    <CopyIcon size={14} />
-                  )}
-                </IconButton>
-              </div>
-              <div className="p-2 rounded-lg border border-line/60 bg-surface font-mono text-xs text-ink truncate select-all">
-                {adminUrl}
-              </div>
-              <Button
-                size="sm"
-                variant="primary"
-                className="w-full justify-center shadow-xs"
-                onClick={() => handleOpenUrl(adminUrl)}
-                disabled={!isRunning}
-              >
-                <ShieldIcon size={13} />
-                Open Web Admin Panel ↗
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Network Access & Endpoints (LAN Wi-Fi Links & QR Code) */}
-      <div className="p-5 rounded-2xl border border-line bg-surface shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-line pb-3">
+        <Row
+          label="HTTP Server Port"
+          hint="Standard ports 1024–65535. Applying automatically restarts the running server."
+        >
           <div className="flex items-center gap-2">
-            <GlobeIcon size={18} className="text-accent" />
-            <h2 className="text-sm font-semibold text-ink">Network Access &amp; Mobile Sharing</h2>
+            <Input
+              type="number"
+              value={portInput}
+              onChange={(e) => setPortInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleApplyPort();
+              }}
+              min={1024}
+              max={65535}
+              placeholder="5901"
+              className="w-24 font-mono text-center"
+            />
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleApplyPort}
+              disabled={portSaving || actionLoading !== null || portInput === String(currentPort)}
+            >
+              {portSaving ? 'Applying...' : 'Apply Port'}
+            </Button>
           </div>
-          <span className="text-xs text-muted">
-            Connect phones, tablets, and smart TVs on your Wi-Fi network
-          </span>
-        </div>
+        </Row>
+        {portFeedback && (
+          <div
+            className={cx(
+              'my-1 rounded-lg border p-2 text-xs',
+              portFeedback.type === 'success'
+                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+                : 'border-rose-500/20 bg-rose-500/10 text-rose-300',
+            )}
+          >
+            {portFeedback.message}
+          </div>
+        )}
 
-        {isRunning ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 rounded-xl border border-line bg-surface-raised space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-medium text-muted uppercase tracking-wider">
-                  LAN Wi-Fi Link
-                </span>
-                <div className="flex items-center gap-1">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => handleShowQr(primaryLanUrl)}
-                  >
-                    <QrIcon size={13} />
-                    QR Code
-                  </Button>
-                  <IconButton
-                    aria-label="Copy LAN Link"
-                    title="Copy LAN Link"
-                    onClick={() => handleCopyUrl(primaryLanUrl)}
-                  >
-                    {copiedUrl === primaryLanUrl ? (
-                      <CheckIcon size={14} className="text-emerald-500" />
-                    ) : (
-                      <CopyIcon size={14} />
-                    )}
-                  </IconButton>
-                </div>
-              </div>
-              <div className="p-2.5 rounded-lg border border-line/60 bg-surface font-mono text-xs font-semibold text-accent break-all select-all">
+        <Row
+          label="Start File Server when Smaran opens"
+          hint="Silently launches the file server engine when the Smaran desktop application starts."
+          htmlFor="set-fs-autostart"
+        >
+          <Switch
+            id="set-fs-autostart"
+            label="Auto-start File Server"
+            checked={settings?.autoStart ?? true}
+            onChange={handleAutoStartChange}
+          />
+        </Row>
+
+        <Row
+          label="Automatically open Admin Panel after server starts"
+          hint="Disabled by default. When enabled, your default browser opens the Admin Panel whenever the file server starts."
+          htmlFor="set-fs-autoadmin"
+        >
+          <Switch
+            id="set-fs-autoadmin"
+            label="Auto-open Admin Panel"
+            checked={settings?.autoOpenAdminOnStart ?? false}
+            onChange={handleAutoOpenAdminChange}
+          />
+        </Row>
+      </Card>
+
+      {/* Administrator Credentials */}
+      <Card
+        title="Administrator Credentials"
+        description="Manage the login credentials used for the Web Admin Panel and WebDAV authentication."
+        className="animate-enter [animation-delay:160ms]"
+      >
+        <Row
+          label="Admin Username"
+          hint="Administrator account name for server console and WebDAV clients."
+          htmlFor="set-admin-username"
+        >
+          <Input
+            id="set-admin-username"
+            value={adminUsername}
+            onChange={(e) => setAdminUsername(e.target.value)}
+            placeholder="smaran"
+            className="w-48 font-mono text-[13px]"
+          />
+        </Row>
+
+        <Row
+          label="Admin Password"
+          hint="Must be at least 8 characters. Avoid common or default passwords."
+          htmlFor="set-admin-password"
+        >
+          <div className="flex items-center gap-2">
+            <Input
+              id="set-admin-password"
+              type={showPassword ? 'text' : 'password'}
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              placeholder="Enter password..."
+              className="w-44 font-mono text-[13px]"
+            />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setShowPassword(!showPassword)}
+              className="text-[12px] text-muted hover:text-ink"
+            >
+              {showPassword ? 'Hide' : 'Show'}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleSaveCredentials}
+              disabled={credSaving || actionLoading !== null}
+            >
+              {credSaving ? 'Saving...' : 'Save & Sync'}
+            </Button>
+          </div>
+        </Row>
+        {credFeedback && (
+          <div
+            className={cx(
+              'my-1 rounded-lg border p-2 text-xs',
+              credFeedback.type === 'success'
+                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+                : 'border-rose-500/20 bg-rose-500/10 text-rose-300',
+            )}
+          >
+            {credFeedback.message}
+          </div>
+        )}
+      </Card>
+
+      {/* Network Access & Mobile Sharing */}
+      <Card
+        title="Local Network & Mobile Sharing"
+        description="Connect smartphones, tablets, or other computers on your Wi-Fi network."
+        className="animate-enter [animation-delay:200ms]"
+      >
+        <Row
+          label="Wi-Fi Connection Link"
+          hint={
+            isRunning
+              ? 'Open on any phone or browser connected to the same Wi-Fi network.'
+              : 'Start the server above to enable Wi-Fi sharing.'
+          }
+        >
+          {isRunning ? (
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs text-accent px-2.5 py-1 rounded-md bg-raised border border-line select-all">
                 {primaryLanUrl}
-              </div>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="w-full justify-center"
-                onClick={() => handleOpenUrl(primaryLanUrl)}
-              >
-                <LinkIcon size={13} />
-                Open Web File Explorer ↗
-              </Button>
-              {status?.lanUrls && status.lanUrls.length > 1 && (
-                <div className="pt-1 text-[11px] text-muted space-y-1">
-                  <span className="font-medium text-zinc-400">Other Network IPs:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {status.lanUrls.slice(1).map((u) => (
-                      <button
-                        key={u}
-                        type="button"
-                        onClick={() => handleCopyUrl(u)}
-                        className="px-2 py-0.5 rounded font-mono text-[10px] bg-surface border border-line text-zinc-400 hover:text-accent transition-colors cursor-pointer"
-                        title="Click to copy"
-                      >
-                        {u}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="p-4 rounded-xl border border-line bg-surface-raised space-y-3 flex flex-col justify-between">
-              <div className="space-y-2">
-                <span className="text-[11px] font-medium text-muted uppercase tracking-wider block">
-                  Quick Mobile Connection
-                </span>
-                <p className="text-xs text-muted leading-relaxed">
-                  Open the camera on your smartphone or tablet connected to the same Wi-Fi network and scan the QR code to instantly browse, stream, and download files without cables.
-                </p>
-              </div>
+              </span>
               <Button
                 size="sm"
                 variant="secondary"
                 onClick={() => handleShowQr(primaryLanUrl)}
-                className="w-full justify-center"
               >
                 <QrIcon size={13} />
-                Show Fullscreen QR Code
+                QR Code
               </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => handleOpenUrl(primaryLanUrl)}
+              >
+                <GlobeIcon size={13} />
+                Open Web ↗
+              </Button>
+              <IconButton
+                aria-label="Copy Wi-Fi URL"
+                title="Copy Wi-Fi URL"
+                onClick={() => handleCopyUrl(primaryLanUrl)}
+              >
+                {copiedUrl === primaryLanUrl ? (
+                  <CheckIcon size={14} className="text-emerald-500" />
+                ) : (
+                  <CopyIcon size={14} />
+                )}
+              </IconButton>
             </div>
-          </div>
-        ) : (
-          <div className="p-8 rounded-xl border border-line/60 bg-surface-raised/40 text-center space-y-3">
-            <div className="w-10 h-10 rounded-full bg-zinc-800/80 border border-line mx-auto flex items-center justify-center text-zinc-400">
-              <GlobeIcon size={20} />
+          ) : (
+            <span className="text-[12.5px] text-faint italic font-serif">Server Offline</span>
+          )}
+        </Row>
+
+        {isRunning && status?.lanUrls && status.lanUrls.length > 1 && (
+          <Row
+            label="Other Network IPs"
+            hint="Additional local IP addresses detected on your network interfaces."
+          >
+            <div className="flex flex-wrap items-center gap-1.5">
+              {status.lanUrls.slice(1).map((u) => (
+                <button
+                  key={u}
+                  type="button"
+                  onClick={() => handleCopyUrl(u)}
+                  className="rounded border border-line bg-raised px-2 py-0.5 font-mono text-[11px] text-muted hover:text-accent transition-colors cursor-pointer"
+                  title="Click to copy"
+                >
+                  {u}
+                </button>
+              ))}
             </div>
-            <div className="max-w-md mx-auto space-y-1">
-              <h3 className="text-sm font-semibold text-ink">Server is Offline</h3>
-              <p className="text-xs text-muted leading-relaxed">
-                Click <strong>Start Server</strong> above to share your folders over Wi-Fi, scan QR codes on mobile devices, or mount your files as a native Windows drive.
-              </p>
-            </div>
-          </div>
+          </Row>
         )}
-      </div>
+      </Card>
 
       {/* Danger Zone: Reset to Factory Defaults */}
-      <div className="p-5 rounded-2xl border border-rose-950/40 bg-rose-950/10 shadow-xs space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <Card
+        title="Reset File Server to Defaults"
+        description="Revert port to 5901, reset credentials, and restore 19 default plugins. Shared files remain safe."
+        className="animate-enter [animation-delay:240ms] border-danger/30 bg-danger/5"
+      >
+        <div className="flex items-center justify-between py-2">
           <div>
-            <h2 className="text-sm font-semibold text-rose-300">Reset Server to Defaults</h2>
-            <p className="text-xs text-zinc-400 mt-0.5">
-              Revert port to 5901, reset credentials to smaran / smaran, and restore 19 default plugins. Shared files remain safe.
+            <span className="text-[13px] text-ink font-medium">Factory Defaults</span>
+            <p className="mt-0.5 font-serif text-[12.5px] text-muted italic">
+              Restore original server configuration without affecting your shared files or documents.
             </p>
           </div>
           <Button
@@ -1194,7 +1051,7 @@ export function FileServer() {
             {resetting ? 'Resetting...' : 'Reset to Defaults'}
           </Button>
         </div>
-      </div>
+      </Card>
 
       {/* QR Code Modal */}
       {qrModalUrl && qrCodeData && (
@@ -1215,10 +1072,10 @@ export function FileServer() {
               alt="QR Code"
               className="w-56 h-56 rounded-xl border border-line p-2 bg-[#0c0c0e]"
             />
-            <p className="text-xs text-muted text-center max-w-xs">
+            <p className="text-xs text-muted text-center max-w-xs font-serif italic">
               Scan with your phone or tablet camera to open Smaran HFS on your local network:
             </p>
-            <p className="font-mono text-xs text-accent break-all text-center">{qrModalUrl}</p>
+            <p className="font-mono text-xs text-accent break-all text-center select-all">{qrModalUrl}</p>
           </div>
         </Dialog>
       )}
@@ -1250,18 +1107,17 @@ export function FileServer() {
             </div>
           }
         >
-          <div className="space-y-4 text-xs text-zinc-300">
-            <p>
+          <div className="space-y-4 text-xs text-muted">
+            <p className="text-ink">
               Are you sure you want to reset all Smaran HFS settings back to factory defaults?
             </p>
-            <div className="p-3 rounded-lg bg-[#0c0c0e] border border-line space-y-1.5 font-mono text-[11px]">
+            <div className="p-3 rounded-lg bg-surface border border-line space-y-1.5 font-mono text-[11px]">
               <div>• Port: <span className="text-accent">5901</span></div>
               <div>• Admin Username: <span className="text-accent">admin</span></div>
               <div>• Admin Password: <span className="text-accent">A unique, high-entropy password is generated</span></div>
               <div>• Default Plugins: <span className="text-emerald-400">19 bundled plugins enabled</span></div>
-              <div>• Web Reset URL: <span className="text-zinc-400">http://&lt;lan-ip&gt;:5901/~/admin/reset</span></div>
             </div>
-            <p className="text-amber-400/90 text-[11px]">
+            <p className="text-amber-400/90 text-[11px] font-serif italic">
               Note: Files stored in your shared directories will remain safe and untouched.
             </p>
           </div>
