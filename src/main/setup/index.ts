@@ -14,6 +14,7 @@ import {
   closeOtherSmarans,
   deleteKey,
   EXE_NAME,
+  HKLM_UNINSTALL_KEY,
   removeLoginItem,
   shortcutPaths,
   UNINSTALL_KEY,
@@ -272,15 +273,37 @@ export function runUninstall(): void {
         autoCloseTimer = null;
       }
       if (uninstalled) {
-        // The running exe can't delete its own folder: a hidden shell does it once we have exited.
-        // A second try a few seconds later catches files Windows was still releasing.
-        const rm = `ping -n 4 127.0.0.1 >nul & rmdir /s /q "${dir}"`;
-        spawn('cmd.exe', ['/d', '/s', '/c', `"${rm} & ${rm} & ${rm}"`], {
-          detached: true,
-          stdio: 'ignore',
-          windowsHide: true,
-          windowsVerbatimArguments: true,
-        }).unref();
+        // Pre-clean everything in dir except the running executable
+        try {
+          const items = fs.readdirSync(dir);
+          for (const item of items) {
+            const full = join(dir, item);
+            if (full.toLowerCase() !== process.execPath.toLowerCase()) {
+              fs.rmSync(full, { recursive: true, force: true });
+            }
+          }
+        } catch {
+          // best-effort pre-clean
+        }
+
+        // Silent background self-cleanup without ping or console window
+        const cleanDir = dir.replace(/'/g, "''");
+        spawn(
+          'powershell.exe',
+          [
+            '-WindowStyle',
+            'Hidden',
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            `Start-Sleep -Seconds 2; Remove-Item -LiteralPath '${cleanDir}' -Recurse -Force -ErrorAction SilentlyContinue`,
+          ],
+          {
+            detached: true,
+            stdio: 'ignore',
+            windowsHide: true,
+          },
+        ).unref();
       }
       if (!win.isDestroyed()) win.destroy();
       app.quit();
@@ -297,6 +320,7 @@ export function runUninstall(): void {
         for (const lnk of shortcutPaths()) fs.rmSync(lnk, { force: true });
         send({ phase: 'removing', progress: 0.7 });
         await deleteKey(UNINSTALL_KEY);
+        await deleteKey(HKLM_UNINSTALL_KEY);
         send({ phase: 'removing', progress: 0.85 });
         if (deleteData) deleteUserData(dataDir);
         running = false;

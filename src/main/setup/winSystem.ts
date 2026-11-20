@@ -1,14 +1,36 @@
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import * as fs from 'node:fs';
 import { join } from 'node:path';
 import { app, shell } from 'electron';
 
 /** Our entry in Settings › Apps (per user, like the old NSIS installer). */
 export const UNINSTALL_KEY =
   'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Smaran';
+export const HKLM_UNINSTALL_KEY =
+  'HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Smaran';
 const UNINSTALL_ROOT = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall';
 const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
 export const APP_ID = 'com.sahaj.smaran';
 export const EXE_NAME = 'Smaran.exe';
+
+/**
+ * Detects whether the current process has elevated administrator privileges on Windows.
+ */
+export function isProcessElevated(): boolean {
+  if (process.platform !== 'win32') return false;
+  try {
+    const drive = process.env['SystemDrive'] ?? 'C:';
+    execFileSync('fsutil', ['dirty', 'query', drive], { stdio: 'ignore', windowsHide: true });
+    return true;
+  } catch {
+    try {
+      execFileSync('net', ['session'], { stdio: 'ignore', windowsHide: true });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
 
 function run(file: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -230,9 +252,15 @@ export function deleteKey(key: string): Promise<void> {
 
 /** Folder of an earlier install (ours or the old NSIS one), if any. */
 export async function existingInstallDir(): Promise<string | null> {
-  const ours = await regValue(UNINSTALL_KEY, 'InstallLocation');
-  if (ours) return ours;
-  for (const legacy of await legacyUninstallKeys()) if (legacy.location) return legacy.location;
+  const oursHkcu = await regValue(UNINSTALL_KEY, 'InstallLocation');
+  if (oursHkcu && fs.existsSync(join(oursHkcu, EXE_NAME))) return oursHkcu;
+  const oursHklm = await regValue(HKLM_UNINSTALL_KEY, 'InstallLocation');
+  if (oursHklm && fs.existsSync(join(oursHklm, EXE_NAME))) return oursHklm;
+  for (const legacy of await legacyUninstallKeys()) {
+    if (legacy.location && fs.existsSync(join(legacy.location, EXE_NAME))) return legacy.location;
+  }
+  const pf = join(process.env['ProgramFiles'] ?? 'C:\\Program Files', 'Smaran');
+  if (fs.existsSync(join(pf, EXE_NAME))) return pf;
   return null;
 }
 
@@ -249,8 +277,9 @@ export async function writeUninstallEntry(dir: string, version: string, sizeKb: 
     ['NoRepair', 'REG_DWORD', '1'],
     ['EstimatedSize', 'REG_DWORD', String(Math.round(sizeKb))],
   ];
+  const targetKey = isProcessElevated() ? HKLM_UNINSTALL_KEY : UNINSTALL_KEY;
   for (const [name, type, data] of values)
-    await run('reg.exe', ['add', UNINSTALL_KEY, '/v', name, '/t', type, '/d', data, '/f']);
+    await run('reg.exe', ['add', targetKey, '/v', name, '/t', type, '/d', data, '/f']);
 }
 
 /** The start-at-login entry Smaran writes (value name "Smaran"). */

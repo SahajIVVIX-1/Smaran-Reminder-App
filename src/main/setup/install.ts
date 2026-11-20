@@ -10,6 +10,7 @@ import {
   deleteKey,
   EXE_NAME,
   existingInstallDir,
+  isProcessElevated,
   legacyUninstallKeys,
   sleep,
   waitForSmaranReadyFrom,
@@ -20,10 +21,28 @@ import {
 /** Asks a running Smaran to quit (handled in index.ts). */
 export const QUIT_ARG = '--quit';
 
+/** Default Program Files install directory (C:\Program Files\Smaran). */
+export function programFilesInstallDir(): string {
+  const pf = process.env['ProgramFiles'] ?? 'C:\\Program Files';
+  return join(pf, 'Smaran');
+}
+
 /** Default per-user install directory (%LOCALAPPDATA%\Programs\Smaran). */
-export function defaultInstallDir(): string {
+export function localInstallDir(): string {
   const local = process.env['LOCALAPPDATA'] ?? join(app.getPath('home'), 'AppData', 'Local');
   return join(local, 'Programs', 'Smaran');
+}
+
+/**
+ * Default install directory:
+ * - If running as Administrator: installs to Program Files (C:\Program Files\Smaran)
+ * - Otherwise: installs to per-user directory (%LOCALAPPDATA%\Programs\Smaran)
+ */
+export function defaultInstallDir(): string {
+  if (isProcessElevated()) {
+    return programFilesInstallDir();
+  }
+  return localInstallDir();
 }
 
 const same = (a: string, b: string) => resolve(a).toLowerCase() === resolve(b).toLowerCase();
@@ -246,6 +265,55 @@ export async function launchAndVerifyInstalled(
 
 export function launchInstalled(target: string): void {
   const exe = join(target, EXE_NAME);
+  const elevated = isProcessElevated();
+
+  if (elevated) {
+    // When the installer was run with elevated administrator privileges,
+    // de-elevate so Smaran launches normally as standard unprivileged user.
+    try {
+      const cleanExe = exe.replace(/'/g, "''");
+      const cleanTarget = target.replace(/'/g, "''");
+      const psScript = `
+        try {
+          $shell = New-Object -ComObject 'Shell.Application'
+          $windows = $shell.Windows()
+          $desktop = $windows.Item()
+          if ($desktop) {
+            $desktop.Document.Application.ShellExecute('${cleanExe}', '', '${cleanTarget}', 'open', 1)
+            exit 0
+          }
+        } catch {}
+        Start-Process -FilePath 'explorer.exe' -ArgumentList '"${cleanExe}"'
+      `;
+      const child = spawn(
+        'powershell.exe',
+        [
+          '-WindowStyle',
+          'Hidden',
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          psScript,
+        ],
+        {
+          detached: true,
+          stdio: 'ignore',
+          windowsHide: true,
+        },
+      );
+      child.unref();
+      return;
+    } catch {
+      try {
+        const child2 = spawn('explorer.exe', [exe], { detached: true, stdio: 'ignore' });
+        child2.unref();
+        return;
+      } catch {
+        // Fall back to direct spawn below
+      }
+    }
+  }
+
   try {
     const child = spawn(exe, [], {
       cwd: target,

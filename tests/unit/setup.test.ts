@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
-import { appEnv, EXE_NAME } from '../../src/main/setup/winSystem';
-import { defaultInstallDir, verifyEngineArchive, verifyInstalledFiles } from '../../src/main/setup/install';
+import { appEnv, EXE_NAME, isProcessElevated } from '../../src/main/setup/winSystem';
+import { defaultInstallDir, localInstallDir, programFilesInstallDir, verifyEngineArchive, verifyInstalledFiles } from '../../src/main/setup/install';
 import { generateDefaultAdminPassword, generateSecurePassword, validateAdminPassword } from '../../src/main/fileserver/FileServerStore';
 
 describe('Setup Architecture & WinSystem Tests', () => {
@@ -32,6 +32,20 @@ describe('Setup Architecture & WinSystem Tests', () => {
   it('defaultInstallDir points to LocalAppData/Programs/Smaran with zero admin privileges', () => {
     const dir = defaultInstallDir();
     expect(dir.toLowerCase()).toContain(path.join('programs', 'smaran').toLowerCase());
+  });
+
+  it('programFilesInstallDir points to Program Files/Smaran', () => {
+    const pf = programFilesInstallDir();
+    expect(pf.toLowerCase()).toContain(path.join('program files', 'smaran').toLowerCase());
+  });
+
+  it('localInstallDir points to LocalAppData/Programs/Smaran', () => {
+    const local = localInstallDir();
+    expect(local.toLowerCase()).toContain(path.join('programs', 'smaran').toLowerCase());
+  });
+
+  it('isProcessElevated returns boolean without throwing', () => {
+    expect(typeof isProcessElevated()).toBe('boolean');
   });
 
   it('verifyEngineArchive detects missing and truncated archives', () => {

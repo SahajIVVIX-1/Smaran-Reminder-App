@@ -1,3 +1,18 @@
+# Smaran 3.4.8
+
+- **Administrator Privilege-Aware Installation Targets (`install.ts`, `winSystem.ts`):**
+  - Added `isProcessElevated()` to detect whether the installer is executing with elevated Administrator privileges on Windows (`Run as administrator`).
+  - When run as Administrator, the installer defaults to machine-wide installation at `C:\Program Files\Smaran` (writing uninstall keys under `HKLM`).
+  - When run as a normal standard user, it defaults to the user directory at `%LOCALAPPDATA%\Programs\Smaran` (writing uninstall keys under `HKCU`).
+- **Post-Install Standard User Launch De-Elevation (`install.ts`):**
+  - Fixed issue where launching Smaran immediately after an elevated installation caused Smaran itself to run with Administrator privileges.
+  - Implemented automatic process de-elevation: when the installer was executed with Administrator privileges, clicking `Launch Smaran` dispatches the launch through the interactive desktop shell (`explorer.exe` / `Shell.Application`), launching Smaran as a standard, unprivileged user process.
+- **Removed Uninstaller Ping Terminal Flash (`setup/index.ts`):**
+  - Completely eliminated legacy `ping -n 4 127.0.0.1` and `cmd.exe` console spawning from the uninstaller cleanup routine.
+  - Replaced with pre-cleaning non-executable directory assets directly in Node, followed by a purely silent, background PowerShell task (`-WindowStyle Hidden`) to remove the remaining directory after process termination without any visible console terminal window.
+
+---
+
 # Smaran 3.4.7
 
 - **Fluid File Server Start/Stop UI Transitions (`FileServer.tsx`):**
