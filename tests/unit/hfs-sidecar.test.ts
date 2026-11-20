@@ -302,4 +302,30 @@ describe('HfsProcessSupervisor port & environment verification', () => {
     // Clean up
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
+
+  it('verifies smaran-security plugin has required metadata and custom html tablet responsiveness', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const { DEFAULT_CUSTOM_HTML } = await import('../../src/main/fileserver/HfsConfigBridge');
+
+    // 1. Verify smaran-security plugin in dist
+    const pluginPath = path.resolve('resources/engine/dist/plugins/smaran-security/plugin.js');
+    expect(fs.existsSync(pluginPath)).toBe(true);
+    const pluginContent = fs.readFileSync(pluginPath, 'utf8');
+    expect(pluginContent).toContain('exports.version = 3.4');
+    expect(pluginContent).toContain('exports.apiRequired = 1');
+    expect(pluginContent).toContain('exports.description');
+
+    // 2. Verify tablet & mobile hiding of mount widget
+    expect(DEFAULT_CUSTOM_HTML).toContain('@media (max-width: 1024px)');
+    expect(DEFAULT_CUSTOM_HTML).toContain('.smaran-webdav-widget');
+    expect(DEFAULT_CUSTOM_HTML).toContain('display: none !important');
+
+    // 3. Verify user panel & server info theme polish
+    expect(DEFAULT_CUSTOM_HTML).toContain('#user-panel');
+    expect(DEFAULT_CUSTOM_HTML).toContain('#user-disk-info');
+    expect(DEFAULT_CUSTOM_HTML).toContain('#admin-panel-btn');
+    expect(DEFAULT_CUSTOM_HTML).toContain('#change-password-btn');
+    expect(DEFAULT_CUSTOM_HTML).toContain('#logout-btn');
+  });
 });

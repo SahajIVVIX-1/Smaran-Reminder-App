@@ -1050,15 +1050,228 @@ body::before {
 .dialog-backdrop {
   backdrop-filter: blur(14px) !important;
   -webkit-backdrop-filter: blur(14px) !important;
-  background: rgba(0, 0, 0, 0.68) !important;
+  background: rgba(0, 0, 0, 0.72) !important;
 }
 
 .dialog {
-  background: rgba(22, 22, 28, 0.97) !important;
+  background: #14141c !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  border-radius: 18px !important;
+  border-radius: 16px !important;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(224, 108, 67, 0.15) !important;
   color: #f5f4ef !important;
+  padding: 20px 22px !important;
+  position: relative !important;
+  overflow: visible !important;
+}
+
+/* Remove awkward corner blob tab from dialog top-left */
+.dialog .dialog-icon.dialog-type,
+.dialog .dialog-type {
+  display: none !important;
+}
+
+/* Clean dialog title */
+.dialog .dialog-title {
+  color: #f5f4ef !important;
+  font-size: 17px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em !important;
+  text-align: center !important;
+  margin: 0 0 14px 0 !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+/* Modern close button */
+.dialog .dialog-closer {
+  position: absolute !important;
+  top: 14px !important;
+  right: 14px !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 8px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #a1a1aa !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  font-size: 14px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+
+.dialog .dialog-closer:hover {
+  background: rgba(239, 68, 68, 0.18) !important;
+  color: #f87171 !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+  transform: scale(1.05);
+}
+
+/* User Panel Typography & Button Contrast */
+#user-panel {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  color: #f5f4ef !important;
+}
+
+#user-panel > div:first-child {
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  color: #9ca3af !important;
+  margin-bottom: 6px !important;
+  padding-bottom: 8px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+#user-panel button {
+  width: 100% !important;
+  margin: 3px 0 !important;
+  padding: 9px 14px !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+}
+
+/* Admin Panel Button: Primary Orange Action */
+#user-panel #admin-panel-btn {
+  background: linear-gradient(135deg, #e06c43 0%, #c8532a 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(224, 108, 67, 0.5) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 2px 8px rgba(224, 108, 67, 0.25) !important;
+}
+
+#user-panel #admin-panel-btn:hover {
+  background: linear-gradient(135deg, #e77750 0%, #d45e35 100%) !important;
+  box-shadow: 0 4px 14px rgba(224, 108, 67, 0.38) !important;
+  transform: translateY(-1px);
+}
+
+/* Change Password Button: Sleek Dark Neutral */
+#user-panel #change-password-btn {
+  background: #1c1c25 !important;
+  color: #f5f4ef !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+#user-panel #change-password-btn:hover {
+  background: #262633 !important;
+  border-color: rgba(224, 108, 67, 0.45) !important;
+  transform: translateY(-1px);
+}
+
+/* Logout Button: Subtle Danger Action */
+#user-panel #logout-btn {
+  background: rgba(239, 68, 68, 0.1) !important;
+  color: #fca5a5 !important;
+  border: 1px solid rgba(239, 68, 68, 0.25) !important;
+}
+
+#user-panel #logout-btn:hover {
+  background: rgba(239, 68, 68, 0.18) !important;
+  color: #ffffff !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  transform: translateY(-1px);
+}
+
+/* Server-Info Plugin High-Contrast Theme Overrides */
+#user-disk-info {
+  margin-top: 10px !important;
+  padding-top: 10px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #f5f4ef !important;
+}
+
+#user-disk-info .section-title {
+  color: #9ca3af !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  margin: 10px 0 6px 0 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  padding-bottom: 3px !important;
+}
+
+#user-disk-info .drive-item {
+  background: #1c1c24 !important;
+  border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  border-radius: 8px !important;
+  padding: 8px 12px !important;
+  color: #f5f4ef !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25) !important;
+  text-align: left !important;
+  line-height: 1.35 !important;
+  transition: all 0.15s ease !important;
+}
+
+#user-disk-info .drive-item:hover {
+  background: #242430 !important;
+  border-color: rgba(224, 108, 67, 0.35) !important;
+}
+
+#user-disk-info .hfs-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+}
+
+#user-disk-info .hfs-list-item {
+  background: #1c1c24 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 7px !important;
+  padding: 6px 11px !important;
+  font-size: 12px !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  transition: all 0.15s ease !important;
+}
+
+#user-disk-info .hfs-list-item:hover {
+  background: #23232c !important;
+}
+
+#user-disk-info .hfs-label {
+  color: #a1a1aa !important;
+  font-weight: 500 !important;
+  font-size: 12px !important;
+}
+
+#user-disk-info .hfs-value {
+  color: #f5f4ef !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+}
+
+#user-disk-info .status-on {
+  color: #34d399 !important;
+  background: rgba(52, 211, 153, 0.12) !important;
+  padding: 2px 7px !important;
+  border-radius: 4px !important;
+  font-weight: 600 !important;
+}
+
+#user-disk-info .status-off {
+  color: #f87171 !important;
+  background: rgba(248, 113, 113, 0.12) !important;
+  padding: 2px 7px !important;
+  border-radius: 4px !important;
+  font-weight: 600 !important;
 }
 
 /* Plugin Protection & Harmonization */
@@ -1086,34 +1299,14 @@ body::before {
   display: none;
 }
 
-/* Mobile Responsiveness */
-@media (max-width: 768px) {
+/* Mobile & Tablet Responsiveness: Hide mount drive on mobile/tablet screens */
+@media (max-width: 1024px) {
   .smaran-webdav-widget {
-    top: 11px !important;
-    right: 12px !important;
-    z-index: 2147483647 !important;
-  }
-  .smaran-webdav-btn {
-    padding: 5px 11px !important;
-    font-size: 11.5px !important;
-    gap: 6px !important;
-  }
-  .smaran-btn-text-full {
     display: none !important;
   }
-  .smaran-btn-text-short {
-    display: inline !important;
-  }
-  .smaran-webdav-pop {
-    position: absolute !important;
-    top: calc(100% + 8px) !important;
-    right: 0 !important;
-    left: auto !important;
-    width: min(340px, calc(100vw - 24px)) !important;
-    background: #15151c !important;
-    z-index: 2147483647 !important;
-    padding: 1.1rem !important;
-  }
+}
+
+@media (max-width: 768px) {
   .smaran-bg-watermark {
     width: min(320px, 80vw);
     height: min(320px, 80vw);

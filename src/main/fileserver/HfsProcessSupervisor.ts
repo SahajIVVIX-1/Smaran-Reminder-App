@@ -223,9 +223,7 @@ export class HfsProcessSupervisor {
       for (const p of plugins) {
         const srcPath = path.join(srcPluginsDir, p);
         const dstPath = path.join(dstPluginsDir, p);
-        if (!fs.existsSync(dstPath)) {
-          fs.cpSync(srcPath, dstPath, { recursive: true });
-        }
+        fs.cpSync(srcPath, dstPath, { recursive: true, force: true });
       }
     } catch (err) {
       console.warn('Failed copying bundled plugins to runtimeDir:', err);
@@ -396,6 +394,23 @@ export class HfsProcessSupervisor {
           }
         }
       });
+
+      // 4. Ensure runtime smaran-security plugin has required metadata
+      const secPlugin = path.join(this.runtimeDir, 'plugins', 'smaran-security', 'plugin.js');
+      if (fs.existsSync(secPlugin)) {
+        try {
+          const content = fs.readFileSync(secPlugin, 'utf8');
+          if (!content.includes('apiRequired')) {
+            const updated = content.replace(
+              /exports\.version\s*=\s*[^;\n]+;?/,
+              'exports.version = 3.4;\nexports.description = "Smaran security monitor — monitors login events, failed authentication attempts, and user activity for desktop notifications.";\nexports.apiRequired = 1;'
+            );
+            fs.writeFileSync(secPlugin, updated, 'utf8');
+          }
+        } catch {
+          // ignore
+        }
+      }
     } catch {
       // ignore
     }

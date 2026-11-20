@@ -1,3 +1,20 @@
+# Smaran 3.4.3
+
+- **Smaran Security Monitor (`smaran-security` plugin):**
+  - Resolved plugin initialization failure by specifying `apiRequired: 1` as mandated by HFS engine plugin specifications.
+  - Bumped plugin version number to `3.4` and added complete descriptive metadata matching standard HFS plugins.
+  - Automatic synchronization ensuring existing runtime installations in user data folders are proactively updated.
+- **Mobile & Tablet Client Web UI:**
+  - Hidden top-right WebDAV/Windows drive mount button (`.smaran-webdav-widget`) on mobile and tablet screens (`@media (max-width: 1024px)`).
+- **User Panel UI & Typography Redesign:**
+  - Redesigned the User Panel modal with high-contrast, polished dark aesthetics harmonized with Smaran's obsidian theme.
+  - Replaced harsh solid terracotta cards with sleek, elevated dark cards (`#1c1c24` / `#22222d`) and subtle borders (`rgba(255, 255, 255, 0.09)`).
+  - Fixed font legibility and contrast: replaced cyan-on-orange and green/red-on-orange text with crisp white values (`#f5f4ef`), clean muted labels (`#9ca3af`), and modern emerald/salmon status badges (`.status-on`, `.status-off`).
+  - Polished action buttons: "Admin Panel" with a refined primary brand gradient and subtle glow, "Change password" with a clean dark neutral finish, and "Logout" with an elegant danger-accented pill.
+  - Removed awkward asymmetric corner tab blob from dialog headers and styled the modal close button with modern rounded hover effects.
+
+---
+
 # Smaran 3.4.2
 
 - **Windows Shell Context Menu Integration ("Add to Smaran HFS"):**
