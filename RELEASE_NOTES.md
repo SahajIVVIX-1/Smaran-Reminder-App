@@ -1,3 +1,24 @@
+# Smaran 3.3.16
+
+- **Top-Right WebDAV Mount Option on Client Web GUI:** Relocated the WebDAV network drive mount widget to the top-right corner of the HFS client web interface (`custom.html`). Added a live pulsing indicator dot (`#e06c43`), folder icon, and adaptive label (`Mount as Drive Z:` on desktop, compact `Mount Drive` on mobile viewports &le;768px).
+- **Interactive WebDAV Network Drive Dialog:** Dropped down from the top-right button with a solid dark obsidian backdrop (`#15151c`), high-contrast border, and elevated z-index, completely eliminating bleed-through of underlying directory items. Includes:
+  - 1-Click Windows Mount Script (`.bat`) download configured for WebClient service activation and Drive Z: mapping.
+  - Direct WebDAV URL with one-click clipboard copy.
+  - Quick setup instructions for Windows Explorer, macOS Finder (`Cmd+K`), and mobile WebDAV clients.
+  - Click-outside and close-button dismissal.
+- **Centered Background Watermark Logo:** Embedded a large, centered vector brandmark of Smaran's signature 'S' curve in the background of the web interface (`opacity: 0.09` desktop, `0.07` mobile) with ambient radial lighting and `pointer-events: none` to keep interactive directory tables fully accessible.
+- **Default Administrator Credentials & Password Pattern:**
+  - Default administrator username updated from `admin` to `smaran`.
+  - Auto-generated default password pattern strictly adheres to: `smaran@DDMMYYYY-Exacttime-Day(in short) with sec` (e.g. `smaran@20112026-025130-Fri`), satisfying all length, character class, entropy, and complexity rules.
+  - Handled on first initialization in `FileServerStore.ts` and default reset in `FileServerManager.ts`.
+- **HFS Theme Harmonization, Plugin Compatibility & Mobile Responsiveness:**
+  - Overhauled `:root` CSS variables in `custom.html` to align with Smaran's dark obsidian atmosphere (`#0d0d11`) and warm amber accents (`#e06c43`/`#e07850`).
+  - Preserves 100% functionality across all 19 bundled plugins (mini-player, video player, chat plus, upload, directory search, download counters, server info).
+  - Responsive layout scaling cleanly down to narrow mobile viewports without horizontal clipping.
+- **Automatic Runtime Engine Synchronization:** Enhanced `HfsProcessSupervisor.ts` to automatically detect changes to `resources/engine/dist/custom.html` and synchronize them directly into `%APPDATA%\Smaran\fileserver_engine\custom.html` on engine startup.
+
+---
+
 # Smaran 3.3.15
 
 - **Unified File Server Design System:** Completely overhauled `FileServer.tsx` to align seamlessly with Smaran's design tokens and aesthetic established across `Reminders`, `Automations`, `Today`, and `Settings`. Replaced disparate 2-column numbered developer boxes with standard Smaran containers (`max-w-[820px] px-7 pt-8 pb-16`), canonical Anthropic Serif typography (`font-serif text-[26px] leading-tight`), consistent action button layouts, and native `Card` and `Row` structures.
