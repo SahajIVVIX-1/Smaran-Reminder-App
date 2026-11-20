@@ -1,8 +1,6 @@
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
+import { execFile } from 'node:child_process';
 import { BrowserWindow, dialog, shell } from 'electron';
 import * as QRCode from 'qrcode';
 import { IPC } from '@shared/channels';
@@ -10,6 +8,7 @@ import type {
   FileServerAuditFilter,
   FileServerSecurityEvent,
   FileServerSettings,
+  SafeAdminCredentials,
   ServerLogEntry,
   ServerStatus,
 } from '@shared/fileserver';
@@ -30,10 +29,47 @@ import {
   generateMountBatScript,
   syncHfsConfigFile,
 } from './HfsConfigBridge';
-
+import {
+  backupWebClientRegistry,
+  restartWebClientService,
+  restoreWebClientRegistry,
+  runElevatedReg,
+} from './webdavRegistry';
 import { normalizeClientIp } from './ipUtils';
 
-const execAsync = promisify(exec);
+export function validateDriveLetter(driveLetter?: string): string {
+  const target = (driveLetter || 'Z:').trim().toUpperCase();
+  const match = /^([A-Z]):?$/.exec(target);
+  if (!match) {
+    throw new Error(`Invalid drive letter: "${driveLetter}". Drive letter must be a single letter from A to Z.`);
+  }
+  return `${match[1]}:`;
+}
+
+export function validateCredentialInput(value: string, fieldName: string): string {
+  if (typeof value !== 'string') {
+    throw new Error(`${fieldName} must be a string.`);
+  }
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code <= 31 || code === 127) {
+      throw new Error(`${fieldName} contains invalid control characters.`);
+    }
+  }
+  return value;
+}
+
+export function execFilePromise(file: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, { windowsHide: true }, (error, stdout, stderr) => {
+      if (error) {
+        reject(new Error(stderr?.trim() || stdout?.trim() || error.message));
+      } else {
+        resolve({ stdout, stderr });
+      }
+    });
+  });
+}
 
 export class FileServerManager {
   readonly store: FileServerStore;
@@ -42,7 +78,7 @@ export class FileServerManager {
   private syncQueue: Promise<unknown> = Promise.resolve();
   private onSecurityEventCallback?: (event: FileServerSecurityEvent) => void;
 
-  constructor(dataDir: string, isLicenseValid?: () => boolean) {
+  constructor(readonly dataDir: string, isLicenseValid?: () => boolean) {
     this.store = new FileServerStore(dataDir);
     this.auditStore = new FileServerAuditStore(dataDir);
     this.supervisor = new HfsProcessSupervisor(dataDir, this.store, {
@@ -85,7 +121,7 @@ export class FileServerManager {
   }
 
   getSettings(): FileServerSettings {
-    return this.store.getSettings();
+    return this.store.getSafeSettings();
   }
 
   async updateSettings(patch: Partial<FileServerSettings>): Promise<FileServerSettings> {
@@ -180,7 +216,7 @@ export class FileServerManager {
       }
 
       this.broadcast(IPC.fileserverStatusChanged, this.getStatus());
-      return updated;
+      return this.store.getSafeSettings();
     });
   }
 
@@ -273,12 +309,8 @@ export class FileServerManager {
     }
   }
 
-  async getAdminCredentials(): Promise<{ username: string; password?: string }> {
-    const settings = this.store.getSettings();
-    return {
-      username: settings.adminUsername || 'smaran',
-      password: settings.adminPassword || 'smaran',
-    };
+  async getAdminCredentials(): Promise<SafeAdminCredentials> {
+    return this.store.getSafeAdminCredentials();
   }
 
   async setAdminCredentials(creds: {
@@ -368,27 +400,30 @@ export class FileServerManager {
       };
     }
 
-    const drive = (payload?.driveLetter || 'Z:').toUpperCase().replace(/:?$/, ':');
+    const drive = validateDriveLetter(payload?.driveLetter);
     const settings = this.store.getSettings();
     const port = settings.port || 5901;
     const url = `http://127.0.0.1:${port}/`;
     const uncPath = `\\\\127.0.0.1@${port}\\DavWWWRoot`;
-    const user = payload?.username || settings.adminUsername || 'admin';
-    const pwd = payload?.password || settings.adminPassword;
+    const user = validateCredentialInput(payload?.username || settings.adminUsername || 'admin', 'Username');
+    const pwd = validateCredentialInput(payload?.password || settings.adminPassword, 'Password');
 
     try {
       // 1. Delete previous mapping on this drive letter if any
       try {
-        await execAsync(`net use ${drive} /delete /yes`);
+        await execFilePromise('net.exe', ['use', drive, '/delete', '/yes']);
       } catch {
         // Ignored
       }
 
       // 2. Ensure WebClient service is running without throwing
       try {
-        await execAsync(
-          'powershell -NoProfile -Command "Get-Service WebClient -ErrorAction SilentlyContinue | Where-Object {$_.Status -ne \'Running\'} | Start-Service"',
-        );
+        await execFilePromise('powershell.exe', [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          "Get-Service WebClient -ErrorAction SilentlyContinue | Where-Object {$_.Status -ne 'Running'} | Start-Service",
+        ]);
       } catch {
         // Ignored
       }
@@ -396,11 +431,11 @@ export class FileServerManager {
       // 3. Attempt mapping: try URL first, then UNC path fallback
       let lastErr: unknown = null;
       try {
-        await execAsync(`net use ${drive} "${url}" "${pwd}" /user:"${user}" /persistent:yes`);
+        await execFilePromise('net.exe', ['use', drive, url, pwd, `/user:${user}`, '/persistent:yes']);
       } catch (err1) {
         lastErr = err1;
         try {
-          await execAsync(`net use ${drive} "${uncPath}" "${pwd}" /user:"${user}" /persistent:yes`);
+          await execFilePromise('net.exe', ['use', drive, uncPath, pwd, `/user:${user}`, '/persistent:yes']);
           lastErr = null;
         } catch (err2) {
           lastErr = err2;
@@ -424,7 +459,7 @@ export class FileServerManager {
 
       // If not verified, unmount cleanly and provide clear diagnostic guidance
       try {
-        await execAsync(`net use ${drive} /delete /yes`);
+        await execFilePromise('net.exe', ['use', drive, '/delete', '/yes']);
       } catch {
         // Ignored
       }
@@ -453,47 +488,40 @@ export class FileServerManager {
 
   async enableWebClientService(): Promise<{ ok: boolean; error?: string }> {
     try {
-      const batScript = `@echo off
-setlocal EnableDelayedExpansion
-title Enabling Windows WebDAV Client
-
-:: Check Administrator permissions
-net session >nul 2>&1
-if %errorlevel% neq 0 (
-    powershell -NoProfile -Command "Start-Process cmd -ArgumentList '/c \\"\\"%~f0\\"\\"' -Verb RunAs"
-    exit /b
-)
-
-echo Configuring WebClient service...
-sc config WebClient start= auto >nul 2>&1
-net start WebClient >nul 2>&1
-
-echo Enabling WebDAV Basic Authentication in Registry...
-reg add "HKLM\\SYSTEM\\CurrentControlSet\\Services\\WebClient\\Parameters" /v BasicAuthLevel /t REG_DWORD /d 2 /f >nul 2>&1
-reg add "HKLM\\SYSTEM\\CurrentControlSet\\Services\\WebClient\\Parameters" /v FileSizeLimitInBytes /t REG_DWORD /d 4294967295 /f >nul 2>&1
-
-echo Restarting WebClient service to apply settings...
-net stop WebClient /y >nul 2>&1
-net start WebClient >nul 2>&1
-`;
-      const tempPath = path.join(os.tmpdir(), `smaran-enable-webdav-${Date.now()}.bat`);
-      fs.writeFileSync(tempPath, batScript, 'utf8');
-
-      await execAsync(
-        `powershell -NoProfile -Command "Start-Process -FilePath '${tempPath}' -Verb RunAs -Wait"`,
-      );
-
-      try {
-        fs.unlinkSync(tempPath);
-      } catch {
-        // ignore
-      }
-
+      await backupWebClientRegistry(this.dataDir);
+      await runElevatedReg([
+        'add',
+        'HKLM\\SYSTEM\\CurrentControlSet\\Services\\WebClient\\Parameters',
+        '/v',
+        'BasicAuthLevel',
+        '/t',
+        'REG_DWORD',
+        '/d',
+        '2',
+        '/f',
+      ]);
+      await runElevatedReg([
+        'add',
+        'HKLM\\SYSTEM\\CurrentControlSet\\Services\\WebClient\\Parameters',
+        '/v',
+        'FileSizeLimitInBytes',
+        '/t',
+        'REG_DWORD',
+        '/d',
+        '4294967295',
+        '/f',
+      ]);
+      await restartWebClientService();
       return { ok: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return { ok: false, error: msg };
     }
+  }
+
+  async restoreWebClientService(): Promise<{ ok: boolean; error?: string }> {
+    const res = await restoreWebClientRegistry(this.dataDir);
+    return { ok: res.ok, error: res.error };
   }
 
   async exportMountScript(): Promise<{ ok: boolean; filePath?: string; error?: string }> {
@@ -529,9 +557,9 @@ net start WebClient >nul 2>&1
   }
 
   async unmountLocalDrive(driveLetter = 'Z:'): Promise<{ ok: boolean; error?: string }> {
-    const drive = driveLetter.toUpperCase().replace(/:?$/, ':');
     try {
-      await execAsync(`net use ${drive} /delete /yes`);
+      const drive = validateDriveLetter(driveLetter);
+      await execFilePromise('net.exe', ['use', drive, '/delete', '/yes']);
       return { ok: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);

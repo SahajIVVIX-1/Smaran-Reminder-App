@@ -1,53 +1,96 @@
-import { ipcMain, shell } from 'electron';
+import { z } from 'zod';
 import { IPC } from '@shared/channels';
-import type { FileServerAuditFilter, FileServerSettings } from '@shared/fileserver';
+import {
+  FileServerSettingsSchema,
+  MountDrivePayloadSchema,
+  SetAdminCredentialsPayloadSchema,
+} from '@shared/fileserver';
 import type { FileServerManager } from './FileServerManager';
+import { registerSafeHandle } from '../ipc/security';
+import { safeOpenExternal } from '../security/navigationSecurity';
+
+const APP_ROLE = ['app'] as const;
 
 export function registerFileServerIpc(manager: FileServerManager): void {
-  ipcMain.handle(IPC.fileserverStatus, () => manager.getStatus());
-  ipcMain.handle(IPC.fileserverStart, () => manager.start());
-  ipcMain.handle(IPC.fileserverStop, () => manager.stop());
-  ipcMain.handle(IPC.fileserverRestart, () => manager.restart());
+  registerSafeHandle(IPC.fileserverStatus, [...APP_ROLE], () => manager.getStatus());
+  registerSafeHandle(IPC.fileserverStart, [...APP_ROLE], () => manager.start());
+  registerSafeHandle(IPC.fileserverStop, [...APP_ROLE], () => manager.stop());
+  registerSafeHandle(IPC.fileserverRestart, [...APP_ROLE], () => manager.restart());
 
-  ipcMain.handle(IPC.fileserverSettingsGet, () => manager.getSettings());
-  ipcMain.handle(IPC.fileserverSettingsSave, (_event, patch: Partial<FileServerSettings>) =>
-    manager.updateSettings(patch),
+  registerSafeHandle(IPC.fileserverSettingsGet, [...APP_ROLE], () => manager.getSettings());
+  registerSafeHandle(IPC.fileserverSettingsSave, [...APP_ROLE], (_event, patch: unknown) => {
+    const validated = FileServerSettingsSchema.partial().parse(patch);
+    return manager.updateSettings(validated);
+  });
+
+  registerSafeHandle(IPC.fileserverPickRootDir, [...APP_ROLE], () => manager.pickRootDir());
+  registerSafeHandle(IPC.fileserverOpenFolder, [...APP_ROLE], (_event, folderPath?: unknown) => {
+    const safePath = folderPath ? z.string().parse(folderPath) : undefined;
+    return manager.openFolder(safePath);
+  });
+
+  registerSafeHandle(IPC.fileserverLogsGet, [...APP_ROLE], () => manager.getLogs());
+  registerSafeHandle(IPC.fileserverLogsClear, [...APP_ROLE], () => manager.clearLogs());
+  registerSafeHandle(IPC.fileserverQrGenerate, [...APP_ROLE], (_event, url: unknown) => {
+    const safeUrl = z.string().url().parse(url);
+    return manager.generateQr(safeUrl);
+  });
+
+  registerSafeHandle(IPC.fileserverMountDrive, [...APP_ROLE], (_event, payload?: unknown) => {
+    const safePayload = payload ? MountDrivePayloadSchema.parse(payload) : undefined;
+    return manager.mountLocalDrive(safePayload);
+  });
+
+  registerSafeHandle(IPC.fileserverUnmountDrive, [...APP_ROLE], (_event, driveLetter?: unknown) => {
+    const safeLetter = driveLetter ? z.string().parse(driveLetter) : undefined;
+    return manager.unmountLocalDrive(safeLetter);
+  });
+
+  registerSafeHandle(IPC.fileserverAdminGet, [...APP_ROLE], () => manager.getAdminCredentials());
+  registerSafeHandle(IPC.fileserverAdminSet, [...APP_ROLE], (_event, creds: unknown) => {
+    const safeCreds = SetAdminCredentialsPayloadSchema.parse(creds);
+    return manager.setAdminCredentials(safeCreds);
+  });
+
+  registerSafeHandle(IPC.fileserverResetDefaults, [...APP_ROLE], () => manager.resetDefaults());
+  registerSafeHandle(IPC.fileserverEnableWebClient, [...APP_ROLE], () =>
+    manager.enableWebClientService(),
   );
-  ipcMain.handle(IPC.fileserverPickRootDir, () => manager.pickRootDir());
-  ipcMain.handle(IPC.fileserverOpenFolder, (_event, folderPath?: string) =>
-    manager.openFolder(folderPath),
+  registerSafeHandle(IPC.fileserverRestoreWebClient, [...APP_ROLE], () =>
+    manager.restoreWebClientService(),
+  );
+  registerSafeHandle(IPC.fileserverExportMountScript, [...APP_ROLE], () =>
+    manager.exportMountScript(),
   );
 
-  ipcMain.handle(IPC.fileserverLogsGet, () => manager.getLogs());
-  ipcMain.handle(IPC.fileserverLogsClear, () => manager.clearLogs());
-  ipcMain.handle(IPC.fileserverQrGenerate, (_event, url: string) => manager.generateQr(url));
+  registerSafeHandle(IPC.fileserverOpenUrl, [...APP_ROLE], (_event, url: unknown) => {
+    const safeUrl = z.string().url().parse(url);
+    return safeOpenExternal(safeUrl);
+  });
 
-  ipcMain.handle(
-    IPC.fileserverMountDrive,
-    (_event, payload?: { driveLetter?: string; username?: string; password?: string }) =>
-      manager.mountLocalDrive(payload),
-  );
-  ipcMain.handle(IPC.fileserverUnmountDrive, (_event, driveLetter?: string) =>
-    manager.unmountLocalDrive(driveLetter),
-  );
+  registerSafeHandle(IPC.fileserverSessionsGet, [...APP_ROLE], () => manager.getSessions());
+  registerSafeHandle(IPC.fileserverSessionDisconnect, [...APP_ROLE], (_event, payload: unknown) => {
+    const safe = z.object({ id: z.string().min(1) }).parse(payload);
+    return manager.disconnectSession(safe.id);
+  });
 
-  ipcMain.handle(IPC.fileserverAdminGet, () => manager.getAdminCredentials());
-  ipcMain.handle(IPC.fileserverAdminSet, (_event, creds: { username: string; password: string }) =>
-    manager.setAdminCredentials(creds),
-  );
-  ipcMain.handle(IPC.fileserverResetDefaults, () => manager.resetDefaults());
-  ipcMain.handle(IPC.fileserverEnableWebClient, () => manager.enableWebClientService());
-  ipcMain.handle(IPC.fileserverExportMountScript, () => manager.exportMountScript());
-  ipcMain.handle(IPC.fileserverOpenUrl, (_event, url: string) => shell.openExternal(url));
-  ipcMain.handle(IPC.fileserverSessionsGet, () => manager.getSessions());
-  ipcMain.handle(IPC.fileserverSessionDisconnect, (_event, payload: { id: string }) =>
-    manager.disconnectSession(payload?.id),
-  );
-  ipcMain.handle(IPC.fileserverSecurityEventsGet, (_event, filter?: FileServerAuditFilter) =>
-    manager.getSecurityEvents(filter),
-  );
-  ipcMain.handle(
+  registerSafeHandle(
     IPC.fileserverSecurityEventsGet,
-    (_event, filter?: FileServerAuditFilter) => manager.getSecurityEvents(filter),
+    [...APP_ROLE],
+    (_event, filter?: unknown) => {
+      const safeFilter = filter
+        ? z
+            .object({
+              type: z.enum(['login', 'failedLogin', 'logout', 'adminActivity']).optional(),
+              username: z.string().optional(),
+              ip: z.string().optional(),
+              fromDate: z.string().optional(),
+              toDate: z.string().optional(),
+              limit: z.number().int().positive().optional(),
+            })
+            .parse(filter)
+        : undefined;
+      return manager.getSecurityEvents(safeFilter);
+    },
   );
 }

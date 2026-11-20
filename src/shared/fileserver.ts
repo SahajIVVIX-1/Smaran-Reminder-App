@@ -71,6 +71,14 @@ export const FailedLoginRecordSchema = z.object({
 
 export type FailedLoginRecord = z.infer<typeof FailedLoginRecordSchema>;
 
+export const SafeAdminCredentialsSchema = z.object({
+  username: z.string(),
+  hasPassword: z.boolean(),
+  isConfigured: z.boolean(),
+});
+
+export type SafeAdminCredentials = z.infer<typeof SafeAdminCredentialsSchema>;
+
 export interface ActiveSession {
   id: string;
   username?: string;
@@ -79,13 +87,37 @@ export interface ActiveSession {
   connectedAt?: string;
 }
 
-export interface UserAccount {
-  id: string;
-  username: string;
-  password?: string;
-  role: 'admin' | 'user' | 'guest';
-  isSystem?: boolean;
-}
+export const UserAccountSchema = z.object({
+  id: z.string(),
+  username: z.string(),
+  password: z.string().optional(),
+  role: z.enum(['admin', 'user', 'guest']).default('user'),
+  isSystem: z.boolean().optional(),
+});
+
+export type UserAccount = z.infer<typeof UserAccountSchema>;
+
+export const FileServerDataSchema = z.object({
+  settings: FileServerSettingsSchema,
+  users: z.array(UserAccountSchema).optional().default([]),
+});
+
+export type FileServerData = z.infer<typeof FileServerDataSchema>;
+
+export const MountDrivePayloadSchema = z.object({
+  driveLetter: z.string().optional(),
+  username: z.string().optional(),
+  password: z.string().optional(),
+});
+
+export type MountDrivePayload = z.infer<typeof MountDrivePayloadSchema>;
+
+export const SetAdminCredentialsPayloadSchema = z.object({
+  username: z.string().min(1, 'Username cannot be empty'),
+  password: z.string().min(8, 'Password must be at least 8 characters long'),
+});
+
+export type SetAdminCredentialsPayload = z.infer<typeof SetAdminCredentialsPayloadSchema>;
 
 export interface VfsNode {
   id: string;

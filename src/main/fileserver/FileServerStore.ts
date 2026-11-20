@@ -1,7 +1,13 @@
 import crypto from 'node:crypto';
-import fs from 'node:fs';
 import path from 'node:path';
-import type { FileServerSettings, UserAccount } from '@shared/fileserver';
+import {
+  FileServerDataSchema,
+  type FileServerData,
+  type FileServerSettings,
+  type SafeAdminCredentials,
+  type UserAccount,
+} from '@shared/fileserver';
+import { cleanupStaleTempFiles, readValidatedJson, writeAtomicFile } from '../store/atomicFile';
 
 const FILE_SERVER_STORE_NAME = 'fileserver.json';
 
@@ -45,13 +51,8 @@ export function validateAdminPassword(password: string): { ok: boolean; error?: 
   return { ok: true };
 }
 
-export interface FileServerData {
-  settings: FileServerSettings;
-  users?: UserAccount[];
-}
-
 export class FileServerStore {
-  private filePath: string;
+  readonly filePath: string;
   private data: FileServerData;
 
   constructor(dataDir: string) {
@@ -73,49 +74,62 @@ export class FileServerStore {
       notifyOnAdminActivity: true,
     };
 
-    if (fs.existsSync(this.filePath)) {
-      try {
-        const raw = fs.readFileSync(this.filePath, 'utf8');
-        const parsed = JSON.parse(raw);
-        let settings: FileServerSettings = { ...defaultSettings, ...(parsed.settings || {}) };
-        let users: UserAccount[] = parsed.users || [];
-        let shouldSave = false;
+    cleanupStaleTempFiles(path.dirname(this.filePath), FILE_SERVER_STORE_NAME);
 
-        // Ensure file server does not auto-start unless explicitly configured by the user
-        if (settings.autoStart && !parsed.settings?.autoStartConfigured) {
-          settings.autoStart = false;
-          shouldSave = true;
-        }
+    const res = readValidatedJson<FileServerData | null>(
+      this.filePath,
+      FileServerDataSchema,
+      null,
+      {
+        onRecovered: (msg) => console.warn(`[FileServerStore] ${msg}`),
+      },
+    );
+    const loaded = res.data;
 
-        // Upgrade insecure or empty legacy default passwords to the pattern password
-        if (!settings.adminPassword || settings.adminPassword === 'smaran' || settings.adminPassword === 'admin') {
-          const defaultAdminPass = generateDefaultAdminPassword();
-          settings = { ...settings, adminUsername: settings.adminUsername || 'smaran', adminPassword: defaultAdminPass };
-          users = [
-            {
-              id: 'admin',
-              username: settings.adminUsername || 'smaran',
-              password: defaultAdminPass,
-              role: 'admin',
-              isSystem: true,
-            },
-            ...users.filter((u) => u.username !== 'smaran' && u.username !== 'admin'),
-          ];
-          shouldSave = true;
-        }
+    if (loaded) {
+      let settings: FileServerSettings = { ...defaultSettings, ...loaded.settings };
+      let users: UserAccount[] = loaded.users || [];
+      let shouldSave = false;
 
-        if (shouldSave) {
-          this.data = { settings, users };
-          this.save();
-        }
-
-        return {
-          settings,
-          users,
-        };
-      } catch (err) {
-        console.error('Failed to parse fileserver.json:', err);
+      // Ensure file server does not auto-start unless explicitly configured by the user
+      if (settings.autoStart && !loaded.settings?.autoStartConfigured) {
+        settings.autoStart = false;
+        shouldSave = true;
       }
+
+      // Upgrade insecure or empty legacy default passwords to the pattern password
+      if (
+        !settings.adminPassword ||
+        settings.adminPassword === 'smaran' ||
+        settings.adminPassword === 'admin'
+      ) {
+        const defaultAdminPass = generateDefaultAdminPassword();
+        settings = {
+          ...settings,
+          adminUsername: settings.adminUsername || 'smaran',
+          adminPassword: defaultAdminPass,
+        };
+        users = [
+          {
+            id: 'admin',
+            username: settings.adminUsername || 'smaran',
+            password: defaultAdminPass,
+            role: 'admin',
+            isSystem: true,
+          },
+          ...users.filter((u) => u.username !== 'smaran' && u.username !== 'admin'),
+        ];
+        shouldSave = true;
+      }
+
+      if (shouldSave) {
+        this.data = { settings, users };
+        this.save();
+      } else {
+        this.data = { settings, users };
+      }
+
+      return this.data;
     }
 
     // First initialization: generate credentials matching default pattern
@@ -140,33 +154,39 @@ export class FileServerStore {
       users: initialUsers,
     };
 
-    try {
-      const dir = path.dirname(this.filePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      fs.writeFileSync(this.filePath, JSON.stringify(initialData, null, 2), 'utf8');
-    } catch {
-      // Ignore initial write failure
-    }
-
+    this.data = initialData;
+    this.save();
     return initialData;
   }
 
-  private save(): void {
+  save(): { ok: boolean; error?: string } {
     try {
-      const dir = path.dirname(this.filePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), 'utf8');
+      writeAtomicFile(this.filePath, JSON.stringify(this.data, null, 2), { backup: true });
+      return { ok: true };
     } catch (err) {
-      console.error('Failed to save fileserver data:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[FileServerStore] Failed to save configuration:', msg);
+      throw new Error(`Failed to save file server configuration: ${msg}`);
     }
   }
 
   getSettings(): FileServerSettings {
     return { ...this.data.settings };
+  }
+
+  getSafeSettings(): FileServerSettings {
+    return {
+      ...this.data.settings,
+      adminPassword: '', // Secrets are never exposed to renderer
+    };
+  }
+
+  getSafeAdminCredentials(): SafeAdminCredentials {
+    return {
+      username: this.data.settings.adminUsername || 'smaran',
+      hasPassword: Boolean(this.data.settings.adminPassword),
+      isConfigured: Boolean(this.data.settings.adminPassword),
+    };
   }
 
   updateSettings(patch: Partial<FileServerSettings>): FileServerSettings {

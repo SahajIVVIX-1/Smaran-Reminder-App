@@ -79,6 +79,7 @@ export const IPC = {
   fileserverOpenUrl: 'fileserver:openUrl',
   fileserverResetDefaults: 'fileserver:reset-defaults',
   fileserverEnableWebClient: 'fileserver:enableWebClient',
+  fileserverRestoreWebClient: 'fileserver:restoreWebClient',
   fileserverExportMountScript: 'fileserver:exportMountScript',
   // Notifications
   notificationsGet: 'notifications:get',

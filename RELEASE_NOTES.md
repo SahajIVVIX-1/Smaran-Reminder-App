@@ -1,3 +1,41 @@
+# Smaran 3.4.5
+
+- **WebDAV Command Injection Remediation (`FileServerManager.ts`):**
+  - Eliminated shell-interpolated `execAsync()` calls in WebDAV drive mounting and unmounting. Replaced with safe, argument-based `execFile()` invocation (`net.exe`).
+  - Added strict input validation: `validateDriveLetter()` strictly restricts drive letters to a single uppercase letter (`^[A-Z]:?$`), preventing command chaining attacks.
+  - Implemented `validateCredentialInput()` rejecting ASCII control characters (`\x00` - `\x1F`, `\x7F`) and newlines across usernames and passwords.
+- **Centralized Electron IPC Sender Role Authorization (`ipc/security.ts`):**
+  - Created centralized trusted-renderer authorization verifying sender frame URLs, expected origins, and authorized WebContents across both `ipcMain.handle` and `ipcMain.on`.
+  - Implemented strict least-privilege role matrices for all window roles (`app`, `notification`, `menu`, `license`, `setup`, `screenborder`, `trayart`). Privileged file server controls, config modifications, and backup operations are strictly restricted to the authorized `app` window.
+  - Added boundary runtime payload schema validation via Zod across all IPC handlers.
+- **Administrator Credential Protection & Exposure Removal:**
+  - Removed plaintext administrator password returns from renderer-facing APIs (`fileserver:settings:get`, `fileserver:settings:save`, `fileserver:admin:get`).
+  - Replaced `adminPassword` exposure with safe account metadata (`SafeAdminCredentials`: `{ username, hasPassword, isConfigured }`).
+  - UI password field uses masked placeholders (`•••••••• (configured)`) and only transmits new credentials when changed by the user. Main process uses internal secure credential storage for local WebDAV operations.
+- **Hardened FileServerStore Persistence & Corruption Recovery (`FileServerStore.ts`):**
+  - Migrated `FileServerStore` to shared atomic persistence (`writeAtomicFile`), Windows-safe replacement with exponential backoff on file locks, and automatic `.bak` backups.
+  - Added Zod schema validation (`FileServerDataSchema`).
+  - Handled damaged or malformed JSON by preserving the corrupt file as `fileserver.json.corrupt.<timestamp>` and seamlessly restoring valid configuration from `.bak`.
+- **Electron Navigation Security & Sandboxing (`security/navigationSecurity.ts`):**
+  - Enforced `will-navigate` allowlists restricting navigation strictly to internal application pages, blocking rogue external redirects.
+  - Hardened `setWindowOpenHandler` denying arbitrary window popups; safe `http:`/`https:` external links are opened in the default system browser via `shell.openExternal()`.
+  - Blocked dangerous URL schemes (`javascript:`, `file:`, `data:`, `vbscript:`) and webview attachments (`will-attach-webview`).
+  - Injected strict Content Security Policy (CSP) and security headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`) on all internal HTML loads.
+  - Denied all device permission requests via `session.setPermissionRequestHandler`.
+- **Safe Windows Registry Integration & WebDAV Security (`webdavRegistry.ts`):**
+  - Replaced shell-based `.bat` script execution with argument-based `execFile('reg.exe')` and PowerShell `Start-Process -Verb RunAs`.
+  - Added automatic registry backup (`webdav-registry-backup.json`) preserving previous `BasicAuthLevel` and `FileSizeLimitInBytes` prior to modification.
+  - Introduced `restoreWebClientRegistry()` allowing full restoration of original Windows registry values.
+- **Persistent Rotating Operational Logs (`HfsLogger.ts`):**
+  - Introduced rotating persistent HFS logs (`hfs.log`, `hfs.1.log`, `hfs.2.log`) with bounded file sizes (5 MB max) and configurable retention (3 files).
+  - Implemented automatic redaction of sensitive credentials, Basic auth headers, passwords, tokens, and cookies before disk persistence.
+- **ConfigStore Listener Isolation:**
+  - Wrapped `ConfigStore.ts` change subscriber callbacks in individual `try/catch` error boundaries, preventing broken listeners from halting subsequent notifications or failing save results.
+- **Security Audit Regression Test Suite (`tests/unit/securityAudit.test.ts`):**
+  - 15 dedicated security regression tests verifying command injection prevention, IPC sender verification, payload validation, credential masking, corruption recovery, external URL safety, registry backup, log redaction, and listener error isolation.
+
+---
+
 # Smaran 3.4.4
 
 - **Persistent File Server Security & Audit Storage (`fileserver-audit.json`):**

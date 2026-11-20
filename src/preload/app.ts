@@ -18,6 +18,7 @@ import type {
   FileServerAuditFilter,
   FileServerSecurityEvent,
   FileServerSettings,
+  SafeAdminCredentials,
   ServerLogEntry,
   ServerStatus,
 } from '@shared/fileserver';
@@ -136,7 +137,7 @@ const api = {
       ipcRenderer.invoke(IPC.fileserverMountDrive, payload),
     unmountLocalDrive: (driveLetter?: string): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke(IPC.fileserverUnmountDrive, driveLetter),
-    getAdminCredentials: (): Promise<{ username: string; password?: string }> =>
+    getAdminCredentials: (): Promise<SafeAdminCredentials> =>
       ipcRenderer.invoke(IPC.fileserverAdminGet),
     setAdminCredentials: (creds: {
       username: string;
@@ -147,6 +148,8 @@ const api = {
       ipcRenderer.invoke(IPC.fileserverResetDefaults),
     enableWebClient: (): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke(IPC.fileserverEnableWebClient),
+    restoreWebClient: (): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverRestoreWebClient),
     exportMountScript: (): Promise<{ ok: boolean; filePath?: string; error?: string }> =>
       ipcRenderer.invoke(IPC.fileserverExportMountScript),
     openUrl: (url: string): Promise<void> => ipcRenderer.invoke(IPC.fileserverOpenUrl, url),

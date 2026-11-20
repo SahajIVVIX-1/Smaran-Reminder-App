@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog } from 'electron';
+import { app, BrowserWindow, dialog, session } from 'electron';
 import { registerIpcHandlers } from './ipc/handlers';
 import { decodeWithNativeImage, registerLicenseIpc } from './license/ipc';
 import { LicenseStore } from './license/LicenseStore';
@@ -9,6 +9,7 @@ import { recordMilestone } from './system/diagnostics';
 import { chooseDataFolder } from './system/dataFolder';
 import { registerFontScheme } from './system/fonts';
 import { launchedHidden } from './system/loginItem';
+import { configureSessionSecurity, initGlobalAppSecurity } from './security/navigationSecurity';
 
 const APP_ID = 'com.sahaj.smaran';
 /** How often a running Smaran re-checks its license (it may expire while open). */
@@ -20,6 +21,7 @@ else if (isSetupRun()) runSetup();
 else runApp();
 
 function runApp(): void {
+  initGlobalAppSecurity();
   // Portable build: keep data beside the exe when that folder is writable. Must run before 'ready'.
   const data = chooseDataFolder(process.env['PORTABLE_EXECUTABLE_DIR'], app.getPath('userData'));
   if (data.dir !== app.getPath('userData')) app.setPath('userData', data.dir);
@@ -50,6 +52,7 @@ function runApp(): void {
   });
 
   app.whenReady().then(() => {
+    configureSessionSecurity(session.defaultSession);
     recordMilestone('app_when_ready');
     app.setAppUserModelId(APP_ID);
     license = new LicenseStore(app.getPath('userData'), {

@@ -132,7 +132,13 @@ export class ConfigStore {
       };
     }
     this.config = config;
-    for (const listener of this.listeners) listener(config);
+    for (const listener of this.listeners) {
+      try {
+        listener(config);
+      } catch (err) {
+        console.error('[ConfigStore] Listener error:', err);
+      }
+    }
     return { ok: true };
   }
 

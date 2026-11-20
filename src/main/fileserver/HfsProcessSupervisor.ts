@@ -1,4 +1,4 @@
-import { ChildProcess, exec, execFile, execSync, spawn } from 'node:child_process';
+import { ChildProcess, execFile, execFileSync, spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -19,6 +19,7 @@ import { HfsApiClient } from './HfsApiClient';
 import { DEFAULT_CUSTOM_HTML, syncHfsConfigFile } from './HfsConfigBridge';
 import type { FileServerStore } from './FileServerStore';
 import { isLanIp, normalizeClientIp } from './ipUtils';
+import { HfsOperationalLogger } from './HfsLogger';
 
 export interface SupervisorCallbacks {
   onStatusChanged?: (status: ServerStatus) => void;
@@ -98,6 +99,7 @@ export class HfsProcessSupervisor {
   public readonly failedLoginsPath: string;
   private failedAttemptsByIp = new Map<string, { count: number; lastTime: number }>();
   private startPromise: Promise<{ ok: boolean; error?: string }> | null = null;
+  private logger: HfsOperationalLogger;
 
   constructor(
     dataDir: string,
@@ -108,6 +110,7 @@ export class HfsProcessSupervisor {
     this.configYamlPath = path.join(this.runtimeDir, 'config.yaml');
     this.failedLoginsPath = path.join(dataDir, 'failed-logins.json');
     this.internalToken = crypto.randomUUID();
+    this.logger = new HfsOperationalLogger(dataDir);
     this.loadFailedLogins();
 
     const settings = this.store.getSettings();
@@ -164,6 +167,7 @@ export class HfsProcessSupervisor {
 
   clearLogs(): void {
     this.logs = [];
+    this.logger.clear();
   }
 
   public getDefaultStorageDir(): string {
@@ -403,15 +407,19 @@ export class HfsProcessSupervisor {
 
       // 3. If Windows right-click registry entries exist, update them with Smaran branding
       const iconTarget = fs.existsSync(runtimeIcon) ? runtimeIcon : runtimeHfsIcon;
-      exec('reg query "HKCU\\Software\\Classes\\*\\shell\\AddToHFS3" /ve', (err, stdout) => {
+      execFile('reg.exe', ['query', 'HKCU\\Software\\Classes\\*\\shell\\AddToHFS3', '/ve'], { windowsHide: true }, (err, stdout) => {
         if (!err && stdout) {
           for (const k of ['*', 'Directory']) {
-            exec(
-              `reg add "HKCU\\Software\\Classes\\${k}\\shell\\AddToHFS3" /ve /f /d "Add to Smaran HFS"`,
+            execFile(
+              'reg.exe',
+              ['add', `HKCU\\Software\\Classes\\${k}\\shell\\AddToHFS3`, '/ve', '/f', '/d', 'Add to Smaran HFS'],
+              { windowsHide: true },
             );
             if (fs.existsSync(iconTarget)) {
-              exec(
-                `reg add "HKCU\\Software\\Classes\\${k}\\shell\\AddToHFS3" /v icon /f /d "${iconTarget}"`,
+              execFile(
+                'reg.exe',
+                ['add', `HKCU\\Software\\Classes\\${k}\\shell\\AddToHFS3`, '/v', 'icon', '/f', '/d', iconTarget],
+                { windowsHide: true },
               );
             }
           }
@@ -798,7 +806,7 @@ export class HfsProcessSupervisor {
       await new Promise<void>((resolve) => {
         const timer = setTimeout(() => {
           if (pid) {
-            exec(`taskkill /F /T /PID ${pid}`, () => resolve());
+            execFile('taskkill.exe', ['/F', '/T', '/PID', String(pid)], { windowsHide: true }, () => resolve());
           } else {
             resolve();
           }
@@ -827,7 +835,7 @@ export class HfsProcessSupervisor {
     this.stopHealthCheck();
     if (this.child?.pid) {
       try {
-        execSync(`taskkill /F /T /PID ${this.child.pid}`, { stdio: 'ignore', windowsHide: true });
+        execFileSync('taskkill.exe', ['/F', '/T', '/PID', String(this.child.pid)], { stdio: 'ignore', windowsHide: true });
       } catch {
         try {
           this.child.kill('SIGKILL');
@@ -844,7 +852,7 @@ export class HfsProcessSupervisor {
   private killChildSync(): void {
     if (this.child?.pid) {
       try {
-        exec(`taskkill /F /T /PID ${this.child.pid}`);
+        execFileSync('taskkill.exe', ['/F', '/T', '/PID', String(this.child.pid)], { stdio: 'ignore', windowsHide: true });
       } catch {
         // Best effort
       }
@@ -913,13 +921,7 @@ export class HfsProcessSupervisor {
   }
 
   private addLog(level: LogLevel, message: string, ip?: string): void {
-    const entry: ServerLogEntry = {
-      id: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
-      level,
-      message,
-      ip,
-    };
+    const entry = this.logger.log(level, message, ip);
     this.logs.push(entry);
     if (this.logs.length > 500) {
       this.logs.shift();

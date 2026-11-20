@@ -1,8 +1,11 @@
-import { BrowserWindow, dialog, ipcMain, nativeImage, app } from 'electron';
+import { BrowserWindow, dialog, nativeImage, app } from 'electron';
 import { IPC } from '@shared/ipc';
 import { LicenseError, type Bitmap } from '@shared/license/core';
 import type { LicenseImportResult, LicenseInfo } from '@shared/license/info';
 import type { LicenseStore } from './LicenseStore';
+import { registerSafeHandle, registerSafeOn } from '../ipc/security';
+
+const LICENSE_ROLES = ['license', 'app'] as const;
 
 export const LICENSE_DIALOG: Electron.OpenDialogOptions = {
   title: 'Import Your Smaran License',
@@ -57,8 +60,8 @@ export function registerLicenseIpc(
   store: LicenseStore,
   onImported: (info: LicenseInfo) => void,
 ): void {
-  ipcMain.handle(IPC.licenseGet, () => store.info());
-  ipcMain.handle(IPC.licenseImport, async (event) => {
+  registerSafeHandle(IPC.licenseGet, [...LICENSE_ROLES], () => store.info());
+  registerSafeHandle(IPC.licenseImport, [...LICENSE_ROLES], async (event) => {
     const result = await pickAndImport(store, BrowserWindow.fromWebContents(event.sender));
     if (result.ok) {
       for (const win of BrowserWindow.getAllWindows())
@@ -66,11 +69,11 @@ export function registerLicenseIpc(
     }
     return result;
   });
-  ipcMain.handle(IPC.licenseActivate, () => {
+  registerSafeHandle(IPC.licenseActivate, [...LICENSE_ROLES], () => {
     const info = store.info();
     if (info.status === 'valid') {
       onImported(info);
     }
   });
-  ipcMain.on(IPC.licenseQuit, () => app.quit());
+  registerSafeOn(IPC.licenseQuit, [...LICENSE_ROLES], () => app.quit());
 }

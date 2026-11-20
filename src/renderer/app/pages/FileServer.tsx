@@ -27,6 +27,7 @@ export function FileServer() {
   // Administrator Credentials State
   const [adminUsername, setAdminUsername] = useState('smaran');
   const [adminPassword, setAdminPassword] = useState('');
+  const [adminPasswordConfigured, setAdminPasswordConfigured] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [credSaving, setCredSaving] = useState(false);
   const [credFeedback, setCredFeedback] = useState<{
@@ -127,7 +128,7 @@ export function FileServer() {
         if (setts.adminUsername) setAdminUsername(setts.adminUsername);
         if (setts.port) setPortInput(String(setts.port));
         if (creds.username) setAdminUsername(creds.username);
-        if (creds.password) setAdminPassword(creds.password);
+        setAdminPasswordConfigured(Boolean(creds.hasPassword));
       } catch {
         // Handled in UI
       }
@@ -337,8 +338,6 @@ export function FileServer() {
     try {
       const res = await window.smaran.fileserver.mountLocalDrive({
         driveLetter: 'Z:',
-        username: adminUsername,
-        password: adminPassword,
       });
       if (res.ok) {
         setDriveFeedback({
@@ -445,28 +444,37 @@ export function FileServer() {
 
   // Section: Administrator Credentials
   const handleSaveCredentials = async () => {
-    if (!adminUsername.trim() || !adminPassword.trim()) {
+    if (!adminUsername.trim()) {
       setCredFeedback({
         type: 'error',
-        message: 'Admin username and password cannot be empty.',
+        message: 'Admin username cannot be empty.',
       });
       return;
     }
-    if (adminPassword.trim().length < 8) {
+    if (!adminPassword.trim() && !adminPasswordConfigured) {
       setCredFeedback({
         type: 'error',
-        message: 'Password must be at least 8 characters long.',
+        message: 'Admin password cannot be empty.',
       });
       return;
     }
-    const banned = ['smaran', 'admin', 'password', '12345678', '123456789'];
-    if (banned.includes(adminPassword.trim().toLowerCase())) {
-      setCredFeedback({
-        type: 'error',
-        message:
-          'Password cannot be a common default or weak password (e.g. smaran, admin, password).',
-      });
-      return;
+    if (adminPassword.trim()) {
+      if (adminPassword.trim().length < 8) {
+        setCredFeedback({
+          type: 'error',
+          message: 'Password must be at least 8 characters long.',
+        });
+        return;
+      }
+      const banned = ['smaran', 'admin', 'password', '12345678', '123456789'];
+      if (banned.includes(adminPassword.trim().toLowerCase())) {
+        setCredFeedback({
+          type: 'error',
+          message:
+            'Password cannot be a common default or weak password (e.g. smaran, admin, password).',
+        });
+        return;
+      }
     }
     setCredSaving(true);
     setCredFeedback(null);
@@ -474,11 +482,21 @@ export function FileServer() {
       setActionLoading('applying');
     }
     try {
-      const res = await window.smaran.fileserver.setAdminCredentials({
-        username: adminUsername.trim(),
-        password: adminPassword,
-      });
+      let res: { ok: boolean; error?: string };
+      if (adminPassword.trim()) {
+        res = await window.smaran.fileserver.setAdminCredentials({
+          username: adminUsername.trim(),
+          password: adminPassword.trim(),
+        });
+      } else {
+        await window.smaran.fileserver.saveSettings({
+          adminUsername: adminUsername.trim(),
+        });
+        res = { ok: true };
+      }
       if (res.ok) {
+        setAdminPassword('');
+        setAdminPasswordConfigured(true);
         setCredFeedback({
           type: 'success',
           message: 'Admin credentials synchronized successfully to server & WebDAV.',
@@ -522,7 +540,8 @@ export function FileServer() {
         setPortInput(String(s.port || 5901));
         const creds = await window.smaran.fileserver.getAdminCredentials();
         setAdminUsername(creds.username || 'admin');
-        setAdminPassword(creds.password || '');
+        setAdminPassword('');
+        setAdminPasswordConfigured(Boolean(creds.hasPassword));
         setShowResetDialog(false);
         setServerError(null);
         setPortFeedback({ type: 'success', message: 'Reset to factory defaults completed.' });
@@ -1010,7 +1029,11 @@ export function FileServer() {
               type={showPassword ? 'text' : 'password'}
               value={adminPassword}
               onChange={(e) => setAdminPassword(e.target.value)}
-              placeholder="Enter password..."
+              placeholder={
+                adminPasswordConfigured
+                  ? '•••••••• (configured — enter new)'
+                  : 'Enter password...'
+              }
               className="w-44 font-mono text-[13px]"
             />
             <Button
