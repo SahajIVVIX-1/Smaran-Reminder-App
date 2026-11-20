@@ -149,11 +149,17 @@ export function runSetup(): void {
     ipcMain.on(IPC.setupLicense, (event) => {
       if (event.sender !== win.webContents || running || choosing) return;
       choosing = true;
-      void pickAndImport(license, win).then((result) => {
+      void pickAndImport(license, win, () => {
+        send({ phase: 'verifying', progress: 0 });
+      }).then((result) => {
         choosing = false;
         if (result.ok) {
-          send({ phase: 'ready', progress: 0, licensee: result.info.license?.name });
-        } else if (!('canceled' in result)) askForLicense(result.error);
+          send({ phase: 'verifying', progress: 0.1, licensee: result.info.license?.name });
+        } else if (!('canceled' in result)) {
+          askForLicense(result.error);
+        } else {
+          send({ phase: 'license', progress: 0 });
+        }
       });
     });
 

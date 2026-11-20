@@ -71,7 +71,9 @@ export function LicenseGate() {
           setActiveInfo(result.info);
           setPhase('success');
           // Activate Smaran after check tick animation displays
-          void window.smaranLicense.activate();
+          window.setTimeout(() => {
+            void window.smaranLicense.activate();
+          }, 600);
         } else {
           const err = 'error' in result ? result.error : 'This license is invalid.';
           setErrorMsg(err);
@@ -105,7 +107,10 @@ export function LicenseGate() {
 
       <SmaranDots size={76} goo interactive={false} scene={scene} />
 
-      <h1 className="mt-4 font-serif text-[28px] leading-tight font-semibold">
+      <h1
+        key={phase}
+        className="mt-4 font-serif text-[28px] leading-tight font-semibold animate-fade transition-all duration-300"
+      >
         {phase === 'verifying'
           ? 'Verifying License…'
           : phase === 'success'
@@ -115,7 +120,10 @@ export function LicenseGate() {
               : 'Activate Smaran'}
       </h1>
 
-      <p className="mt-2 max-w-[400px] font-serif text-[14.5px] leading-snug text-muted italic">
+      <p
+        key={phase + (errorMsg ?? '')}
+        className="mt-2 max-w-[400px] font-serif text-[14.5px] leading-snug text-muted italic animate-fade transition-all duration-300"
+      >
         {phase === 'verifying'
           ? 'Performing cryptographic verification and offline credential check…'
           : phase === 'success' && activeInfo?.license
@@ -127,7 +135,7 @@ export function LicenseGate() {
 
       {/* 10-Second Loading Progress Indicator */}
       {phase === 'verifying' && (
-        <div className="mt-6 flex w-full max-w-[360px] flex-col gap-2.5">
+        <div className="mt-6 flex w-full max-w-[360px] flex-col gap-2.5 animate-fade transition-all duration-300">
           <div className="h-2 w-full overflow-hidden rounded-full bg-raised ring-1 ring-line">
             <div
               className="h-full rounded-full bg-accent transition-[width] duration-75 ease-linear"
@@ -143,7 +151,7 @@ export function LicenseGate() {
 
       {/* Error Display with Shake Animation */}
       {phase === 'error' && errorMsg && (
-        <div className="gate-shake mt-5 w-full max-w-[360px] rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 text-left">
+        <div className="gate-shake mt-5 w-full max-w-[360px] rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 text-left animate-fade">
           <div className="text-[13px] font-semibold text-danger">Verification Failed</div>
           <div className="mt-1 text-[12.5px] text-danger/90">{errorMsg}</div>
         </div>
@@ -151,25 +159,25 @@ export function LicenseGate() {
 
       {/* Initial license message if previously expired or damaged */}
       {phase === 'idle' && initialInfo?.message && initialInfo.status !== 'missing' && (
-        <p role="alert" className="mt-5 max-w-[400px] text-[13px] leading-snug text-danger">
+        <p role="alert" className="mt-5 max-w-[400px] text-[13px] leading-snug text-danger animate-fade">
           {initialInfo.message}
         </p>
       )}
 
       {/* Action Buttons */}
       {phase !== 'verifying' && phase !== 'success' && (
-        <div className="mt-6 flex w-full max-w-[360px] flex-col gap-2">
+        <div className="mt-6 flex w-full max-w-[360px] flex-col gap-2 animate-fade transition-all duration-300">
           <button
             type="button"
             onClick={() => void pick()}
-            className="h-10 rounded-xl bg-accent text-[14px] font-medium text-on-accent transition-colors hover:bg-accent-hover shadow-sm"
+            className="h-10 rounded-xl bg-accent text-[14px] font-medium text-on-accent transition-all duration-200 hover:bg-accent-hover active:scale-[0.98] shadow-sm"
           >
             {phase === 'error' ? 'Try Another License Image…' : 'Import License Image…'}
           </button>
           <button
             type="button"
             onClick={() => window.smaranLicense.quit()}
-            className="h-10 rounded-xl text-[14px] font-medium text-muted transition-colors hover:bg-hover hover:text-ink"
+            className="h-10 rounded-xl text-[14px] font-medium text-muted transition-all duration-200 hover:bg-hover hover:text-ink active:scale-[0.98]"
           >
             Quit
           </button>

@@ -7,6 +7,7 @@
  */
 export type SetupPhase =
   | 'license'
+  | 'verifying'
   | 'ready'
   | 'preparing'
   | 'copying'

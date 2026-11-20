@@ -38,7 +38,7 @@ export class HfsApiClient {
             'Content-Length': Buffer.byteLength(payload),
             'x-smaran-internal-token': this.token,
             'x-hfs-anti-csrf': '1',
-            'User-Agent': 'Smaran-HFS-Bridge/3.4.6',
+            'User-Agent': 'Smaran-HFS-Bridge/3.4.7',
           },
           timeout: 4000,
         },
@@ -90,7 +90,7 @@ export class HfsApiClient {
           path: '/',
           method: 'GET',
           headers: {
-            'User-Agent': 'Smaran-HFS-Bridge/3.4.6',
+            'User-Agent': 'Smaran-HFS-Bridge/3.4.7',
           },
           timeout: timeoutMs,
         },

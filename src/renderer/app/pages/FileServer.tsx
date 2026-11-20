@@ -636,9 +636,9 @@ export function FileServer() {
             devices.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 transition-all duration-300">
           {isRunning ? (
-            <>
+            <div className="flex items-center gap-2 animate-fade transition-all duration-300">
               <Button variant="secondary" size="sm" onClick={() => handleOpenUrl(adminUrl)}>
                 <ShieldIcon size={14} />
                 Admin Panel ↗
@@ -662,27 +662,37 @@ export function FileServer() {
                 onClick={handleStop}
                 disabled={actionLoading !== null}
               >
-                <PowerIcon size={14} />
-                Stop Server
+                {actionLoading === 'stopping' ? (
+                  <RefreshIcon size={14} className="animate-spin text-white" />
+                ) : (
+                  <PowerIcon size={14} />
+                )}
+                {actionLoading === 'stopping' ? 'Stopping…' : 'Stop Server'}
               </Button>
-            </>
+            </div>
           ) : (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleStart}
-              disabled={actionLoading !== null}
-            >
-              <PlayIcon size={14} />
-              {actionLoading === 'starting' ? 'Starting...' : 'Start Server'}
-            </Button>
+            <div className="flex items-center gap-2 animate-fade transition-all duration-300">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleStart}
+                disabled={actionLoading !== null}
+              >
+                {actionLoading === 'starting' ? (
+                  <RefreshIcon size={14} className="animate-spin text-on-accent" />
+                ) : (
+                  <PlayIcon size={14} />
+                )}
+                {actionLoading === 'starting' ? 'Starting Server…' : 'Start Server'}
+              </Button>
+            </div>
           )}
         </div>
       </header>
 
       {/* Global Error Banner */}
       {serverError && (
-        <div className="flex items-start justify-between gap-3 p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-200 text-xs shadow-xs animate-fade">
+        <div className="flex items-start justify-between gap-3 p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-200 text-xs shadow-xs animate-fade transition-all duration-300">
           <div className="flex items-start gap-2.5">
             <span className="font-semibold text-rose-300">Server Alert:</span>
             <span className="leading-relaxed">{serverError}</span>
@@ -699,10 +709,10 @@ export function FileServer() {
       )}
 
       {/* Hero / Live Server Status Card */}
-      <div className="animate-enter rounded-xl border border-line bg-surface p-4.5 space-y-4 [animation-delay:40ms]">
+      <div className="animate-enter rounded-xl border border-line bg-surface p-4.5 space-y-4 [animation-delay:40ms] transition-all duration-500 ease-in-out">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent transition-transform duration-300">
               <ServerIcon size={20} />
             </span>
             <div>
@@ -710,7 +720,7 @@ export function FileServer() {
                 <span className="font-medium text-ink text-[15px]">Smaran HFS Engine</span>
                 <span
                   className={cx(
-                    'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium border',
+                    'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium border transition-all duration-300 ease-out',
                     isPending
                       ? 'border-accent/30 bg-accent/10 text-accent'
                       : isRunning
@@ -749,15 +759,23 @@ export function FileServer() {
           </div>
         </div>
 
-        {isRunning && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-3 border-t border-line">
-            <div className="rounded-lg border border-line bg-raised p-2.5 space-y-0.5">
+        {/* Collapsible 4-column metric badges strip with smooth expand/collapse transition */}
+        <div
+          className={cx(
+            'transition-all duration-500 ease-in-out overflow-hidden',
+            isRunning
+              ? 'max-h-60 opacity-100 pt-3 border-t border-line translate-y-0'
+              : 'max-h-0 opacity-0 pt-0 border-t-0 -translate-y-2 pointer-events-none',
+          )}
+        >
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="rounded-lg border border-line bg-raised p-2.5 space-y-0.5 transition-all duration-300">
               <span className="text-[11px] font-medium text-muted uppercase tracking-wider block">
                 HTTP Port
               </span>
               <span className="font-mono text-[13px] font-semibold text-accent">{currentPort}</span>
             </div>
-            <div className="rounded-lg border border-line bg-raised p-2.5 space-y-0.5">
+            <div className="rounded-lg border border-line bg-raised p-2.5 space-y-0.5 transition-all duration-300">
               <span className="text-[11px] font-medium text-muted uppercase tracking-wider block">
                 Active Clients
               </span>
@@ -768,7 +786,7 @@ export function FileServer() {
                 </span>
               </span>
             </div>
-            <div className="rounded-lg border border-line bg-raised p-2.5 space-y-0.5">
+            <div className="rounded-lg border border-line bg-raised p-2.5 space-y-0.5 transition-all duration-300">
               <span className="text-[11px] font-medium text-muted uppercase tracking-wider block">
                 Web Access
               </span>
@@ -790,7 +808,7 @@ export function FileServer() {
                 </span>
               )}
             </div>
-            <div className="rounded-lg border border-line bg-raised p-2.5 space-y-0.5">
+            <div className="rounded-lg border border-line bg-raised p-2.5 space-y-0.5 transition-all duration-300">
               <span className="text-[11px] font-medium text-muted uppercase tracking-wider block">
                 Storage Folder
               </span>
@@ -805,7 +823,7 @@ export function FileServer() {
               </button>
             </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* WebDAV Network Storage */}
@@ -1149,56 +1167,69 @@ export function FileServer() {
               : 'Start the server above to enable Wi-Fi sharing.'
           }
         >
-          {isRunning ? (
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-xs text-accent px-2.5 py-1 rounded-md bg-raised border border-line select-all">
-                {primaryLanUrl}
+          <div className="min-h-[32px] flex items-center transition-all duration-300">
+            {isRunning ? (
+              <div className="flex items-center gap-2 animate-fade transition-all duration-300">
+                <span className="font-mono text-xs text-accent px-2.5 py-1 rounded-md bg-raised border border-line select-all">
+                  {primaryLanUrl}
+                </span>
+                <Button size="sm" variant="secondary" onClick={() => handleShowQr(primaryLanUrl)}>
+                  <QrIcon size={13} />
+                  QR Code
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => handleOpenUrl(primaryLanUrl)}>
+                  <GlobeIcon size={13} />
+                  Open Web ↗
+                </Button>
+                <IconButton
+                  aria-label="Copy Wi-Fi URL"
+                  title="Copy Wi-Fi URL"
+                  onClick={() => handleCopyUrl(primaryLanUrl)}
+                >
+                  {copiedUrl === primaryLanUrl ? (
+                    <CheckIcon size={14} className="text-emerald-500" />
+                  ) : (
+                    <CopyIcon size={14} />
+                  )}
+                </IconButton>
+              </div>
+            ) : (
+              <span className="text-[12.5px] text-faint italic font-serif animate-fade transition-opacity duration-300">
+                Server Offline
               </span>
-              <Button size="sm" variant="secondary" onClick={() => handleShowQr(primaryLanUrl)}>
-                <QrIcon size={13} />
-                QR Code
-              </Button>
-              <Button size="sm" variant="secondary" onClick={() => handleOpenUrl(primaryLanUrl)}>
-                <GlobeIcon size={13} />
-                Open Web ↗
-              </Button>
-              <IconButton
-                aria-label="Copy Wi-Fi URL"
-                title="Copy Wi-Fi URL"
-                onClick={() => handleCopyUrl(primaryLanUrl)}
-              >
-                {copiedUrl === primaryLanUrl ? (
-                  <CheckIcon size={14} className="text-emerald-500" />
-                ) : (
-                  <CopyIcon size={14} />
-                )}
-              </IconButton>
-            </div>
-          ) : (
-            <span className="text-[12.5px] text-faint italic font-serif">Server Offline</span>
-          )}
+            )}
+          </div>
         </Row>
 
-        {isRunning && status?.lanUrls && status.lanUrls.length > 1 && (
-          <Row
-            label="Other Network IPs"
-            hint="Additional local IP addresses detected on your network interfaces."
-          >
-            <div className="flex flex-wrap items-center gap-1.5">
-              {status.lanUrls.slice(1).map((u) => (
-                <button
-                  key={u}
-                  type="button"
-                  onClick={() => handleCopyUrl(u)}
-                  className="rounded border border-line bg-raised px-2 py-0.5 font-mono text-[11px] text-muted hover:text-accent transition-colors cursor-pointer"
-                  title="Click to copy"
-                >
-                  {u}
-                </button>
-              ))}
-            </div>
-          </Row>
-        )}
+        <div
+          className={cx(
+            'transition-all duration-500 ease-in-out overflow-hidden',
+            isRunning && status?.lanUrls && status.lanUrls.length > 1
+              ? 'max-h-36 opacity-100'
+              : 'max-h-0 opacity-0 pointer-events-none',
+          )}
+        >
+          {status?.lanUrls && status.lanUrls.length > 1 && (
+            <Row
+              label="Other Network IPs"
+              hint="Additional local IP addresses detected on your network interfaces."
+            >
+              <div className="flex flex-wrap items-center gap-1.5 animate-fade">
+                {status.lanUrls.slice(1).map((u) => (
+                  <button
+                    key={u}
+                    type="button"
+                    onClick={() => handleCopyUrl(u)}
+                    className="rounded border border-line bg-raised px-2 py-0.5 font-mono text-[11px] text-muted hover:text-accent transition-colors cursor-pointer"
+                    title="Click to copy"
+                  >
+                    {u}
+                  </button>
+                ))}
+              </div>
+            </Row>
+          )}
+        </div>
 
         <Row
           label="Windows Firewall & Diagnostics"

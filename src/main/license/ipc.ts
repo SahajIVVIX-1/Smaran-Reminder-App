@@ -36,12 +36,14 @@ export function decodeWithNativeImage(bytes: Uint8Array): Bitmap | null {
 export async function pickAndImport(
   store: LicenseStore,
   parent: BrowserWindow | null,
+  onFilePicked?: (filePath: string) => void,
 ): Promise<LicenseImportResult> {
   const result = parent
     ? await dialog.showOpenDialog(parent, LICENSE_DIALOG)
     : await dialog.showOpenDialog(LICENSE_DIALOG);
   const path = result.filePaths[0];
   if (result.canceled || !path) return { ok: false, canceled: true };
+  if (onFilePicked) onFilePicked(path);
   try {
     return { ok: true, info: store.importFile(path) };
   } catch (error) {

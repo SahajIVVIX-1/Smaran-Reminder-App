@@ -113,6 +113,7 @@ describe('Setup Architecture & WinSystem Tests', () => {
   it('SetupPhase supports ready phase for pre-installation user confirmation', () => {
     const phases: Array<import('../../src/shared/setup').SetupPhase> = [
       'license',
+      'verifying',
       'ready',
       'preparing',
       'copying',
@@ -123,5 +124,6 @@ describe('Setup Architecture & WinSystem Tests', () => {
       'error',
     ];
     expect(phases).toContain('ready');
+    expect(phases).toContain('verifying');
   });
 });

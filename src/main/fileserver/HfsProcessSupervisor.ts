@@ -1115,7 +1115,7 @@ export class HfsProcessSupervisor {
       '              SMARAN FILE SERVER STARTUP DIAGNOSTICS                 ',
       '======================================================================',
       `Export Timestamp     : ${new Date().toISOString()}`,
-      `Application Version  : 3.4.6`,
+      `Application Version  : 3.4.7`,
       `Node Version         : ${process.version}`,
       `Platform / Arch      : ${process.platform} (${process.arch})`,
       `Packaged Mode        : ${app?.isPackaged ?? false}`,

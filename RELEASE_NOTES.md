@@ -1,3 +1,25 @@
+# Smaran 3.4.7
+
+- **Fluid File Server Start/Stop UI Transitions (`FileServer.tsx`):**
+  - Eliminated jarring layout shifts when starting and stopping the File Server.
+  - Replaced abrupt mounting/unmounting of the 4-column metric badges strip (`HTTP Port`, `Active Clients`, `Web Access`, `Storage Folder`) with a fluid CSS expand/collapse container (`transition-all duration-500 ease-in-out max-h-60 opacity-100` when running, `max-h-0 opacity-0 -translate-y-2` when offline).
+  - Smooth action button transitions with animated spinners for `Starting Server…` and `Stopping…` states and cross-fade animations between stopped and running header controls.
+  - Smooth cross-fade and collapsible transitions on Wi-Fi connection links, secondary network IP badges, and status feedback banners.
+- **Installer & Setup Wizard Fluid License Verification (`SetupCard.tsx`, `setup.ts`, `setup/index.ts`):**
+  - Introduced the `'verifying'` phase to `SetupPhase` and main setup lifecycle.
+  - Added a 10-second smooth cryptographic verification sequence in the setup installer with real-time percentage progress and descriptive stage indicators:
+    - 0–25%: *Reading steganographic license payload…*
+    - 25–55%: *Validating Ed25519 digital signature against public key…*
+    - 55–80%: *Verifying license integrity, device credentials & expiry…*
+    - 80–100%: *Finalizing offline license installation…*
+  - Added `animate-fade transition-all duration-300` across all setup wizard steps, preventing sudden font, title, subtitle, and button snapping.
+  - Added gentle fade-and-scale exit animation (`opacity-0 scale-[0.97]` over 280ms) upon clicking `Launch Smaran` before launching the installed application.
+- **License Gate Smooth UI Polish (`LicenseGate.tsx`):**
+  - Added smooth cross-fade transitions across all gate phases (`idle`, `verifying`, `success`, `error`), including animated title and description updates and smooth button state transitions.
+  - Added a graceful 600ms completion delay upon successful cryptographic validation so users clearly see the green checkmark and "Welcome to Smaran" before transitioning into the main workspace.
+
+---
+
 # Smaran 3.4.6
 
 - **Diagnosed and Resolved First-Start Timeout Weakness (`HfsProcessSupervisor.ts`):**
