@@ -122,6 +122,8 @@ export class HfsProcessSupervisor {
     process.on('exit', () => {
       this.killChildSync();
     });
+
+    this.syncContextMenuIntegration();
   }
 
   getApiClient(): HfsApiClient | null {
@@ -333,6 +335,72 @@ export class HfsProcessSupervisor {
     }
   }
 
+  public syncContextMenuIntegration(): void {
+    if (process.platform !== 'win32') return;
+
+    try {
+      const runtimeIcon = path.join(this.runtimeDir, 'smaran.ico');
+      const runtimeHfsIcon = path.join(this.runtimeDir, 'hfs.ico');
+
+      // 1. Ensure runtime icons are updated with Smaran's branding icon
+      const appPath = typeof app?.getAppPath === 'function' ? app.getAppPath() : process.cwd();
+      const resPath = process.resourcesPath || '';
+      const candidateIcons = [
+        path.join(appPath, 'build', 'icon.ico'),
+        path.join(resPath, 'icon.ico'),
+        path.join(this.runtimeDir, 'smaran.ico'),
+        path.join(this.runtimeDir, 'admin', 'favicon.ico'),
+        path.join(this.runtimeDir, 'frontend', 'favicon.ico'),
+      ];
+
+      for (const icon of candidateIcons) {
+        if (fs.existsSync(icon) && fs.statSync(icon).size > 50_000) {
+          try {
+            if (!fs.existsSync(this.runtimeDir)) {
+              fs.mkdirSync(this.runtimeDir, { recursive: true });
+            }
+            fs.copyFileSync(icon, runtimeIcon);
+            fs.copyFileSync(icon, runtimeHfsIcon);
+            break;
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      // 2. Ensure extracted api.vfs.js has updated label
+      const vfsScript = path.join(this.runtimeDir, 'src', 'api.vfs.js');
+      if (fs.existsSync(vfsScript)) {
+        try {
+          const content = fs.readFileSync(vfsScript, 'utf8');
+          if (content.includes('Add to HFS (new)')) {
+            const updated = content
+              .replace(/Add to HFS \(new\)/g, 'Add to Smaran HFS')
+              .replace(/const_1\.APP_PATH \+ '\\\\hfs\.ico'/g, "const_1.APP_PATH + '\\\\smaran.ico'");
+            fs.writeFileSync(vfsScript, updated, 'utf8');
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      // 3. If Windows right-click registry entries exist, update them with Smaran branding
+      const iconTarget = fs.existsSync(runtimeIcon) ? runtimeIcon : runtimeHfsIcon;
+      exec('reg query "HKCU\\Software\\Classes\\*\\shell\\AddToHFS3" /ve', (err, stdout) => {
+        if (!err && stdout) {
+          for (const k of ['*', 'Directory']) {
+            exec(`reg add "HKCU\\Software\\Classes\\${k}\\shell\\AddToHFS3" /ve /f /d "Add to Smaran HFS"`);
+            if (fs.existsSync(iconTarget)) {
+              exec(`reg add "HKCU\\Software\\Classes\\${k}\\shell\\AddToHFS3" /v icon /f /d "${iconTarget}"`);
+            }
+          }
+        }
+      });
+    } catch {
+      // ignore
+    }
+  }
+
   public async ensureEngineExtracted(): Promise<void> {
     this.flattenNestedDistIfNeeded();
 
@@ -342,6 +410,7 @@ export class HfsProcessSupervisor {
 
     // If already extracted and verified, zero work needed
     if (fs.existsSync(runtimeScript) && fs.existsSync(runtimePkg) && fs.existsSync(runtimeCentral)) {
+      this.syncContextMenuIntegration();
       return;
     }
 
@@ -418,6 +487,8 @@ export class HfsProcessSupervisor {
       this.addLog('error', err);
       throw new Error(err);
     }
+
+    this.syncContextMenuIntegration();
 
     const elapsed = Date.now() - startTime;
     this.addLog('info', `Smaran HFS engine verified and ready in ${elapsed}ms.`);

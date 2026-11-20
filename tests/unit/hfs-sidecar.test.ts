@@ -240,6 +240,12 @@ describe('HfsProcessSupervisor port & environment verification', () => {
       expect(fs.existsSync(path.join(runtimeDir, 'src', 'index.js'))).toBe(true);
       expect(fs.existsSync(path.join(runtimeDir, 'package.json'))).toBe(true);
       expect(fs.existsSync(path.join(runtimeDir, 'central.json'))).toBe(true);
+      expect(fs.existsSync(path.join(runtimeDir, 'hfs.ico'))).toBe(true);
+      expect(fs.existsSync(path.join(runtimeDir, 'smaran.ico'))).toBe(true);
+
+      const vfsContent = fs.readFileSync(path.join(runtimeDir, 'src', 'api.vfs.js'), 'utf8');
+      expect(vfsContent).toContain('Add to Smaran HFS');
+      expect(vfsContent).not.toContain('Add to HFS (new)');
 
       // Clean up
       fs.rmSync(tempDir, { recursive: true, force: true });

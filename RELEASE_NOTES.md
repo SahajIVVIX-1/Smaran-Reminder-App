@@ -1,3 +1,13 @@
+# Smaran 3.4.2
+
+- **Windows Shell Context Menu Integration ("Add to Smaran HFS"):**
+  - Updated the Windows Explorer right-click context menu label from `Add to HFS (new)` to `Add to Smaran HFS`.
+  - Replaced the default HFS icon with Smaran's high-resolution multi-size brandmark (`build/icon.ico`, 16x16 to 256x256).
+  - Automatically detects and migrates existing `HKCU\Software\Classes\*\shell\AddToHFS3` and `Directory\shell\AddToHFS3` registry entries to the new Smaran label and logo.
+  - Bundled Smaran icons (`hfs.ico` and `smaran.ico`) into the root engine archive and ensured synchronization upon startup and extraction.
+
+---
+
 # Smaran 3.4.1
 
 - **File Server Startup Control:**
