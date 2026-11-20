@@ -63,6 +63,18 @@ export function registerFileServerIpc(manager: FileServerManager): void {
     manager.exportMountScript(),
   );
 
+  registerSafeHandle(IPC.fileserverGetFirewallStatus, [...APP_ROLE], () =>
+    manager.getFirewallStatus(),
+  );
+  registerSafeHandle(IPC.fileserverAuthorizeFirewall, [...APP_ROLE], () =>
+    manager.authorizeFirewall(),
+  );
+  registerSafeHandle(IPC.fileserverRemoveFirewall, [...APP_ROLE], () => manager.removeFirewall());
+  registerSafeHandle(IPC.fileserverGetDiagnostics, [...APP_ROLE], () => manager.getDiagnostics());
+  registerSafeHandle(IPC.fileserverExportDiagnostics, [...APP_ROLE], () =>
+    manager.exportDiagnostics(),
+  );
+
   registerSafeHandle(IPC.fileserverOpenUrl, [...APP_ROLE], (_event, url: unknown) => {
     const safeUrl = z.string().url().parse(url);
     return safeOpenExternal(safeUrl);

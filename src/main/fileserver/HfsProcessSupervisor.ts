@@ -10,9 +10,11 @@ import {
   FailedLoginRecordSchema,
   type FileServerSecurityEvent,
   type FileServerSettings,
+  type HealthProbeLog,
   type LogLevel,
   type ServerLogEntry,
   type ServerStatus,
+  type StartupDiagnosticInfo,
 } from '@shared/fileserver';
 import { cleanupStaleTempFiles, readValidatedJson, writeAtomicFile } from '../store/atomicFile';
 import { HfsApiClient } from './HfsApiClient';
@@ -20,6 +22,13 @@ import { DEFAULT_CUSTOM_HTML, syncHfsConfigFile } from './HfsConfigBridge';
 import type { FileServerStore } from './FileServerStore';
 import { isLanIp, normalizeClientIp } from './ipUtils';
 import { HfsOperationalLogger } from './HfsLogger';
+import {
+  authorizeFirewallRule,
+  type FirewallStatus,
+  isPortableExecutable,
+  queryFirewallStatus,
+  removeFirewallRule,
+} from './windowsFirewall';
 
 export interface SupervisorCallbacks {
   onStatusChanged?: (status: ServerStatus) => void;
@@ -89,7 +98,12 @@ export class HfsProcessSupervisor {
   private internalToken: string;
   private apiClient: HfsApiClient | null = null;
   private isStopping = false;
+  private isStarting = false;
   public isQuitting = false;
+  public startupTimeoutMs = 30000;
+  private startupSpawnError: Error | null = null;
+  private lastExitInfo: { code: number | null; signal: string | null; timestamp: number } | null = null;
+  private lastStartupDiagnostic: StartupDiagnosticInfo | null = null;
   private healthTimer: NodeJS.Timeout | null = null;
   private logs: ServerLogEntry[] = [];
   private startupErrorLogs: string[] = [];
@@ -122,6 +136,7 @@ export class HfsProcessSupervisor {
       lanUrls: this.getLanUrls(settings.port),
       liveConnections: 0,
       rootDir: settings.rootDir || this.getDefaultStorageDir(),
+      lanAccessStatus: 'pending_check',
     };
 
     if (typeof app?.on === 'function') {
@@ -589,17 +604,42 @@ export class HfsProcessSupervisor {
     );
   }
 
-  async start(): Promise<{ ok: boolean; error?: string }> {
+  private getLastExit(): { code: number | null; signal: string | null; timestamp: number } | null {
+    return this.lastExitInfo;
+  }
+
+  start(): Promise<{ ok: boolean; error?: string }> {
     if (this.child && this.currentStatus.running) {
-      return { ok: true };
+      return Promise.resolve({ ok: true });
     }
     if (this.startPromise) {
       return this.startPromise;
     }
     this.startPromise = this.doStart().finally(() => {
       this.startPromise = null;
+      this.isStarting = false;
     });
     return this.startPromise;
+  }
+
+  private detectSpecificStartupError(): string | null {
+    const combined = [...this.startupErrorLogs, ...this.logs.map((l) => l.message)].join(' ');
+    if (combined.includes('EADDRINUSE') || /address already in use/i.test(combined)) {
+      return `Port ${this.currentStatus.port} is already in use by another application (EADDRINUSE).`;
+    }
+    if (combined.includes('EACCES') || /permission denied/i.test(combined)) {
+      return `Access denied binding to port ${this.currentStatus.port} (EACCES).`;
+    }
+    if (combined.includes('EADDRNOTAVAIL') || /address not available/i.test(combined)) {
+      return `Network address not available for port ${this.currentStatus.port} (EADDRNOTAVAIL).`;
+    }
+    if (/Cannot find module/i.test(combined)) {
+      return `Missing runtime module dependency in HFS engine.`;
+    }
+    if (/SyntaxError/i.test(combined)) {
+      return `Syntax error encountered during engine script execution.`;
+    }
+    return null;
   }
 
   private async doStart(): Promise<{ ok: boolean; error?: string }> {
@@ -607,12 +647,17 @@ export class HfsProcessSupervisor {
       return { ok: true };
     }
 
+    const startTime = Date.now();
     this.isStopping = false;
+    this.isStarting = true;
+    this.startupSpawnError = null;
+    this.lastExitInfo = null;
     this.startupErrorLogs = [];
     this.updateStatus({ state: 'starting', running: false, error: undefined });
 
     // 1. License Check
     if (this.callbacks.isLicenseValid && !this.callbacks.isLicenseValid()) {
+      this.isStarting = false;
       const errorMsg =
         'License activation required. Smaran HFS will start after a valid license is activated.';
       this.addLog('warn', errorMsg);
@@ -621,11 +666,15 @@ export class HfsProcessSupervisor {
     }
 
     // 2. Engine Extraction & File Resolution
+    let extractionDurationMs: number | undefined;
     let engineInfo: { scriptPath: string; engineDir: string };
     try {
+      const extStart = Date.now();
       await this.ensureEngineExtracted();
+      extractionDurationMs = Date.now() - extStart;
       engineInfo = this.resolveEngineScript();
     } catch (resolveErr: unknown) {
+      this.isStarting = false;
       const errorMsg = resolveErr instanceof Error ? resolveErr.message : String(resolveErr);
       this.addLog('error', errorMsg);
       this.updateStatus({ state: 'error', running: false, error: errorMsg });
@@ -637,6 +686,7 @@ export class HfsProcessSupervisor {
     for (const reqFile of requiredFiles) {
       const fp = path.join(engineInfo.engineDir, reqFile);
       if (!fs.existsSync(fp)) {
+        this.isStarting = false;
         const errorMsg = `Corrupt or incomplete HFS engine: missing ${reqFile} in ${engineInfo.engineDir}`;
         this.addLog('error', errorMsg);
         this.updateStatus({ state: 'error', running: false, error: errorMsg });
@@ -654,6 +704,7 @@ export class HfsProcessSupervisor {
     const rootDir = settings.rootDir || this.getDefaultStorageDir();
     const storagePerm = checkDirectoryPermissions(rootDir);
     if (!storagePerm.ok) {
+      this.isStarting = false;
       this.addLog('error', storagePerm.error || 'Permission denied for storage folder');
       this.updateStatus({ state: 'error', running: false, error: storagePerm.error });
       return { ok: false, error: storagePerm.error };
@@ -661,6 +712,7 @@ export class HfsProcessSupervisor {
 
     const runtimePerm = checkDirectoryPermissions(this.runtimeDir);
     if (!runtimePerm.ok) {
+      this.isStarting = false;
       this.addLog('error', runtimePerm.error || 'Permission denied for runtime folder');
       this.updateStatus({ state: 'error', running: false, error: runtimePerm.error });
       return { ok: false, error: runtimePerm.error };
@@ -673,13 +725,17 @@ export class HfsProcessSupervisor {
     // 5. Port Availability & Conflict Check
     const portCheck = await checkPortAvailable(activePort);
     if (!portCheck.available) {
+      this.isStarting = false;
       this.addLog('error', portCheck.error || `Port ${activePort} is not available`);
       this.updateStatus({ state: 'error', running: false, error: portCheck.error });
       return { ok: false, error: portCheck.error };
     }
 
     try {
-      this.addLog('info', `Starting Smaran HFS on port ${activePort}...`);
+      this.addLog(
+        'info',
+        `Starting Smaran HFS on port ${activePort} (startup deadline: ${this.startupTimeoutMs}ms)...`,
+      );
 
       const childEnv = {
         ...process.env,
@@ -698,6 +754,16 @@ export class HfsProcessSupervisor {
         String(activePort),
       ];
 
+      // Redact passwords and tokens from logged arguments
+      const sanitizedArgs = args.map((arg, idx) => {
+        if (idx > 0 && (args[idx - 1] === '--token' || args[idx - 1] === '--password')) {
+          return '••••••••';
+        }
+        return arg;
+      });
+
+      this.addLog('info', `Spawning engine: ${process.execPath} ${sanitizedArgs.join(' ')}`);
+
       this.child = spawn(process.execPath, args, {
         env: childEnv,
         cwd: this.runtimeDir,
@@ -706,6 +772,15 @@ export class HfsProcessSupervisor {
       });
 
       this.apiClient = new HfsApiClient(activePort, this.internalToken);
+
+      this.child.on('spawn', () => {
+        this.addLog('info', `HFS engine process spawned with PID ${this.child?.pid}`);
+      });
+
+      this.child.on('error', (err: Error) => {
+        this.startupSpawnError = err;
+        this.addLog('error', `HFS engine process spawn error: ${err.message}`);
+      });
 
       this.child.stdout?.on('data', (data: Buffer) => {
         const lines = data.toString('utf8').split(/\r?\n/).filter(Boolean);
@@ -723,38 +798,74 @@ export class HfsProcessSupervisor {
       });
 
       this.child.on('exit', (code, signal) => {
+        this.lastExitInfo = { code, signal, timestamp: Date.now() };
         const exitMsg = `HFS engine process exited (code=${code}, signal=${signal})`;
         this.addLog(this.isStopping ? 'info' : 'warn', exitMsg);
-        this.child = null;
-        this.apiClient = null;
+
+        const wasStarting = this.isStarting;
         this.stopHealthCheck();
 
-        const shouldRestart = !this.isStopping && this.store.getSettings().enabled;
+        // If exited during startup, waitForHealthy will report the failure without auto-restart
+        const shouldRestart =
+          !this.isStopping &&
+          !wasStarting &&
+          this.currentStatus.state === 'running' &&
+          this.store.getSettings().enabled;
+
         const hasErr = !this.isStopping && code !== 0 && code !== null;
+        const specific = this.detectSpecificStartupError();
         const errStr = this.isStopping
           ? undefined
-          : this.startupErrorLogs.slice(-3).join('; ') || (hasErr ? exitMsg : undefined);
+          : specific || this.startupErrorLogs.slice(-3).join('; ') || (hasErr ? exitMsg : undefined);
 
-        this.updateStatus({
-          state: shouldRestart ? 'starting' : errStr ? 'error' : 'stopped',
-          running: false,
-          liveConnections: 0,
-          error: errStr,
-        });
+        if (!wasStarting) {
+          this.child = null;
+          this.apiClient = null;
+          this.updateStatus({
+            state: shouldRestart ? 'starting' : errStr ? 'error' : 'stopped',
+            running: false,
+            liveConnections: 0,
+            error: errStr,
+          });
 
-        if (shouldRestart) {
-          this.addLog('info', 'Restarting Smaran HFS engine...');
-          setTimeout(() => {
-            if (!this.isStopping && this.store.getSettings().enabled) {
-              void this.start();
-            }
-          }, 1500);
+          if (shouldRestart) {
+            this.addLog('info', 'Restarting Smaran HFS engine...');
+            setTimeout(() => {
+              if (!this.isStopping && this.store.getSettings().enabled) {
+                void this.start();
+              }
+            }, 1500);
+          }
         }
       });
 
-      await this.waitForHealthy(activePort, 12000);
+      this.child.on('close', () => {
+        if (!this.isStarting && this.child) {
+          this.child = null;
+        }
+      });
 
+      const { healthProbes } = await this.waitForHealthy(activePort, this.startupTimeoutMs);
+
+      this.isStarting = false;
       this.startHealthCheck();
+
+      // Query Windows Firewall status for LAN access
+      let fwStatus: FirewallStatus | undefined;
+      try {
+        fwStatus = await queryFirewallStatus();
+      } catch {
+        // Non-blocking
+      }
+
+      const lanAccessStatus = fwStatus
+        ? fwStatus.hasRule && fwStatus.action === 'allow'
+          ? 'authorized'
+          : fwStatus.hasRule && fwStatus.action === 'block'
+            ? 'unauthorized'
+            : 'unauthorized'
+        : 'unknown';
+
       this.updateStatus({
         state: 'running',
         running: true,
@@ -763,14 +874,63 @@ export class HfsProcessSupervisor {
         lanUrls: this.getLanUrls(activePort),
         rootDir,
         error: undefined,
+        lanAccessStatus,
+        firewallStatus: fwStatus
+          ? {
+              hasRule: fwStatus.hasRule,
+              action: fwStatus.action,
+              enabled: fwStatus.enabled,
+              details: fwStatus.details,
+            }
+          : undefined,
       });
 
-      this.addLog('info', `Smaran HFS is ready and listening at http://localhost:${activePort}`);
+      const startupDurationMs = Date.now() - startTime;
+      this.lastStartupDiagnostic = {
+        timestamp: new Date().toISOString(),
+        nodeVersion: process.version,
+        platform: process.platform,
+        isPackaged: app?.isPackaged ?? false,
+        isPortable: isPortableExecutable(),
+        execPath: process.execPath,
+        args: sanitizedArgs,
+        port: activePort,
+        pid: this.child?.pid ?? null,
+        startupDurationMs,
+        extractionDurationMs,
+        healthCheckResults: healthProbes,
+        firewallStatus: fwStatus
+          ? {
+              hasRule: fwStatus.hasRule,
+              action: fwStatus.action,
+              enabled: fwStatus.enabled,
+              details: fwStatus.details,
+            }
+          : undefined,
+        processErrors: [...this.startupErrorLogs],
+        exitInfo: (() => {
+          const exit = this.getLastExit();
+          return exit ? { code: exit.code, signal: exit.signal } : undefined;
+        })(),
+      };
+
+      this.addLog(
+        'info',
+        `Smaran HFS is ready and listening at http://localhost:${activePort} (started in ${startupDurationMs}ms)`,
+      );
+      if (fwStatus) {
+        this.addLog('info', `LAN Access: ${fwStatus.details}`);
+      }
       return { ok: true };
     } catch (err: unknown) {
+      this.isStarting = false;
       const errorMsg = err instanceof Error ? err.message : String(err);
-      const detail =
-        this.startupErrorLogs.length > 0 ? ` (${this.startupErrorLogs.slice(-2).join('; ')})` : '';
+      const specific = this.detectSpecificStartupError();
+      const detail = specific
+        ? ` [${specific}]`
+        : this.startupErrorLogs.length > 0
+          ? ` (${this.startupErrorLogs.slice(-2).join('; ')})`
+          : '';
       const fullError = `${errorMsg}${detail}`;
       this.addLog('error', `Failed to start Smaran HFS: ${fullError}`);
       this.updateStatus({ state: 'error', running: false, error: fullError });
@@ -781,6 +941,7 @@ export class HfsProcessSupervisor {
 
   async stop(): Promise<void> {
     this.isStopping = true;
+    this.isStarting = false;
     this.stopHealthCheck();
     this.updateStatus({ state: 'stopping', running: false });
 
@@ -806,7 +967,9 @@ export class HfsProcessSupervisor {
       await new Promise<void>((resolve) => {
         const timer = setTimeout(() => {
           if (pid) {
-            execFile('taskkill.exe', ['/F', '/T', '/PID', String(pid)], { windowsHide: true }, () => resolve());
+            execFile('taskkill.exe', ['/F', '/T', '/PID', String(pid)], { windowsHide: true }, () =>
+              resolve(),
+            );
           } else {
             resolve();
           }
@@ -831,11 +994,15 @@ export class HfsProcessSupervisor {
 
   public stopSync(): void {
     this.isStopping = true;
+    this.isStarting = false;
     this.isQuitting = true;
     this.stopHealthCheck();
     if (this.child?.pid) {
       try {
-        execFileSync('taskkill.exe', ['/F', '/T', '/PID', String(this.child.pid)], { stdio: 'ignore', windowsHide: true });
+        execFileSync('taskkill.exe', ['/F', '/T', '/PID', String(this.child.pid)], {
+          stdio: 'ignore',
+          windowsHide: true,
+        });
       } catch {
         try {
           this.child.kill('SIGKILL');
@@ -852,7 +1019,10 @@ export class HfsProcessSupervisor {
   private killChildSync(): void {
     if (this.child?.pid) {
       try {
-        execFileSync('taskkill.exe', ['/F', '/T', '/PID', String(this.child.pid)], { stdio: 'ignore', windowsHide: true });
+        execFileSync('taskkill.exe', ['/F', '/T', '/PID', String(this.child.pid)], {
+          stdio: 'ignore',
+          windowsHide: true,
+        });
       } catch {
         // Best effort
       }
@@ -860,36 +1030,173 @@ export class HfsProcessSupervisor {
     }
   }
 
-  private async waitForHealthy(port: number, timeoutMs: number): Promise<void> {
+  private async waitForHealthy(
+    port: number,
+    timeoutMs: number,
+  ): Promise<{ healthProbes: HealthProbeLog[] }> {
     const start = Date.now();
+    const healthProbes: HealthProbeLog[] = [];
+    const pollInterval = 300;
+
     while (Date.now() - start < timeoutMs) {
-      if (this.child?.exitCode !== null && this.child?.exitCode !== undefined) {
-        const errDetail = this.startupErrorLogs.slice(-3).join('; ');
+      // 1. Process spawn error
+      if (this.startupSpawnError) {
+        throw new Error(`Failed to spawn HFS engine process: ${this.startupSpawnError.message}`);
+      }
+
+      // 2. Process exit during startup
+      const exitAtPoll = this.getLastExit();
+      if (exitAtPoll) {
+        const specific = this.detectSpecificStartupError();
+        const errDetail = specific || this.startupErrorLogs.slice(-3).join('; ');
         throw new Error(
-          `Engine process exited immediately with code ${this.child.exitCode}${errDetail ? `: ${errDetail}` : ''}`,
+          `HFS engine process terminated during startup (exit code: ${exitAtPoll.code ?? 'none'}, signal: ${exitAtPoll.signal ?? 'none'})${errDetail ? `: ${errDetail}` : ''}`,
         );
       }
-      try {
-        if (this.apiClient) {
-          const res = await this.apiClient.getStatus();
-          if (res) return;
-        }
-      } catch {
-        // If API is still initializing, check basic HTTP connectivity as fallback
+
+      // 3. Probe loopback HTTP health with bounded timeout (1500ms)
+      if (this.apiClient) {
         try {
-          if (this.apiClient && (await this.apiClient.checkHttpHealth())) {
-            return;
+          const probe = await this.apiClient.checkDetailedHealth(1500);
+          healthProbes.push({
+            timestamp: new Date().toISOString(),
+            durationMs: probe.durationMs,
+            status: probe.ok ? 'ok' : 'failed',
+            statusCode: probe.statusCode,
+            error: probe.error,
+          });
+
+          if (probe.ok) {
+            // Localhost HTTP health verified!
+            return { healthProbes };
           }
-        } catch {
-          // Retry
+        } catch (probeErr: unknown) {
+          const msg = probeErr instanceof Error ? probeErr.message : String(probeErr);
+          healthProbes.push({
+            timestamp: new Date().toISOString(),
+            durationMs: 0,
+            status: 'failed',
+            error: msg,
+          });
         }
       }
-      await new Promise((r) => setTimeout(r, 250));
+
+      // Check child exit again in case it exited during the probe
+      const exitPostProbe = this.getLastExit();
+      if (exitPostProbe) {
+        const specific = this.detectSpecificStartupError();
+        const errDetail = specific || this.startupErrorLogs.slice(-3).join('; ');
+        throw new Error(
+          `HFS engine process terminated during startup (exit code: ${exitPostProbe.code ?? 'none'}, signal: ${exitPostProbe.signal ?? 'none'})${errDetail ? `: ${errDetail}` : ''}`,
+        );
+      }
+
+      await new Promise((r) => setTimeout(r, pollInterval));
     }
-    const errDetail = this.startupErrorLogs.slice(-3).join('; ');
+
+    const specific = this.detectSpecificStartupError();
+    const errDetail = specific || this.startupErrorLogs.slice(-3).join('; ');
+    const isAlive = Boolean(this.child && this.child.exitCode === null && !this.child.killed);
+
     throw new Error(
-      `Server failed to respond on port ${port} within ${timeoutMs}ms${errDetail ? `: ${errDetail}` : ''}`,
+      `Server failed to respond on port ${port} within ${timeoutMs}ms${isAlive ? ` (Process PID ${this.child?.pid} is alive but unready)` : ''}${errDetail ? `: ${errDetail}` : ''}`,
     );
+  }
+
+  public getStartupDiagnostic(): StartupDiagnosticInfo | null {
+    return this.lastStartupDiagnostic;
+  }
+
+  public exportDiagnostics(): string {
+    const diag = this.lastStartupDiagnostic;
+    const isWin = process.platform === 'win32';
+    const lines: string[] = [
+      '======================================================================',
+      '              SMARAN FILE SERVER STARTUP DIAGNOSTICS                 ',
+      '======================================================================',
+      `Export Timestamp     : ${new Date().toISOString()}`,
+      `Application Version  : 3.4.6`,
+      `Node Version         : ${process.version}`,
+      `Platform / Arch      : ${process.platform} (${process.arch})`,
+      `Packaged Mode        : ${app?.isPackaged ?? false}`,
+      `Portable Mode        : ${isPortableExecutable()}`,
+      `Executable Path      : ${process.execPath}`,
+      `Server State         : ${this.currentStatus.state}`,
+      `Server Running       : ${this.currentStatus.running}`,
+      `Configured Port      : ${this.currentStatus.port}`,
+      `LAN Access Status    : ${this.currentStatus.lanAccessStatus || 'unknown'}`,
+      '',
+      '--- Firewall Information ---',
+      `Firewall Supported   : ${isWin}`,
+      `Firewall Rule Found  : ${diag?.firewallStatus?.hasRule ?? this.currentStatus.firewallStatus?.hasRule ?? false}`,
+      `Firewall Action      : ${diag?.firewallStatus?.action ?? this.currentStatus.firewallStatus?.action ?? 'none'}`,
+      `Firewall Rule Name   : ${diag?.firewallStatus?.details ?? this.currentStatus.firewallStatus?.details ?? 'N/A'}`,
+      '',
+      '--- Process Information ---',
+      `Process PID          : ${this.child?.pid ?? diag?.pid ?? 'None'}`,
+      `Process Arguments    : ${diag?.args ? diag.args.join(' ') : 'N/A'}`,
+      `Startup Duration     : ${diag?.startupDurationMs ? `${diag.startupDurationMs}ms` : 'N/A'}`,
+      `Extraction Duration  : ${diag?.extractionDurationMs ? `${diag.extractionDurationMs}ms` : 'None (Already extracted)'}`,
+      `Process Spawned      : ${Boolean(this.child?.pid || diag?.pid)}`,
+      `Exit Code            : ${this.lastExitInfo?.code ?? diag?.exitInfo?.code ?? 'N/A'}`,
+      `Exit Signal          : ${this.lastExitInfo?.signal ?? diag?.exitInfo?.signal ?? 'N/A'}`,
+      '',
+      '--- Health Check Probes ---',
+    ];
+
+    if (diag?.healthCheckResults?.length) {
+      for (const p of diag.healthCheckResults) {
+        lines.push(
+          `[${p.timestamp}] status=${p.status} code=${p.statusCode ?? 'none'} duration=${p.durationMs}ms ${p.error ? `err=${p.error}` : ''}`,
+        );
+      }
+    } else {
+      lines.push('No probe logs recorded.');
+    }
+
+    lines.push('', '--- Startup Process Errors (if any) ---');
+    if (this.startupErrorLogs.length) {
+      for (const err of this.startupErrorLogs) {
+        lines.push(`  ${err}`);
+      }
+    } else {
+      lines.push('  None recorded.');
+    }
+
+    lines.push('', '--- Recent Operational Logs (Sanitized) ---');
+    const recentLogs = this.logs.slice(-30);
+    for (const log of recentLogs) {
+      lines.push(`[${log.timestamp}] [${log.level.toUpperCase()}] ${log.message}`);
+    }
+
+    lines.push('======================================================================');
+    return lines.join('\n');
+  }
+
+  public async getFirewallStatus(): Promise<FirewallStatus> {
+    const status = await queryFirewallStatus();
+    this.updateStatus({
+      lanAccessStatus: status.hasRule && status.action === 'allow' ? 'authorized' : 'unauthorized',
+      firewallStatus: {
+        hasRule: status.hasRule,
+        action: status.action,
+        enabled: status.enabled,
+        details: status.details,
+      },
+    });
+    return status;
+  }
+
+  public async authorizeFirewall(): Promise<{ ok: boolean; message: string; error?: string }> {
+    const res = await authorizeFirewallRule();
+    await this.getFirewallStatus();
+    return res;
+  }
+
+  public async removeFirewall(): Promise<{ ok: boolean; message: string; error?: string }> {
+    const res = await removeFirewallRule();
+    await this.getFirewallStatus();
+    return res;
   }
 
   private startHealthCheck(): void {

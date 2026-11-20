@@ -81,6 +81,11 @@ export const IPC = {
   fileserverEnableWebClient: 'fileserver:enableWebClient',
   fileserverRestoreWebClient: 'fileserver:restoreWebClient',
   fileserverExportMountScript: 'fileserver:exportMountScript',
+  fileserverGetFirewallStatus: 'fileserver:firewall:get-status',
+  fileserverAuthorizeFirewall: 'fileserver:firewall:authorize',
+  fileserverRemoveFirewall: 'fileserver:firewall:remove',
+  fileserverGetDiagnostics: 'fileserver:diagnostics:get',
+  fileserverExportDiagnostics: 'fileserver:diagnostics:export',
   // Notifications
   notificationsGet: 'notifications:get',
   notificationsMarkRead: 'notifications:markRead',

@@ -12,6 +12,54 @@ export interface ServerLogEntry {
 
 export type ServerState = 'stopped' | 'starting' | 'running' | 'stopping' | 'error';
 
+export interface HealthProbeLog {
+  timestamp: string;
+  durationMs: number;
+  status: 'ok' | 'failed';
+  statusCode?: number;
+  error?: string;
+}
+
+export interface FirewallStatus {
+  supported: boolean;
+  executablePath: string;
+  isPackaged: boolean;
+  isPortable: boolean;
+  hasRule: boolean;
+  ruleName?: string;
+  action?: 'allow' | 'block';
+  enabled?: boolean;
+  profiles?: string[];
+  lanAccessible: boolean;
+  details: string;
+}
+
+export interface StartupDiagnosticInfo {
+  timestamp: string;
+  nodeVersion: string;
+  platform: string;
+  isPackaged: boolean;
+  isPortable: boolean;
+  execPath: string;
+  args: string[];
+  port: number;
+  pid: number | null;
+  startupDurationMs: number;
+  extractionDurationMs?: number;
+  healthCheckResults: HealthProbeLog[];
+  firewallStatus?: {
+    hasRule: boolean;
+    action?: string;
+    enabled?: boolean;
+    details: string;
+  };
+  processErrors: string[];
+  exitInfo?: {
+    code: number | null;
+    signal: string | null;
+  };
+}
+
 export interface ServerStatus {
   state: ServerState;
   running: boolean;
@@ -21,6 +69,13 @@ export interface ServerStatus {
   liveConnections: number;
   rootDir: string;
   error?: string;
+  lanAccessStatus?: 'authorized' | 'unauthorized' | 'pending_check' | 'unknown';
+  firewallStatus?: {
+    hasRule: boolean;
+    action?: 'allow' | 'block';
+    enabled?: boolean;
+    details: string;
+  };
 }
 
 export const FileServerSettingsSchema = z.object({

@@ -74,6 +74,18 @@ export function FileServer() {
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [resetting, setResetting] = useState(false);
 
+  // Windows Firewall & Diagnostics State
+  const [showFirewallDialog, setShowFirewallDialog] = useState(false);
+  const [authorizingFirewall, setAuthorizingFirewall] = useState(false);
+  const [firewallFeedback, setFirewallFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
+  const [showDiagDialog, setShowDiagDialog] = useState(false);
+  const [diagnosticsText, setDiagnosticsText] = useState<string>('');
+  const [diagLoading, setDiagLoading] = useState(false);
+  const [copiedDiag, setCopiedDiag] = useState(false);
+
   // Security & Connected Sessions State
   const [sessions, setSessions] = useState<Array<{ id: string; ip: string; speed?: number }>>([]);
   const [securityEvents, setSecurityEvents] = useState<FileServerSecurityEvent[]>([]);
@@ -219,6 +231,48 @@ export function FileServer() {
     const qrData = await window.smaran.fileserver.generateQr(url);
     setQrCodeData(qrData);
     setQrModalUrl(url);
+  };
+
+  const handleAuthorizeFirewall = async () => {
+    setAuthorizingFirewall(true);
+    setFirewallFeedback(null);
+    try {
+      const res = await window.smaran.fileserver.authorizeFirewall();
+      if (res.ok) {
+        setFirewallFeedback({ type: 'success', message: res.message });
+        setShowFirewallDialog(false);
+        const s = await window.smaran.fileserver.status();
+        if (s) useApp.getState().setFileServerStatus(s);
+      } else {
+        setFirewallFeedback({ type: 'error', message: res.error || res.message });
+      }
+    } catch (err) {
+      setFirewallFeedback({
+        type: 'error',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setAuthorizingFirewall(false);
+    }
+  };
+
+  const handleViewDiagnostics = async () => {
+    setDiagLoading(true);
+    try {
+      const text = await window.smaran.fileserver.exportDiagnostics();
+      setDiagnosticsText(text);
+      setShowDiagDialog(true);
+    } catch (err) {
+      setServerError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDiagLoading(false);
+    }
+  };
+
+  const handleCopyDiagnostics = () => {
+    void navigator.clipboard.writeText(diagnosticsText);
+    setCopiedDiag(true);
+    setTimeout(() => setCopiedDiag(false), 2000);
   };
 
   // Section: Server Port Apply
@@ -718,10 +772,23 @@ export function FileServer() {
               <span className="text-[11px] font-medium text-muted uppercase tracking-wider block">
                 Web Access
               </span>
-              <span className="text-[12px] font-medium text-emerald-400 flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                LAN &amp; Localhost
-              </span>
+              {status?.lanAccessStatus === 'authorized' ? (
+                <span
+                  className="text-[12px] font-medium text-emerald-400 flex items-center gap-1.5"
+                  title="Localhost and local Wi-Fi / LAN devices can connect."
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  LAN &amp; Localhost
+                </span>
+              ) : (
+                <span
+                  className="text-[12px] font-medium text-amber-400 flex items-center gap-1.5"
+                  title="Localhost active. LAN firewall authorization may be required for other devices."
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                  Localhost (LAN pending)
+                </span>
+              )}
             </div>
             <div className="rounded-lg border border-line bg-raised p-2.5 space-y-0.5">
               <span className="text-[11px] font-medium text-muted uppercase tracking-wider block">
@@ -1132,6 +1199,43 @@ export function FileServer() {
             </div>
           </Row>
         )}
+
+        <Row
+          label="Windows Firewall & Diagnostics"
+          hint="Localhost is operational. Other devices on your local Wi-Fi / LAN require Windows Defender Firewall authorization."
+        >
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setShowFirewallDialog(true)}
+                disabled={authorizingFirewall}
+              >
+                <ShieldIcon size={13} />
+                Authorize LAN Rule
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleViewDiagnostics}
+                disabled={diagLoading}
+              >
+                View Diagnostics
+              </Button>
+            </div>
+            {firewallFeedback && (
+              <p
+                className={cx(
+                  'text-[11px]',
+                  firewallFeedback.type === 'success' ? 'text-emerald-400' : 'text-rose-400',
+                )}
+              >
+                {firewallFeedback.message}
+              </p>
+            )}
+          </div>
+        </Row>
       </Card>
 
       {/* Security & Connected Clients Monitoring */}
@@ -1344,6 +1448,81 @@ export function FileServer() {
             <p className="text-amber-400/90 text-[11px] font-serif italic">
               Note: Files stored in your shared directories will remain safe and untouched.
             </p>
+          </div>
+        </Dialog>
+      )}
+
+      {/* Windows Firewall Authorization Modal */}
+      {showFirewallDialog && (
+        <Dialog
+          open={showFirewallDialog}
+          title="Authorize Windows Defender Firewall for LAN Access"
+          onClose={() => !authorizingFirewall && setShowFirewallDialog(false)}
+          actions={
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowFirewallDialog(false)}
+                disabled={authorizingFirewall}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleAuthorizeFirewall}
+                disabled={authorizingFirewall}
+              >
+                {authorizingFirewall ? 'Authorizing (Check UAC)...' : 'Allow LAN Access'}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-3 text-xs text-muted">
+            <p className="text-ink font-medium">
+              Smaran runs as a standard user process and does not require administrator privileges to start.
+            </p>
+            <p>
+              However, Windows Defender Firewall blocks incoming connections from other devices on your local Wi-Fi or LAN by default until an inbound rule is approved.
+            </p>
+            <div className="p-3 rounded-lg bg-surface border border-line space-y-1 font-mono text-[11px]">
+              <div>• Command: <span className="text-accent">netsh advfirewall firewall add rule</span></div>
+              <div>• Rule Name: <span className="text-accent">Smaran File Server</span></div>
+              <div>• Scope: <span className="text-emerald-400">Private &amp; Public Profiles (Inbound)</span></div>
+            </div>
+            <p className="text-amber-400/90 text-[11px] font-serif italic">
+              A standard Windows User Account Control (UAC) elevation prompt will appear to apply this rule.
+            </p>
+          </div>
+        </Dialog>
+      )}
+
+      {/* Diagnostics Modal */}
+      {showDiagDialog && (
+        <Dialog
+          open={showDiagDialog}
+          title="Smaran File Server Diagnostics"
+          onClose={() => setShowDiagDialog(false)}
+          actions={
+            <div className="flex justify-end gap-2">
+              <Button size="sm" variant="secondary" onClick={handleCopyDiagnostics}>
+                {copiedDiag ? <CheckIcon size={13} className="text-emerald-400" /> : <CopyIcon size={13} />}
+                {copiedDiag ? 'Copied' : 'Copy Diagnostics'}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setShowDiagDialog(false)}>
+                Close
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-3">
+            <p className="text-xs text-muted">
+              Startup logs, health check probes, process lifecycle, and firewall state. Sensitive data (passwords, tokens) is redacted automatically.
+            </p>
+            <pre className="max-h-96 overflow-y-auto p-3 rounded-lg bg-[#0c0c0e] border border-line font-mono text-[11px] text-zinc-300 whitespace-pre-wrap select-all">
+              {diagnosticsText || 'Loading diagnostics...'}
+            </pre>
           </div>
         </Dialog>
       )}

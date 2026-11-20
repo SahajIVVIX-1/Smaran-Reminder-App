@@ -8,6 +8,13 @@ export interface HfsApiStatusResponse {
   bytesReceived?: number;
 }
 
+export interface HealthCheckDetail {
+  ok: boolean;
+  statusCode?: number;
+  durationMs: number;
+  error?: string;
+}
+
 export class HfsApiClient {
   constructor(
     private readonly port: number,
@@ -31,7 +38,7 @@ export class HfsApiClient {
             'Content-Length': Buffer.byteLength(payload),
             'x-smaran-internal-token': this.token,
             'x-hfs-anti-csrf': '1',
-            'User-Agent': 'Smaran-HFS-Bridge/3.3.8',
+            'User-Agent': 'Smaran-HFS-Bridge/3.4.6',
           },
           timeout: 4000,
         },
@@ -73,7 +80,8 @@ export class HfsApiClient {
     return this.port;
   }
 
-  public async checkHttpHealth(): Promise<boolean> {
+  public async checkDetailedHealth(timeoutMs = 1500): Promise<HealthCheckDetail> {
+    const start = Date.now();
     return new Promise((resolve) => {
       const req = http.request(
         {
@@ -82,21 +90,32 @@ export class HfsApiClient {
           path: '/',
           method: 'GET',
           headers: {
-            'User-Agent': 'Smaran-HFS-Bridge/3.3.8',
+            'User-Agent': 'Smaran-HFS-Bridge/3.4.6',
           },
-          timeout: 2500,
+          timeout: timeoutMs,
         },
         (res) => {
-          resolve(Boolean(res.statusCode && res.statusCode >= 200 && res.statusCode < 500));
+          const durationMs = Date.now() - start;
+          const ok = Boolean(res.statusCode && res.statusCode >= 200 && res.statusCode < 500);
+          resolve({ ok, statusCode: res.statusCode, durationMs });
         },
       );
-      req.on('error', () => resolve(false));
+      req.on('error', (err) => {
+        const durationMs = Date.now() - start;
+        resolve({ ok: false, durationMs, error: err.message });
+      });
       req.on('timeout', () => {
         req.destroy();
-        resolve(false);
+        const durationMs = Date.now() - start;
+        resolve({ ok: false, durationMs, error: `Probe timed out after ${timeoutMs}ms` });
       });
       req.end();
     });
+  }
+
+  public async checkHttpHealth(): Promise<boolean> {
+    const detail = await this.checkDetailedHealth(2000);
+    return detail.ok;
   }
 
   async getStatus(): Promise<HfsApiStatusResponse> {

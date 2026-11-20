@@ -2,16 +2,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import type { IpcMainInvokeEvent } from 'electron';
 import {
   validateDriveLetter,
   validateCredentialInput,
 } from '../../src/main/fileserver/FileServerManager';
-import { FileServerStore, generateDefaultAdminPassword } from '../../src/main/fileserver/FileServerStore';
+import { FileServerStore } from '../../src/main/fileserver/FileServerStore';
 import {
   getSenderRole,
   assertAuthorizedSender,
   IpcSecurityError,
-  type WindowRole,
 } from '../../src/main/ipc/security';
 import {
   isSafeExternalUrl,
@@ -25,7 +25,6 @@ import { ConfigStore } from '../../src/main/store/ConfigStore';
 import {
   backupWebClientRegistry,
   restoreWebClientRegistry,
-  queryCurrentWebClientRegistry,
 } from '../../src/main/fileserver/webdavRegistry';
 
 describe('Smaran 3.4.5 Backend Security Audit Suite', () => {
@@ -81,7 +80,7 @@ describe('Smaran 3.4.5 Backend Security Audit Suite', () => {
         ({
           senderFrame: { url },
           sender: { isDestroyed: () => false, getURL: () => url },
-        }) as any;
+        }) as unknown as IpcMainInvokeEvent;
 
       expect(getSenderRole(mockEvent('http://localhost:5173/app/index.html'))).toBe('app');
       expect(getSenderRole(mockEvent('http://127.0.0.1:5173/notification/index.html'))).toBe(
@@ -101,7 +100,7 @@ describe('Smaran 3.4.5 Backend Security Audit Suite', () => {
         ({
           senderFrame: { url },
           sender: { isDestroyed: () => false, getURL: () => url },
-        }) as any;
+        }) as unknown as IpcMainInvokeEvent;
 
       expect(getSenderRole(mockEvent('https://malicious-site.com/app/index.html'))).toBeNull();
       expect(getSenderRole(mockEvent('http://192.168.1.50:5173/app/index.html'))).toBeNull();
@@ -112,7 +111,7 @@ describe('Smaran 3.4.5 Backend Security Audit Suite', () => {
       const notifEvent = {
         senderFrame: { url: 'http://localhost:5173/notification/index.html' },
         sender: { isDestroyed: () => false, getURL: () => 'http://localhost:5173/notification/index.html' },
-      } as any;
+      } as unknown as IpcMainInvokeEvent;
 
       // Notification card should NOT be allowed to save config or start file server
       expect(() => assertAuthorizedSender(notifEvent, ['app'], 'fileserver:start')).toThrow(
@@ -140,7 +139,7 @@ describe('Smaran 3.4.5 Backend Security Audit Suite', () => {
       expect(safeCreds.username).toBe('admin_test');
       expect(safeCreds.hasPassword).toBe(true);
       expect(safeCreds.isConfigured).toBe(true);
-      expect((safeCreds as any).password).toBeUndefined();
+      expect((safeCreds as Record<string, unknown>).password).toBeUndefined();
     });
   });
 

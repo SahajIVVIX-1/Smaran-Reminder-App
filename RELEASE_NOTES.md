@@ -1,3 +1,27 @@
+# Smaran 3.4.6
+
+- **Diagnosed and Resolved First-Start Timeout Weakness (`HfsProcessSupervisor.ts`):**
+  - Identified root cause of first-launch `Server failed to respond on port ... within 12000ms`: cold archive extraction of `engine.tar.gz` combined with Node initialization and Windows Defender socket filter evaluation regularly exceeded the rigid 12-second deadline, triggering an untimely process kill.
+  - Increased configurable startup deadline to 30 seconds (`startupTimeoutMs = 30000`).
+  - Added explicit event handling for child process `spawn`, `error`, `exit`, and `close`.
+  - Fixed premature exit detection: `waitForHealthy` immediately aborts upon child exit or spawn failure with specific exit codes and stderr details, rather than looping until timeout.
+  - Eliminated duplicate auto-restart race conditions during startup: premature exits during the `starting` state no longer trigger background auto-restart loops.
+- **Port Binding & Actionable Error Detection:**
+  - Added explicit parsing for `EADDRINUSE`, `EACCES`, `EADDRNOTAVAIL`, missing modules, and syntax errors, reporting exact, human-actionable process errors.
+- **Windows Defender Firewall LAN Access Isolation (`windowsFirewall.ts`):**
+  - Clarified and verified that loopback / localhost (`127.0.0.1`) access operates independently of Windows Defender Firewall inbound rules.
+  - Added Windows Firewall status queries via standard `netsh.exe advfirewall` (no elevation required).
+  - Identified why portable builds trigger Windows Firewall prompts on each new version (extraction into unique `AppData\Local\Temp` paths).
+  - Separated server running status (Localhost Active) from LAN access authorization.
+  - Provided user-consented LAN firewall authorization (`authorizeFirewallRule`) using `Start-Process -Verb RunAs` with explicit explanation of administrator privilege requirements.
+- **Structured Startup Diagnostics & Redacted Export:**
+  - Added comprehensive `StartupDiagnosticInfo` tracking timestamps, process PID, executable path, sanitized arguments, port, startup and extraction timings, HTTP health probe latencies, and process errors.
+  - Added user-accessible `exportDiagnostics()` API and UI dialog that strips all secrets, passwords, tokens, and authorization headers.
+- **Startup Reliability & Firewall Test Suite (`tests/unit/startupReliability.test.ts`):**
+  - 13 dedicated unit tests validating firewall output parsing, portable path classification, localhost independence, immediate process exit abortion, port conflict detection, concurrency promise mutex, restart cleanly after failure, and redacted diagnostic export.
+
+---
+
 # Smaran 3.4.5
 
 - **WebDAV Command Injection Remediation (`FileServerManager.ts`):**

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { app, ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
+import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
 
 export type WindowRole =
   | 'app'

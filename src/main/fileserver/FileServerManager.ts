@@ -11,6 +11,7 @@ import type {
   SafeAdminCredentials,
   ServerLogEntry,
   ServerStatus,
+  StartupDiagnosticInfo,
 } from '@shared/fileserver';
 import { FileServerAuditStore } from './FileServerAuditStore';
 import {
@@ -35,6 +36,7 @@ import {
   restoreWebClientRegistry,
   runElevatedReg,
 } from './webdavRegistry';
+import { type FirewallStatus } from './windowsFirewall';
 import { normalizeClientIp } from './ipUtils';
 
 export function validateDriveLetter(driveLetter?: string): string {
@@ -265,6 +267,32 @@ export class FileServerManager {
 
   clearLogs(): void {
     this.supervisor.clearLogs();
+  }
+
+  async getFirewallStatus(): Promise<FirewallStatus> {
+    const status = await this.supervisor.getFirewallStatus();
+    this.broadcast(IPC.fileserverStatusChanged, this.getStatus());
+    return status;
+  }
+
+  async authorizeFirewall(): Promise<{ ok: boolean; message: string; error?: string }> {
+    const res = await this.supervisor.authorizeFirewall();
+    this.broadcast(IPC.fileserverStatusChanged, this.getStatus());
+    return res;
+  }
+
+  async removeFirewall(): Promise<{ ok: boolean; message: string; error?: string }> {
+    const res = await this.supervisor.removeFirewall();
+    this.broadcast(IPC.fileserverStatusChanged, this.getStatus());
+    return res;
+  }
+
+  getDiagnostics(): StartupDiagnosticInfo | null {
+    return this.supervisor.getStartupDiagnostic();
+  }
+
+  exportDiagnostics(): string {
+    return this.supervisor.exportDiagnostics();
   }
 
   async pickRootDir(): Promise<string | null> {

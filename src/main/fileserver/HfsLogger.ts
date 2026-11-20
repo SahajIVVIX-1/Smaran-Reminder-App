@@ -67,6 +67,9 @@ export class HfsOperationalLogger {
 
   private writeLine(line: string): void {
     try {
+      if (!fs.existsSync(this.logDir)) {
+        fs.mkdirSync(this.logDir, { recursive: true });
+      }
       if (this.currentSizeBytes + line.length > this.maxSizeBytes) {
         this.rotate();
       }

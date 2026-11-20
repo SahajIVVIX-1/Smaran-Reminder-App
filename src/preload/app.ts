@@ -18,9 +18,11 @@ import type {
   FileServerAuditFilter,
   FileServerSecurityEvent,
   FileServerSettings,
+  FirewallStatus,
   SafeAdminCredentials,
   ServerLogEntry,
   ServerStatus,
+  StartupDiagnosticInfo,
 } from '@shared/fileserver';
 import type { AppNotification } from '@shared/notifications';
 import type { FontCatalog } from '@shared/fonts';
@@ -150,6 +152,16 @@ const api = {
       ipcRenderer.invoke(IPC.fileserverEnableWebClient),
     restoreWebClient: (): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke(IPC.fileserverRestoreWebClient),
+    getFirewallStatus: (): Promise<FirewallStatus> =>
+      ipcRenderer.invoke(IPC.fileserverGetFirewallStatus),
+    authorizeFirewall: (): Promise<{ ok: boolean; message: string; error?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverAuthorizeFirewall),
+    removeFirewall: (): Promise<{ ok: boolean; message: string; error?: string }> =>
+      ipcRenderer.invoke(IPC.fileserverRemoveFirewall),
+    getDiagnostics: (): Promise<StartupDiagnosticInfo | null> =>
+      ipcRenderer.invoke(IPC.fileserverGetDiagnostics),
+    exportDiagnostics: (): Promise<string> =>
+      ipcRenderer.invoke(IPC.fileserverExportDiagnostics),
     exportMountScript: (): Promise<{ ok: boolean; filePath?: string; error?: string }> =>
       ipcRenderer.invoke(IPC.fileserverExportMountScript),
     openUrl: (url: string): Promise<void> => ipcRenderer.invoke(IPC.fileserverOpenUrl, url),
