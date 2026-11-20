@@ -1,3 +1,15 @@
+# Smaran 3.3.17
+
+- **HFS Engine Archive Root Extraction Fix:** Resolved server startup alert (`HFS engine extraction incomplete. Missing entry points: src/index.js, package.json, central.json`). Corrected the tar packaging pipeline in `scripts/prepare-release-dirs.mjs` to bundle engine resources strictly at the archive root (`-C resources/engine/dist .`) without an extraneous `dist/` directory prefix.
+- **Automatic Self-Healing Engine Extraction:** Added automatic nested directory detection and flattening (`flattenNestedDistIfNeeded`) in `HfsProcessSupervisor.ts`. Any existing or previous installation where the engine was extracted into `fileserver_engine/dist/` is automatically flattened into the engine runtime root directory on startup, eliminating the need to manually clear application data.
+- **Eliminated Windows License File Lock Race Condition:** Fixed an issue where importing a license in portable mode could revert to "Activation Required" until re-imported. 
+  - In `LicenseStore.ts`, throttled `lastSeen` timestamp updates to at most once per hour instead of re-writing the license file to disk on every single license check or status poll.
+  - Isolated the `lastSeen` update in an independent `try/catch` block so temporary Windows filesystem lock collisions, indexer contention, or background reads never invalidate a cryptographically verified license.
+  - Replaced fixed `.tmp` naming with unique temporary filenames and added atomic `copyFileSync` fallback when `renameSync` encounters temporary Windows file handle locks.
+- **Dynamic Stale License Error Recovery:** Enhanced `HfsProcessSupervisor.getStatus()` to proactively clear cached "License activation required" warning banners as soon as a valid license is detected in the environment.
+
+---
+
 # Smaran 3.3.16
 
 - **Top-Right WebDAV Mount Option on Client Web GUI:** Relocated the WebDAV network drive mount widget to the top-right corner of the HFS client web interface (`custom.html`). Added a live pulsing indicator dot (`#e06c43`), folder icon, and adaptive label (`Mount as Drive Z:` on desktop, compact `Mount Drive` on mobile viewports &le;768px).

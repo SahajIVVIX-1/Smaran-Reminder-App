@@ -25,9 +25,12 @@ console.log(`Prepared release/${version}/{installer,portable}`);
 const targetArchive = join(root, 'resources', 'engine.tar.gz');
 const targetEngineDir = join(root, 'resources', 'engine', 'dist');
 
-if (!existsSync(targetArchive) && existsSync(targetEngineDir)) {
+if (existsSync(targetEngineDir)) {
   console.log(`Packaging engine archive ${targetArchive} from ${targetEngineDir}...`);
   try {
+    if (existsSync(targetArchive)) {
+      rmSync(targetArchive, { force: true });
+    }
     execFileSync('tar.exe', ['-czf', targetArchive, '-C', targetEngineDir, '.'], {
       windowsHide: true,
     });
@@ -56,14 +59,19 @@ try {
     windowsHide: true,
     maxBuffer: 10 * 1024 * 1024,
   });
+  const lines = list.split(/\r?\n/).map((l) => l.trim().replace(/^\.\//, ''));
   const required = ['src/index.js', 'package.json', 'central.json'];
   for (const req of required) {
-    if (!list.includes(req)) {
-      console.error(`FATAL: Engine archive is missing required entry point: ${req}`);
+    if (!lines.includes(req)) {
+      console.error(`FATAL: Engine archive is missing required root entry point: ${req}`);
       process.exit(1);
     }
   }
-  console.log(`[PASS] Self-contained HFS engine archive verified (${(archiveStat.size / (1024 * 1024)).toFixed(2)} MB, all entry points valid).`);
+  if (lines.some((l) => l.startsWith('dist/src/index.js'))) {
+    console.error(`FATAL: Engine archive has invalid 'dist/' prefix! Must be packed from root.`);
+    process.exit(1);
+  }
+  console.log(`[PASS] Self-contained HFS engine archive verified (${(archiveStat.size / (1024 * 1024)).toFixed(2)} MB, all root entry points valid).`);
 } catch (err) {
   console.error(`FATAL: Failed to inspect engine archive integrity: ${err.message}`);
   process.exit(1);

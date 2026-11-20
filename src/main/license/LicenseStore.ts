@@ -102,8 +102,16 @@ export class LicenseStore {
         };
       }
       const info = this.describe(container, stored.importedAt ?? null);
-      if (info.status === 'valid' && (Number.isNaN(lastSeen) || now.getTime() > lastSeen))
-        this.write({ ...stored, lastSeen: now.toISOString() });
+      if (
+        info.status === 'valid' &&
+        (Number.isNaN(lastSeen) || now.getTime() - lastSeen > 60 * 60 * 1000)
+      ) {
+        try {
+          this.write({ ...stored, lastSeen: now.toISOString() });
+        } catch {
+          // A transient disk write error updating lastSeen must never invalidate an otherwise cryptographically valid license
+        }
+      }
       return info;
     } catch (error) {
       return {
@@ -193,8 +201,27 @@ export class LicenseStore {
 
   private write(stored: Stored): void {
     fs.mkdirSync(this.dir, { recursive: true });
-    const tmp = `${this.filePath}.tmp`;
-    fs.writeFileSync(tmp, `${JSON.stringify(stored, null, 2)}\n`, 'utf8');
-    fs.renameSync(tmp, this.filePath);
+    const tmp = `${this.filePath}.tmp.${Date.now()}.${Math.random().toString(36).slice(2, 6)}`;
+    try {
+      fs.writeFileSync(tmp, `${JSON.stringify(stored, null, 2)}\n`, 'utf8');
+      try {
+        fs.renameSync(tmp, this.filePath);
+      } catch {
+        // Fallback on Windows if rename encounters temporary handle collision
+        fs.copyFileSync(tmp, this.filePath);
+        try {
+          fs.rmSync(tmp, { force: true });
+        } catch {
+          // ignore
+        }
+      }
+    } catch (err) {
+      try {
+        if (fs.existsSync(tmp)) fs.rmSync(tmp, { force: true });
+      } catch {
+        // ignore
+      }
+      throw err;
+    }
   }
 }

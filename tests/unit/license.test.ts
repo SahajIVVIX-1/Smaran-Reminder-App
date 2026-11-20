@@ -327,4 +327,22 @@ describe('LicenseStore', () => {
       message: expect.stringMatching(/isn’t valid/),
     });
   });
+
+  it('keeps valid license status even if writing lastSeen encounters an error', () => {
+    const s = store();
+    s.importFile(write('a.png', licensePng()));
+    expect(s.info().status).toBe('valid');
+
+    // Simulate write error when updating lastSeen
+    // @ts-expect-error mocking private write method for test
+    s.write = () => {
+      throw new Error('EPERM: operation not permitted');
+    };
+
+    // Advancing time > 1 hour triggers lastSeen update attempt
+    now = new Date('2026-10-15T14:00:00Z');
+    const info = s.info();
+    // Must remain valid and not flip to invalid!
+    expect(info.status).toBe('valid');
+  });
 });

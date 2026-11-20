@@ -126,7 +126,13 @@ export class HfsProcessSupervisor {
   }
 
   getStatus(): ServerStatus {
-    return { ...this.currentStatus };
+    const status = { ...this.currentStatus };
+    // Clear stale license activation warning if license is currently valid
+    if (status.error?.startsWith('License activation required') && this.callbacks.isLicenseValid?.()) {
+      delete status.error;
+      this.currentStatus.error = undefined;
+    }
+    return status;
   }
 
   getLogs(): ServerLogEntry[] {
@@ -290,7 +296,35 @@ export class HfsProcessSupervisor {
     }
   }
 
+  private flattenNestedDistIfNeeded(): void {
+    const nestedDist = path.join(this.runtimeDir, 'dist');
+    const nestedScript = path.join(nestedDist, 'src', 'index.js');
+    if (fs.existsSync(nestedScript)) {
+      try {
+        const items = fs.readdirSync(nestedDist);
+        for (const item of items) {
+          const src = path.join(nestedDist, item);
+          const dst = path.join(this.runtimeDir, item);
+          if (fs.existsSync(dst)) {
+            fs.rmSync(dst, { recursive: true, force: true });
+          }
+          fs.renameSync(src, dst);
+        }
+        try {
+          fs.rmSync(nestedDist, { recursive: true, force: true });
+        } catch {
+          // ignore
+        }
+        this.addLog('info', 'Flattened nested engine directory into runtime root.');
+      } catch (err) {
+        this.addLog('warn', `Could not flatten nested engine dist: ${err}`);
+      }
+    }
+  }
+
   public async ensureEngineExtracted(): Promise<void> {
+    this.flattenNestedDistIfNeeded();
+
     const runtimeScript = path.join(this.runtimeDir, 'src', 'index.js');
     const runtimePkg = path.join(this.runtimeDir, 'package.json');
     const runtimeCentral = path.join(this.runtimeDir, 'central.json');
@@ -360,6 +394,8 @@ export class HfsProcessSupervisor {
       throw extractErr;
     }
 
+    this.flattenNestedDistIfNeeded();
+
     // Post-extraction verification
     if (!fs.existsSync(runtimeScript) || !fs.existsSync(runtimePkg) || !fs.existsSync(runtimeCentral)) {
       const missing = [
@@ -381,6 +417,12 @@ export class HfsProcessSupervisor {
     const runtimeScript = path.join(this.runtimeDir, 'src', 'index.js');
     if (fs.existsSync(runtimeScript)) {
       return { scriptPath: runtimeScript, engineDir: this.runtimeDir };
+    }
+
+    // 1b. Check if nested dist exists in runtimeDir
+    const nestedScript = path.join(this.runtimeDir, 'dist', 'src', 'index.js');
+    if (fs.existsSync(nestedScript)) {
+      return { scriptPath: nestedScript, engineDir: path.join(this.runtimeDir, 'dist') };
     }
 
     // 2. Candidate uncompressed directories (e.g. dev mode fallback)

@@ -164,9 +164,74 @@ describe('HfsProcessSupervisor port & environment verification', () => {
     expect(resultInvalid.error).toContain('License activation required');
     expect(supervisor.getStatus().running).toBe(false);
 
+    // When license becomes valid later, getStatus() should clear stale license error
+    const supervisorWithValidLicense = new HfsProcessSupervisor(tempDir, store, {
+      isLicenseValid: () => true,
+    });
+    // @ts-expect-error accessing private field for test
+    supervisorWithValidLicense.currentStatus.error = 'License activation required. Smaran HFS will start after a valid license is activated.';
+    expect(supervisorWithValidLicense.getStatus().error).toBeUndefined();
+
     // Resolve engine script path check
     const resolved = supervisor.resolveEngineScript();
     expect(resolved.scriptPath).toContain('index.js');
     expect(resolved.engineDir).toContain('dist');
+  });
+
+  it('self-heals and flattens nested dist folder if present in runtimeDir', async () => {
+    const { HfsProcessSupervisor } = await import('../../src/main/fileserver/HfsProcessSupervisor');
+    const { FileServerStore } = await import('../../src/main/fileserver/FileServerStore');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const fs = await import('node:fs');
+
+    const tempDir = path.join(os.tmpdir(), `smaran_nested_test_${Date.now()}`);
+    const runtimeDir = path.join(tempDir, 'fileserver_engine');
+    const nestedDist = path.join(runtimeDir, 'dist');
+    const nestedSrc = path.join(nestedDist, 'src');
+    fs.mkdirSync(nestedSrc, { recursive: true });
+    fs.writeFileSync(path.join(nestedSrc, 'index.js'), '// test entry');
+    fs.writeFileSync(path.join(nestedDist, 'package.json'), '{}');
+    fs.writeFileSync(path.join(nestedDist, 'central.json'), '{}');
+
+    const store = new FileServerStore(tempDir);
+    const supervisor = new HfsProcessSupervisor(tempDir, store, {
+      isLicenseValid: () => true,
+    });
+
+    // @ts-expect-error calling private helper for test
+    supervisor.flattenNestedDistIfNeeded();
+
+    expect(fs.existsSync(path.join(runtimeDir, 'src', 'index.js'))).toBe(true);
+    expect(fs.existsSync(path.join(runtimeDir, 'package.json'))).toBe(true);
+    expect(fs.existsSync(path.join(runtimeDir, 'central.json'))).toBe(true);
+    expect(fs.existsSync(nestedDist)).toBe(false);
+
+    // Clean up
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('extracts real resources/engine.tar.gz and verifies all root entry points exist', async () => {
+    const { HfsProcessSupervisor } = await import('../../src/main/fileserver/HfsProcessSupervisor');
+    const { FileServerStore } = await import('../../src/main/fileserver/FileServerStore');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const fs = await import('node:fs');
+
+    const tempDir = path.join(os.tmpdir(), `smaran_extract_test_${Date.now()}`);
+    const store = new FileServerStore(tempDir);
+    const supervisor = new HfsProcessSupervisor(tempDir, store, {
+      isLicenseValid: () => true,
+    });
+
+    await supervisor.ensureEngineExtracted();
+
+    const runtimeDir = supervisor.runtimeDir;
+    expect(fs.existsSync(path.join(runtimeDir, 'src', 'index.js'))).toBe(true);
+    expect(fs.existsSync(path.join(runtimeDir, 'package.json'))).toBe(true);
+    expect(fs.existsSync(path.join(runtimeDir, 'central.json'))).toBe(true);
+
+    // Clean up
+    fs.rmSync(tempDir, { recursive: true, force: true });
   });
 });
