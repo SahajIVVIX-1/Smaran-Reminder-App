@@ -1,6 +1,7 @@
-import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { z } from 'zod';
 import { AppNotificationSchema, type AppNotification } from '@shared/notifications';
+import { cleanupStaleTempFiles, readValidatedJson, writeAtomicFile } from './atomicFile';
 
 export const NOTIFICATIONS_FILE = 'notifications.json';
 export const MAX_NOTIFICATIONS = 500;
@@ -12,48 +13,42 @@ export class NotificationStore {
   private notifications: AppNotification[] = [];
   private readonly listeners = new Set<NotificationListener>();
 
-  constructor(dataDir: string) {
+  constructor(readonly dataDir: string) {
     this.filePath = path.join(dataDir, NOTIFICATIONS_FILE);
+    cleanupStaleTempFiles(dataDir, NOTIFICATIONS_FILE);
     this.load();
   }
 
   load(): AppNotification[] {
-    if (!fs.existsSync(this.filePath)) {
-      this.notifications = [];
-      return this.notifications;
-    }
+    const res = readValidatedJson(this.filePath, z.array(z.unknown()), [], {
+      onRecovered: (msg) => console.log(`[NotificationStore] ${msg}`),
+      onCorrupt: (err, preservedPath) =>
+        console.warn(
+          `[NotificationStore] Corrupt notifications preserved to ${preservedPath}:`,
+          err,
+        ),
+    });
 
-    try {
-      const raw = fs.readFileSync(this.filePath, 'utf8');
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        const valid: AppNotification[] = [];
-        for (const item of parsed) {
-          const res = AppNotificationSchema.safeParse(item);
-          if (res.success) {
-            valid.push(res.data);
-          }
-        }
-        this.notifications = valid;
-      } else {
-        this.notifications = [];
+    const valid: AppNotification[] = [];
+    for (const item of res.data) {
+      const parsed = AppNotificationSchema.safeParse(item);
+      if (parsed.success) {
+        valid.push(parsed.data);
       }
-    } catch {
-      this.notifications = [];
     }
 
+    this.notifications = valid.slice(0, MAX_NOTIFICATIONS);
     return this.notifications;
   }
 
   private save(): void {
     try {
-      const dir = path.dirname(this.filePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      fs.writeFileSync(this.filePath, JSON.stringify(this.notifications, null, 2), 'utf8');
+      writeAtomicFile(this.filePath, JSON.stringify(this.notifications, null, 2), {
+        backup: true,
+        maxRetries: 5,
+      });
     } catch (err) {
-      console.error('Failed writing notifications.json:', err);
+      console.error('[NotificationStore] Failed writing notifications.json atomically:', err);
     }
   }
 

@@ -1,6 +1,6 @@
 import { ipcMain, shell } from 'electron';
 import { IPC } from '@shared/channels';
-import type { FileServerSettings } from '@shared/fileserver';
+import type { FileServerAuditFilter, FileServerSettings } from '@shared/fileserver';
 import type { FileServerManager } from './FileServerManager';
 
 export function registerFileServerIpc(manager: FileServerManager): void {
@@ -42,5 +42,12 @@ export function registerFileServerIpc(manager: FileServerManager): void {
   ipcMain.handle(IPC.fileserverSessionsGet, () => manager.getSessions());
   ipcMain.handle(IPC.fileserverSessionDisconnect, (_event, payload: { id: string }) =>
     manager.disconnectSession(payload?.id),
+  );
+  ipcMain.handle(IPC.fileserverSecurityEventsGet, (_event, filter?: FileServerAuditFilter) =>
+    manager.getSecurityEvents(filter),
+  );
+  ipcMain.handle(
+    IPC.fileserverSecurityEventsGet,
+    (_event, filter?: FileServerAuditFilter) => manager.getSecurityEvents(filter),
   );
 }

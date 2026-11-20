@@ -1,7 +1,7 @@
 {
   "name": "smaran",
   "productName": "Smaran",
-  "version": "3.4.3",
+  "version": "3.4.4",
   "description": "Styled, always-on-top reminder popups shown in bursts on schedules.",
   "author": "SahajS",
   "license": "UNLICENSED",
@@ -19,6 +19,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:hfs:smoke": "node scripts/test-hfs-smoke.mjs",
     "test:e2e": "npm run build && playwright test",
     "test:smoke": "playwright test -c playwright.smoke.config.ts",
     "build": "npm run typecheck && electron-vite build",

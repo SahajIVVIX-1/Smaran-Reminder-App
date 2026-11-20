@@ -1,7 +1,7 @@
-import * as fs from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { HistoryEntrySchema, type HistoryEntry } from '@shared/schema';
+import { cleanupStaleTempFiles, readValidatedJson, writeAtomicFile } from './atomicFile';
 
 export const HISTORY_FILE = 'history.json';
 export const HISTORY_LIMIT = 5000;
@@ -9,8 +9,8 @@ export const HISTORY_LIMIT = 5000;
 export type HistoryListener = (entries: readonly HistoryEntry[]) => void;
 
 /**
- * What happened to each reminder (done, snoozed, missed…), newest first, capped at 1,000 entries.
- * Kept apart from config.json so it never bloats backups. A damaged file just starts empty.
+ * What happened to each reminder (done, snoozed, missed…), newest first, capped at 5,000 entries.
+ * Kept apart from config.json so it never bloats backups.
  */
 export class HistoryStore {
   private entries: HistoryEntry[] = [];
@@ -20,20 +20,21 @@ export class HistoryStore {
   constructor(
     readonly dir: string,
     private readonly writeDelayMs = 500,
-  ) {}
+  ) {
+    cleanupStaleTempFiles(dir, HISTORY_FILE);
+  }
 
   get filePath(): string {
     return join(this.dir, HISTORY_FILE);
   }
 
   load(): void {
-    try {
-      const raw: unknown = JSON.parse(fs.readFileSync(this.filePath, 'utf8'));
-      const parsed = z.array(HistoryEntrySchema).safeParse(raw);
-      this.entries = parsed.success ? parsed.data.slice(0, HISTORY_LIMIT) : [];
-    } catch {
-      this.entries = [];
-    }
+    const res = readValidatedJson(this.filePath, z.array(HistoryEntrySchema), [], {
+      onRecovered: (msg) => console.log(`[HistoryStore] ${msg}`),
+      onCorrupt: (err, corruptPath) =>
+        console.warn(`[HistoryStore] Corrupt history preserved to ${corruptPath}:`, err),
+    });
+    this.entries = res.data.slice(0, HISTORY_LIMIT);
   }
 
   list(): readonly HistoryEntry[] {
@@ -55,19 +56,55 @@ export class HistoryStore {
     return () => this.listeners.delete(listener);
   }
 
-  /** Writes now (used on quit). */
+  /** Writes now (used on quit and shutdown). */
   flush(): void {
-    if (this.writeTimer) clearTimeout(this.writeTimer);
-    this.writeTimer = null;
-    fs.mkdirSync(this.dir, { recursive: true });
-    const tmp = `${this.filePath}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(this.entries), 'utf8');
-    fs.renameSync(tmp, this.filePath);
+    if (this.writeTimer) {
+      clearTimeout(this.writeTimer);
+      this.writeTimer = null;
+    }
+    this.performFlush();
+  }
+
+  private performFlush(retryCount = 0): void {
+    if (this.writeTimer) {
+      clearTimeout(this.writeTimer);
+      this.writeTimer = null;
+    }
+
+    try {
+      writeAtomicFile(this.filePath, JSON.stringify(this.entries), {
+        backup: true,
+        maxRetries: 3,
+      });
+    } catch (err) {
+      console.error(`[HistoryStore] Failed flushing history (attempt ${retryCount + 1}):`, err);
+      if (retryCount < 3) {
+        const backoff = (retryCount + 1) * 200;
+        this.writeTimer = setTimeout(() => {
+          this.performFlush(retryCount + 1);
+        }, backoff);
+      }
+    }
+  }
+
+  private scheduleWrite(): void {
+    if (this.writeTimer) {
+      clearTimeout(this.writeTimer);
+    }
+    this.writeTimer = setTimeout(() => {
+      this.performFlush();
+    }, this.writeDelayMs);
   }
 
   private changed(): void {
-    for (const listener of this.listeners) listener(this.entries);
-    if (this.writeTimer) clearTimeout(this.writeTimer);
-    this.writeTimer = setTimeout(() => this.flush(), this.writeDelayMs);
+    // Isolated listener execution: one failing listener does not interrupt others or write scheduling
+    for (const listener of this.listeners) {
+      try {
+        listener(this.entries);
+      } catch (err) {
+        console.error('[HistoryStore] Listener error:', err);
+      }
+    }
+    this.scheduleWrite();
   }
 }

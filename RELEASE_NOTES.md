@@ -1,3 +1,30 @@
+# Smaran 3.4.4
+
+- **Persistent File Server Security & Audit Storage (`fileserver-audit.json`):**
+  - Migrated security events from a transient in-memory array to a persistent, atomic audit store (`FileServerAuditStore`).
+  - Preserves event IDs, timestamps, usernames, client IPs, access types, event types, and details across application restarts.
+  - Retains up to 5,000 permanent records with deduplication across event ID and composite fingerprints.
+  - Admin dashboard directly retrieves persistent events with support for filtering by event type, username, IP, date range, and count limit. Completely separated from the deletable notification inbox.
+- **Shared Windows-Safe Atomic Storage Engine (`atomicFile.ts`):**
+  - Reusable persistence utility implementing unique temporary staging files with `fs.fsyncSync()` to ensure data is physically committed to disk before replacement.
+  - Windows-safe atomic file replacement with exponential backoff retries on `EPERM`, `EBUSY`, and `EACCES` file locks, plus copy/unlink fallback.
+  - Automatic `.bak` creation and corruption recovery: damaged files are safely preserved as `<file>.corrupt.<timestamp>` for forensics while state is restored from `.bak`.
+  - Automatic cleanup of abandoned temporary files older than 5 minutes on initialization.
+- **Resilient NotificationStore & HistoryStore Persistence:**
+  - Upgraded `NotificationStore` to atomic persistence with `.bak` recovery, corruption preservation, and safe temp cleanup while maintaining the 500-notification limit.
+  - Isolated listener error handling: throwing listeners cannot crash broadcasts or prevent subsequent listeners from executing.
+  - Strengthened `HistoryStore`: delayed write flushing with bounded exponential backoff retries on write failures, ensuring writes are never silently lost during app quit.
+- **Persistent Failed-Login Escalation & Engine Brute-Force Enforcement:**
+  - `HfsProcessSupervisor` persists failed-login attempts per normalized client IP in `failed-logins.json` across app restarts.
+  - Enforces a 15-minute rolling window, normalizes IPv4 and IPv6 addresses (including IPv4-mapped IPv6 `::ffff:`), and automatically resets counters upon successful login.
+  - Configures server-level protection via HFS `antibrute` plugin with increasing delays and IP blocking.
+- **Automated Packaged HFS Engine Smoke Testing (`test:hfs:smoke`):**
+  - Added end-to-end automated smoke testing (`scripts/test-hfs-smoke.mjs`) executing the actual packaged engine from `resources/engine.tar.gz`.
+  - Verifies entry points, plugins (`smaran-security`, `server-info`, `antibrute`), health endpoint probe, public file access, unauthorized access rejection (401/403), valid authentication, and clean process teardown.
+  - Integrated directly into release directory preparation (`scripts/prepare-release-dirs.mjs`) to halt release builds immediately if smoke testing fails.
+
+---
+
 # Smaran 3.4.3
 
 - **Smaran Security Monitor (`smaran-security` plugin):**

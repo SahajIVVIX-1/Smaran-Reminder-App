@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { FileServerSettings } from '@shared/fileserver';
-import type { AppNotification } from '@shared/notifications';
+import type { FileServerSecurityEvent, FileServerSettings } from '@shared/fileserver';
 import { timeOf } from '../format';
 import { cx } from '../cx';
 import {
@@ -30,19 +29,30 @@ export function FileServer() {
   const [adminPassword, setAdminPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [credSaving, setCredSaving] = useState(false);
-  const [credFeedback, setCredFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [credFeedback, setCredFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   // Server Port State
   const [portInput, setPortInput] = useState('5901');
   const [portSaving, setPortSaving] = useState(false);
-  const [portFeedback, setPortFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [portFeedback, setPortFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   // Storage Root State
   const [storageLoading, setStorageLoading] = useState(false);
-  const [storageFeedback, setStorageFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [storageFeedback, setStorageFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   // General Lifecycle State
-  const [actionLoading, setActionLoading] = useState<'starting' | 'stopping' | 'restarting' | 'applying' | null>(null);
+  const [actionLoading, setActionLoading] = useState<
+    'starting' | 'stopping' | 'restarting' | 'applying' | null
+  >(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
@@ -52,7 +62,10 @@ export function FileServer() {
 
   // WebDAV Drive Mount State
   const [driveMounting, setDriveMounting] = useState(false);
-  const [driveFeedback, setDriveFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [driveFeedback, setDriveFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
   const [isEnablingWebClient, setIsEnablingWebClient] = useState(false);
   const [isExportingMountScript, setIsExportingMountScript] = useState(false);
 
@@ -62,7 +75,7 @@ export function FileServer() {
 
   // Security & Connected Sessions State
   const [sessions, setSessions] = useState<Array<{ id: string; ip: string; speed?: number }>>([]);
-  const [securityEvents, setSecurityEvents] = useState<AppNotification[]>([]);
+  const [securityEvents, setSecurityEvents] = useState<FileServerSecurityEvent[]>([]);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
 
   const refreshSessions = async () => {
@@ -76,12 +89,8 @@ export function FileServer() {
 
   const refreshSecurityEvents = async () => {
     try {
-      const all = await window.smaran.notifications.list();
-      setSecurityEvents(
-        all.filter(
-          (n) => n.source === 'fileserver' || n.category === 'security' || n.category === 'fileserver',
-        ),
-      );
+      const events = await window.smaran.fileserver.getSecurityEvents({ limit: 50 });
+      setSecurityEvents(events || []);
     } catch {
       // transient
     }
@@ -102,20 +111,16 @@ export function FileServer() {
 
     const loadInitialData = async () => {
       try {
-        const [active, notifs, s, setts, creds] = await Promise.all([
+        const [active, events, s, setts, creds] = await Promise.all([
           window.smaran.fileserver.getSessions(),
-          window.smaran.notifications.list(),
+          window.smaran.fileserver.getSecurityEvents({ limit: 50 }),
           window.smaran.fileserver.status(),
           window.smaran.fileserver.getSettings(),
           window.smaran.fileserver.getAdminCredentials(),
         ]);
         if (!mounted) return;
         setSessions(active || []);
-        setSecurityEvents(
-          (notifs || []).filter(
-            (n) => n.source === 'fileserver' || n.category === 'security' || n.category === 'fileserver',
-          ),
-        );
+        setSecurityEvents(events || []);
         if (s) useApp.getState().setFileServerStatus(s);
         if (s?.error) setServerError(s.error);
         setSettings(setts);
@@ -255,7 +260,10 @@ export function FileServer() {
 
   const handleAutoStartChange = async (autoStart: boolean) => {
     try {
-      const updated = await window.smaran.fileserver.saveSettings({ autoStart, autoStartConfigured: true });
+      const updated = await window.smaran.fileserver.saveSettings({
+        autoStart,
+        autoStartConfigured: true,
+      });
       setSettings(updated);
     } catch (err: unknown) {
       setServerError(err instanceof Error ? err.message : String(err));
@@ -389,7 +397,8 @@ export function FileServer() {
       if (res.ok) {
         setDriveFeedback({
           type: 'success',
-          message: 'Windows WebDAV service (WebClient) & registry configured successfully! You can now click "Mount as Drive Z:".',
+          message:
+            'Windows WebDAV service (WebClient) & registry configured successfully! You can now click "Mount as Drive Z:".',
         });
         setTimeout(() => setDriveFeedback(null), 10000);
       } else {
@@ -454,7 +463,8 @@ export function FileServer() {
     if (banned.includes(adminPassword.trim().toLowerCase())) {
       setCredFeedback({
         type: 'error',
-        message: 'Password cannot be a common default or weak password (e.g. smaran, admin, password).',
+        message:
+          'Password cannot be a common default or weak password (e.g. smaran, admin, password).',
       });
       return;
     }
@@ -538,7 +548,8 @@ export function FileServer() {
   const adminUrl = `http://localhost:${currentPort}/~/admin/`;
   const webdavLocalUrl = `http://127.0.0.1:${currentPort}/`;
   const primaryLanUrl = status?.lanUrls?.[0] || `http://127.0.0.1:${currentPort}`;
-  const rootStoragePath = status?.rootDir || settings?.rootDir || 'Default (Documents\\Smaran Files)';
+  const rootStoragePath =
+    status?.rootDir || settings?.rootDir || 'Default (Documents\\Smaran Files)';
   const displayFolderName = rootStoragePath.split(/[/\\]/).filter(Boolean).pop() || 'Smaran Files';
 
   return (
@@ -548,17 +559,14 @@ export function FileServer() {
         <div className="flex-1">
           <h1 className="font-serif text-[26px] leading-tight">File Server</h1>
           <p className="mt-1 text-[13.5px] text-muted">
-            Self-hosted local file server &amp; WebDAV storage for Windows, macOS and mobile devices.
+            Self-hosted local file server &amp; WebDAV storage for Windows, macOS and mobile
+            devices.
           </p>
         </div>
         <div className="flex items-center gap-2">
           {isRunning ? (
             <>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => handleOpenUrl(adminUrl)}
-              >
+              <Button variant="secondary" size="sm" onClick={() => handleOpenUrl(adminUrl)}>
                 <ShieldIcon size={14} />
                 Admin Panel ↗
               </Button>
@@ -653,7 +661,12 @@ export function FileServer() {
                   {isStopping && 'Stopping Server...'}
                   {isRestarting && 'Restarting Server...'}
                   {isApplying && 'Applying Configuration...'}
-                  {!isPending && (isRunning ? `Running on port ${currentPort}` : isError ? 'Server Error' : 'Server Offline')}
+                  {!isPending &&
+                    (isRunning
+                      ? `Running on port ${currentPort}`
+                      : isError
+                        ? 'Server Error'
+                        : 'Server Offline')}
                 </span>
               </div>
               <p className="mt-0.5 font-serif text-[13px] text-muted italic">
@@ -729,12 +742,7 @@ export function FileServer() {
               <FolderIcon size={13} />
               {driveMounting ? 'Mounting Drive...' : 'Mount as Drive Z:'}
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={handleUnmountDrive}
-              disabled={driveMounting}
-            >
+            <Button size="sm" variant="ghost" onClick={handleUnmountDrive} disabled={driveMounting}>
               Unmount
             </Button>
           </div>
@@ -823,7 +831,9 @@ export function FileServer() {
                     className="bg-amber-500/20 text-amber-200 border-amber-500/30 hover:bg-amber-500/30 text-xs"
                   >
                     <BoltIcon size={12} />
-                    {isEnablingWebClient ? 'Configuring Windows WebDAV...' : 'Fix Windows WebDAV Service (Run as Admin)'}
+                    {isEnablingWebClient
+                      ? 'Configuring Windows WebDAV...'
+                      : 'Fix Windows WebDAV Service (Run as Admin)'}
                   </Button>
                   <Button
                     size="sm"
@@ -850,7 +860,10 @@ export function FileServer() {
         <Row
           label="Storage Directory"
           hint={
-            <span className="truncate block font-mono text-[12px] text-ink select-all" title={rootStoragePath}>
+            <span
+              className="truncate block font-mono text-[12px] text-ink select-all"
+              title={rootStoragePath}
+            >
               {rootStoragePath}
             </span>
           }
@@ -1051,19 +1064,11 @@ export function FileServer() {
               <span className="font-mono text-xs text-accent px-2.5 py-1 rounded-md bg-raised border border-line select-all">
                 {primaryLanUrl}
               </span>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => handleShowQr(primaryLanUrl)}
-              >
+              <Button size="sm" variant="secondary" onClick={() => handleShowQr(primaryLanUrl)}>
                 <QrIcon size={13} />
                 QR Code
               </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => handleOpenUrl(primaryLanUrl)}
-              >
+              <Button size="sm" variant="secondary" onClick={() => handleOpenUrl(primaryLanUrl)}>
                 <GlobeIcon size={13} />
                 Open Web ↗
               </Button>
@@ -1133,7 +1138,9 @@ export function FileServer() {
                   <div className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-emerald-400" />
                     <span className="font-mono font-medium text-ink">{s.ip}</span>
-                    <span className="text-faint font-mono text-[11px]">(ID: {s.id.slice(0, 8)})</span>
+                    <span className="text-faint font-mono text-[11px]">
+                      (ID: {s.id.slice(0, 8)})
+                    </span>
                   </div>
                   <Button
                     size="sm"
@@ -1165,31 +1172,51 @@ export function FileServer() {
             </p>
           ) : (
             <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-              {securityEvents.slice(0, 10).map((ev) => (
-                <div
-                  key={ev.id}
-                  className="flex items-center justify-between rounded-lg border border-line bg-raised/40 px-3 py-2 text-xs"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                    <span className="shrink-0">
-                      {ev.severity === 'critical' || ev.severity === 'warning' ? (
-                        <ShieldIcon size={14} className="text-danger" />
-                      ) : (
-                        <ServerIcon size={14} className="text-accent" />
-                      )}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-semibold text-ink truncate">{ev.title}</span>
-                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-surface text-muted">
-                          {timeOf(new Date(ev.timestamp))}
-                        </span>
+              {securityEvents.slice(0, 10).map((ev) => {
+                const isWarning = ev.type === 'failedLogin';
+                let eventTitle = '';
+                let eventDesc = '';
+                if (ev.type === 'login') {
+                  eventTitle = `User “${ev.username}” Logged In`;
+                  eventDesc = `${ev.clientIp} (${ev.accessType || 'LAN'})`;
+                } else if (ev.type === 'failedLogin') {
+                  const rep = (ev.repeatCount ?? 1) > 1 ? ` (Attempt #${ev.repeatCount})` : '';
+                  eventTitle = `Failed Login: ${ev.username}${rep}`;
+                  eventDesc = `${ev.clientIp} – Reason: ${ev.reason || 'Invalid credentials'}`;
+                } else if (ev.type === 'logout') {
+                  eventTitle = `User “${ev.username}” Logged Out`;
+                  eventDesc = `${ev.clientIp}`;
+                } else if (ev.type === 'adminActivity') {
+                  eventTitle = 'Administrator Action';
+                  eventDesc = ev.details || 'Configuration modified';
+                }
+
+                return (
+                  <div
+                    key={ev.id}
+                    className="flex items-center justify-between rounded-lg border border-line bg-raised/40 px-3 py-2 text-xs"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <span className="shrink-0">
+                        {isWarning ? (
+                          <ShieldIcon size={14} className="text-danger" />
+                        ) : (
+                          <ServerIcon size={14} className="text-accent" />
+                        )}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold text-ink truncate">{eventTitle}</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-surface text-muted">
+                            {timeOf(new Date(ev.timestamp))}
+                          </span>
+                        </div>
+                        <p className="text-[11.5px] text-muted truncate">{eventDesc}</p>
                       </div>
-                      <p className="text-[11.5px] text-muted truncate">{ev.description}</p>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -1205,7 +1232,8 @@ export function FileServer() {
           <div>
             <span className="text-[13px] text-ink font-medium">Factory Defaults</span>
             <p className="mt-0.5 font-serif text-[12.5px] text-muted italic">
-              Restore original server configuration without affecting your shared files or documents.
+              Restore original server configuration without affecting your shared files or
+              documents.
             </p>
           </div>
           <Button
@@ -1241,7 +1269,9 @@ export function FileServer() {
             <p className="text-xs text-muted text-center max-w-xs font-serif italic">
               Scan with your phone or tablet camera to open Smaran HFS on your local network:
             </p>
-            <p className="font-mono text-xs text-accent break-all text-center select-all">{qrModalUrl}</p>
+            <p className="font-mono text-xs text-accent break-all text-center select-all">
+              {qrModalUrl}
+            </p>
           </div>
         </Dialog>
       )}
@@ -1262,12 +1292,7 @@ export function FileServer() {
               >
                 Cancel
               </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={handleResetDefaults}
-                disabled={resetting}
-              >
+              <Button variant="danger" size="sm" onClick={handleResetDefaults} disabled={resetting}>
                 {resetting ? 'Resetting...' : 'Confirm Reset to Defaults'}
               </Button>
             </div>
@@ -1278,10 +1303,20 @@ export function FileServer() {
               Are you sure you want to reset all Smaran HFS settings back to factory defaults?
             </p>
             <div className="p-3 rounded-lg bg-surface border border-line space-y-1.5 font-mono text-[11px]">
-              <div>• Port: <span className="text-accent">5901</span></div>
-              <div>• Admin Username: <span className="text-accent">admin</span></div>
-              <div>• Admin Password: <span className="text-accent">A unique, high-entropy password is generated</span></div>
-              <div>• Default Plugins: <span className="text-emerald-400">19 bundled plugins enabled</span></div>
+              <div>
+                • Port: <span className="text-accent">5901</span>
+              </div>
+              <div>
+                • Admin Username: <span className="text-accent">admin</span>
+              </div>
+              <div>
+                • Admin Password:{' '}
+                <span className="text-accent">A unique, high-entropy password is generated</span>
+              </div>
+              <div>
+                • Default Plugins:{' '}
+                <span className="text-emerald-400">19 bundled plugins enabled</span>
+              </div>
             </div>
             <p className="text-amber-400/90 text-[11px] font-serif italic">
               Note: Files stored in your shared directories will remain safe and untouched.

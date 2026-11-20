@@ -71,11 +71,22 @@ try {
     console.error(`FATAL: Engine archive has invalid 'dist/' prefix! Must be packed from root.`);
     process.exit(1);
   }
-  console.log(`[PASS] Self-contained HFS engine archive verified (${(archiveStat.size / (1024 * 1024)).toFixed(2)} MB, all root entry points valid).`);
+  console.log(
+    `[PASS] Self-contained HFS engine archive verified (${(archiveStat.size / (1024 * 1024)).toFixed(2)} MB, all root entry points valid).`,
+  );
 } catch (err) {
   console.error(`FATAL: Failed to inspect engine archive integrity: ${err.message}`);
   process.exit(1);
 }
 
-
-
+// Execute real packaged HFS engine automated smoke test
+console.log('Running automated HFS engine smoke test validation...');
+try {
+  execFileSync(process.execPath, [join(root, 'scripts', 'test-hfs-smoke.mjs')], {
+    stdio: 'inherit',
+    windowsHide: true,
+  });
+} catch (err) {
+  console.error(`FATAL: Packaged HFS engine smoke test failed: ${err.message}. Aborting release build.`);
+  process.exit(1);
+}

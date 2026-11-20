@@ -7,12 +7,18 @@ import { BrowserWindow, dialog, shell } from 'electron';
 import * as QRCode from 'qrcode';
 import { IPC } from '@shared/channels';
 import type {
+  FileServerAuditFilter,
   FileServerSecurityEvent,
   FileServerSettings,
   ServerLogEntry,
   ServerStatus,
 } from '@shared/fileserver';
-import { FileServerStore, generateDefaultAdminPassword, validateAdminPassword } from './FileServerStore';
+import { FileServerAuditStore } from './FileServerAuditStore';
+import {
+  FileServerStore,
+  generateDefaultAdminPassword,
+  validateAdminPassword,
+} from './FileServerStore';
 import {
   checkDirectoryPermissions,
   checkPortAvailable,
@@ -32,12 +38,13 @@ const execAsync = promisify(exec);
 export class FileServerManager {
   readonly store: FileServerStore;
   readonly supervisor: HfsProcessSupervisor;
+  readonly auditStore: FileServerAuditStore;
   private syncQueue: Promise<unknown> = Promise.resolve();
-  private securityEvents: FileServerSecurityEvent[] = [];
   private onSecurityEventCallback?: (event: FileServerSecurityEvent) => void;
 
   constructor(dataDir: string, isLicenseValid?: () => boolean) {
     this.store = new FileServerStore(dataDir);
+    this.auditStore = new FileServerAuditStore(dataDir);
     this.supervisor = new HfsProcessSupervisor(dataDir, this.store, {
       onStatusChanged: (status) => this.broadcast(IPC.fileserverStatusChanged, status),
       onLogAdded: (log) => this.broadcast(IPC.fileserverLogAdded, log),
@@ -50,12 +57,12 @@ export class FileServerManager {
     this.onSecurityEventCallback = listener;
   }
 
-  public getSecurityEvents(): FileServerSecurityEvent[] {
-    return [...this.securityEvents];
+  public getSecurityEvents(filter?: FileServerAuditFilter): FileServerSecurityEvent[] {
+    return this.auditStore.getEvents(filter);
   }
 
   private handleSecurityEvent(event: FileServerSecurityEvent): void {
-    this.securityEvents = [event, ...this.securityEvents].slice(0, 200);
+    this.auditStore.add(event);
     this.onSecurityEventCallback?.(event);
   }
 
@@ -159,10 +166,14 @@ export class FileServerManager {
       }
 
       if (patch.port !== undefined && patch.port !== prevSettings.port) {
-        this.supervisor.emitAdminActivity(`Server port changed from ${prevSettings.port} to ${patch.port}`);
+        this.supervisor.emitAdminActivity(
+          `Server port changed from ${prevSettings.port} to ${patch.port}`,
+        );
       }
       if (patch.rootDir !== undefined && patch.rootDir !== prevSettings.rootDir) {
-        this.supervisor.emitAdminActivity(`Storage root directory changed to "${patch.rootDir || 'default'}"`);
+        this.supervisor.emitAdminActivity(
+          `Storage root directory changed to "${patch.rootDir || 'default'}"`,
+        );
       }
       if (patch.enabled !== undefined && patch.enabled !== prevSettings.enabled) {
         this.supervisor.emitAdminActivity(`File server ${patch.enabled ? 'enabled' : 'disabled'}`);
@@ -237,7 +248,9 @@ export class FileServerManager {
 
   async openFolder(folderPath?: string): Promise<void> {
     const settings = this.store.getSettings();
-    const target = folderPath ? folderPath : settings.rootDir || this.supervisor.getDefaultStorageDir();
+    const target = folderPath
+      ? folderPath
+      : settings.rootDir || this.supervisor.getDefaultStorageDir();
     if (target) {
       if (!fs.existsSync(target)) {
         fs.mkdirSync(target, { recursive: true });
@@ -416,9 +429,14 @@ export class FileServerManager {
         // Ignored
       }
 
-      const rawMsg = lastErr instanceof Error ? lastErr.message : String(lastErr || 'Drive not mounted');
+      const rawMsg =
+        lastErr instanceof Error ? lastErr.message : String(lastErr || 'Drive not mounted');
       let friendlyError = rawMsg;
-      if (rawMsg.includes('1244') || rawMsg.includes('authenticated') || rawMsg.includes('BasicAuth')) {
+      if (
+        rawMsg.includes('1244') ||
+        rawMsg.includes('authenticated') ||
+        rawMsg.includes('BasicAuth')
+      ) {
         friendlyError = `Windows WebClient rejected unencrypted HTTP authentication (Windows requires BasicAuthLevel=2 in registry for HTTP WebDAV). Click "Enable WebDAV on this PC" to configure Windows automatically.`;
       } else if (rawMsg.includes('85') || rawMsg.includes('already in use')) {
         friendlyError = `Drive letter ${drive} is already assigned to another network location.`;

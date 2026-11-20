@@ -1,6 +1,6 @@
 # Smaran – Comprehensive Technical Documentation & Architecture Reference
 
-> **Version:** 3.4.3  
+> **Version:** 3.4.4  
 > **Target Audience:** Artificial Intelligence agents, system architects, and core developers.  
 > **Repository:** `d:\03_Projects\Smaran-Reminder-App`  
 > **Release Target:** Windows 10/11 (x64) – Desktop Electron Application

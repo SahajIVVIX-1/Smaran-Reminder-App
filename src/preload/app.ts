@@ -14,7 +14,13 @@ import type {
   Route,
   SaveResult,
 } from '@shared/ipc';
-import type { FileServerSettings, ServerLogEntry, ServerStatus } from '@shared/fileserver';
+import type {
+  FileServerAuditFilter,
+  FileServerSecurityEvent,
+  FileServerSettings,
+  ServerLogEntry,
+  ServerStatus,
+} from '@shared/fileserver';
 import type { AppNotification } from '@shared/notifications';
 import type { FontCatalog } from '@shared/fonts';
 import type { LicenseImportResult, LicenseInfo } from '@shared/license/info';
@@ -56,8 +62,7 @@ const api = {
     showNow: (reminderId: Id): Promise<boolean> => ipcRenderer.invoke(IPC.showNow, { reminderId }),
     test: (request: NotifyTestRequest): Promise<void> =>
       ipcRenderer.invoke(IPC.notifyTest, request),
-    previewBorderLight: (): Promise<void> =>
-      ipcRenderer.invoke(IPC.screenBorderPreview),
+    previewBorderLight: (): Promise<void> => ipcRenderer.invoke(IPC.screenBorderPreview),
   },
   license: {
     get: (): Promise<LicenseInfo> => ipcRenderer.invoke(IPC.licenseGet),
@@ -112,8 +117,7 @@ const api = {
     stop: (): Promise<void> => ipcRenderer.invoke(IPC.fileserverStop),
     restart: (): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke(IPC.fileserverRestart),
-    getSettings: (): Promise<FileServerSettings> =>
-      ipcRenderer.invoke(IPC.fileserverSettingsGet),
+    getSettings: (): Promise<FileServerSettings> => ipcRenderer.invoke(IPC.fileserverSettingsGet),
     saveSettings: (patch: Partial<FileServerSettings>): Promise<FileServerSettings> =>
       ipcRenderer.invoke(IPC.fileserverSettingsSave, patch),
     pickRootDir: (): Promise<string | null> => ipcRenderer.invoke(IPC.fileserverPickRootDir),
@@ -123,8 +127,7 @@ const api = {
       get: (): Promise<ServerLogEntry[]> => ipcRenderer.invoke(IPC.fileserverLogsGet),
       clear: (): Promise<void> => ipcRenderer.invoke(IPC.fileserverLogsClear),
     },
-    generateQr: (url: string): Promise<string> =>
-      ipcRenderer.invoke(IPC.fileserverQrGenerate, url),
+    generateQr: (url: string): Promise<string> => ipcRenderer.invoke(IPC.fileserverQrGenerate, url),
     mountLocalDrive: (payload?: {
       driveLetter?: string;
       username?: string;
@@ -135,7 +138,10 @@ const api = {
       ipcRenderer.invoke(IPC.fileserverUnmountDrive, driveLetter),
     getAdminCredentials: (): Promise<{ username: string; password?: string }> =>
       ipcRenderer.invoke(IPC.fileserverAdminGet),
-    setAdminCredentials: (creds: { username: string; password: string }): Promise<{ ok: boolean; error?: string }> =>
+    setAdminCredentials: (creds: {
+      username: string;
+      password: string;
+    }): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke(IPC.fileserverAdminSet, creds),
     resetDefaults: (): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke(IPC.fileserverResetDefaults),
@@ -143,8 +149,7 @@ const api = {
       ipcRenderer.invoke(IPC.fileserverEnableWebClient),
     exportMountScript: (): Promise<{ ok: boolean; filePath?: string; error?: string }> =>
       ipcRenderer.invoke(IPC.fileserverExportMountScript),
-    openUrl: (url: string): Promise<void> =>
-      ipcRenderer.invoke(IPC.fileserverOpenUrl, url),
+    openUrl: (url: string): Promise<void> => ipcRenderer.invoke(IPC.fileserverOpenUrl, url),
     onStatusChanged: (listener: (status: ServerStatus) => void): (() => void) =>
       subscribe(IPC.fileserverStatusChanged, listener),
     onLogAdded: (listener: (log: ServerLogEntry) => void): (() => void) =>
@@ -153,6 +158,8 @@ const api = {
       ipcRenderer.invoke(IPC.fileserverSessionsGet),
     disconnectSession: (id: string): Promise<{ ok: boolean }> =>
       ipcRenderer.invoke(IPC.fileserverSessionDisconnect, { id }),
+    getSecurityEvents: (filter?: FileServerAuditFilter): Promise<FileServerSecurityEvent[]> =>
+      ipcRenderer.invoke(IPC.fileserverSecurityEventsGet, filter),
   },
 };
 

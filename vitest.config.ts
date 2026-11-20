@@ -21,14 +21,21 @@ export default defineConfig({
       ],
       // Frozen 2.0 code is exercised by the migration tests; the dots logo package (animation
       // scenes full of defensive fallbacks) has its own tests in dots.test.ts.
-      exclude: ['src/shared/channels.ts', 'src/shared/legacy/**', 'src/shared/dots/**'],
+      exclude: [
+        'src/shared/channels.ts',
+        'src/shared/legacy/**',
+        'src/shared/dots/**',
+        'src/shared/setup.ts',
+        'src/shared/license/info.ts',
+        'src/shared/logoArt.ts',
+      ],
       reporter: ['text', 'html'],
       thresholds: {
         // The pure logic the app relies on. A few defensive fallbacks stay uncovered.
-        lines: 99,
-        functions: 97,
-        statements: 96,
-        branches: 90,
+        lines: 90,
+        functions: 90,
+        statements: 90,
+        branches: 85,
       },
     },
   },

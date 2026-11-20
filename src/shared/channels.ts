@@ -92,6 +92,7 @@ export const IPC = {
   fileserverLogAdded: 'fileserver:event:logAdded',
   fileserverSessionsGet: 'fileserver:sessions:get',
   fileserverSessionDisconnect: 'fileserver:session:disconnect',
+  fileserverSecurityEventsGet: 'fileserver:securityEvents:get',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];

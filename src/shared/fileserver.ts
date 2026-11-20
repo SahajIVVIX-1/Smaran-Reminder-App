@@ -39,18 +39,37 @@ export const FileServerSettingsSchema = z.object({
 
 export type FileServerSettings = z.infer<typeof FileServerSettingsSchema>;
 
-export interface FileServerSecurityEvent {
-  id: string;
-  type: 'login' | 'failedLogin' | 'logout' | 'adminActivity';
-  username: string;
-  clientIp: string;
-  userAgent?: string;
-  accessType?: 'LAN' | 'External';
-  reason?: string;
-  repeatCount?: number;
-  timestamp: string;
-  details?: string;
+export const FileServerSecurityEventSchema = z.object({
+  id: z.string(),
+  type: z.enum(['login', 'failedLogin', 'logout', 'adminActivity']),
+  username: z.string(),
+  clientIp: z.string(),
+  userAgent: z.string().optional(),
+  accessType: z.enum(['LAN', 'External']).optional(),
+  reason: z.string().optional(),
+  repeatCount: z.number().optional(),
+  timestamp: z.string(),
+  details: z.string().optional(),
+});
+
+export type FileServerSecurityEvent = z.infer<typeof FileServerSecurityEventSchema>;
+
+export interface FileServerAuditFilter {
+  type?: 'login' | 'failedLogin' | 'logout' | 'adminActivity';
+  username?: string;
+  ip?: string;
+  fromDate?: string;
+  toDate?: string;
+  limit?: number;
 }
+
+export const FailedLoginRecordSchema = z.object({
+  ip: z.string(),
+  count: z.number().int().min(1),
+  lastTime: z.number().min(0),
+});
+
+export type FailedLoginRecord = z.infer<typeof FailedLoginRecordSchema>;
 
 export interface ActiveSession {
   id: string;

@@ -76,6 +76,76 @@ describe('NotificationStore', () => {
     // Cleanup
     fs.rmSync(tmp, { recursive: true, force: true });
   });
+
+  it('recovers from corrupt JSON via backup and isolates throwing listeners', () => {
+    const tmp = path.join(os.tmpdir(), `notif-test-${Date.now()}`);
+    const store = new NotificationStore(tmp);
+
+    const item: AppNotification = {
+      id: 'valid-1',
+      category: 'fileserver',
+      title: 'Server Started',
+      description: 'Listening on port 5901',
+      timestamp: new Date().toISOString(),
+      severity: 'success',
+      read: false,
+      source: 'fileserver',
+    };
+    store.add(item);
+    // Add second to ensure .bak exists
+    store.add({ ...item, id: 'valid-2', title: 'Second Notif' });
+
+    // Corrupt notifications.json
+    fs.writeFileSync(store.filePath, '{ damaged json data !!!', 'utf8');
+
+    // Load store again - should recover from backup
+    const recoveredStore = new NotificationStore(tmp);
+    expect(recoveredStore.list().length).toBeGreaterThanOrEqual(1);
+    expect(recoveredStore.list().some((n) => n.id === 'valid-1')).toBe(true);
+
+    // Verify .corrupt file exists
+    const files = fs.readdirSync(tmp);
+    expect(files.some((f) => f.includes('notifications.json.corrupt.'))).toBe(true);
+
+    // Test listener error isolation
+    let normalListenerCalled = false;
+    recoveredStore.onChange(() => {
+      throw new Error('Exploding notification listener');
+    });
+    recoveredStore.onChange(() => {
+      normalListenerCalled = true;
+    });
+
+    // Adding an item should not throw despite throwing listener
+    expect(() => {
+      recoveredStore.add({ ...item, id: 'valid-3' });
+    }).not.toThrow();
+    expect(normalListenerCalled).toBe(true);
+
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it('enforces maximum 500 notification storage limit', () => {
+    const tmp = path.join(os.tmpdir(), `notif-test-${Date.now()}`);
+    const store = new NotificationStore(tmp);
+
+    for (let i = 0; i < 550; i++) {
+      store.add({
+        id: `bulk-${i}`,
+        category: 'fileserver',
+        title: `Event ${i}`,
+        description: `Description ${i}`,
+        timestamp: new Date(Date.now() + i * 1000).toISOString(),
+        severity: 'info',
+        read: i % 2 === 0,
+        source: 'fileserver',
+      });
+    }
+
+    expect(store.list().length).toBe(500);
+
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
 });
 
 describe('ipUtils', () => {

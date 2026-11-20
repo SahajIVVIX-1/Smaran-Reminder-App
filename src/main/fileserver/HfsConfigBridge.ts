@@ -34,6 +34,13 @@ export const DEFAULT_PLUGINS = [
 ];
 
 export const DEFAULT_PLUGINS_CONFIG = {
+  antibrute: {
+    increment: 3,
+    max: 60,
+    blockAfter: 10,
+    blockForHours: 1,
+    maxQueuePerIp: 16,
+  },
   'share-links': {
     onlyFor: ['smaran'],
   },

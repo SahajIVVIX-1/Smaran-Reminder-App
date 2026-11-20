@@ -5,13 +5,16 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { app } from 'electron';
-import type {
-  FileServerSecurityEvent,
-  FileServerSettings,
-  LogLevel,
-  ServerLogEntry,
-  ServerStatus,
+import { z } from 'zod';
+import {
+  FailedLoginRecordSchema,
+  type FileServerSecurityEvent,
+  type FileServerSettings,
+  type LogLevel,
+  type ServerLogEntry,
+  type ServerStatus,
 } from '@shared/fileserver';
+import { cleanupStaleTempFiles, readValidatedJson, writeAtomicFile } from '../store/atomicFile';
 import { HfsApiClient } from './HfsApiClient';
 import { DEFAULT_CUSTOM_HTML, syncHfsConfigFile } from './HfsConfigBridge';
 import type { FileServerStore } from './FileServerStore';
@@ -90,6 +93,9 @@ export class HfsProcessSupervisor {
   private logs: ServerLogEntry[] = [];
   private startupErrorLogs: string[] = [];
   private currentStatus: ServerStatus;
+  public static readonly FAILED_LOGIN_WINDOW_MS = 15 * 60 * 1000;
+  public static readonly MAX_TRACKED_IPS = 500;
+  public readonly failedLoginsPath: string;
   private failedAttemptsByIp = new Map<string, { count: number; lastTime: number }>();
   private startPromise: Promise<{ ok: boolean; error?: string }> | null = null;
 
@@ -100,7 +106,9 @@ export class HfsProcessSupervisor {
   ) {
     this.runtimeDir = path.join(dataDir, 'fileserver_engine');
     this.configYamlPath = path.join(this.runtimeDir, 'config.yaml');
+    this.failedLoginsPath = path.join(dataDir, 'failed-logins.json');
     this.internalToken = crypto.randomUUID();
+    this.loadFailedLogins();
 
     const settings = this.store.getSettings();
     this.currentStatus = {
@@ -137,7 +145,10 @@ export class HfsProcessSupervisor {
   getStatus(): ServerStatus {
     const status = { ...this.currentStatus };
     // Clear stale license activation warning if license is currently valid
-    if (status.error?.startsWith('License activation required') && this.callbacks.isLicenseValid?.()) {
+    if (
+      status.error?.startsWith('License activation required') &&
+      this.callbacks.isLicenseValid?.()
+    ) {
       delete status.error;
       this.currentStatus.error = undefined;
       if (this.currentStatus.state === 'error') {
@@ -183,7 +194,9 @@ export class HfsProcessSupervisor {
     if (fs.existsSync(srcCustomHtml)) {
       try {
         const srcContent = fs.readFileSync(srcCustomHtml, 'utf8');
-        const dstContent = fs.existsSync(dstCustomHtml) ? fs.readFileSync(dstCustomHtml, 'utf8') : '';
+        const dstContent = fs.existsSync(dstCustomHtml)
+          ? fs.readFileSync(dstCustomHtml, 'utf8')
+          : '';
         if (srcContent !== dstContent) {
           fs.writeFileSync(dstCustomHtml, srcContent, 'utf8');
         }
@@ -299,7 +312,10 @@ export class HfsProcessSupervisor {
       }
 
       this.addLog('info', `Admin credentials updated for user "${creds.username}"`);
-      this.emitAdminActivity(`Admin credentials updated for user "${creds.username}"`, creds.username);
+      this.emitAdminActivity(
+        `Admin credentials updated for user "${creds.username}"`,
+        creds.username,
+      );
       return { ok: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -374,7 +390,10 @@ export class HfsProcessSupervisor {
           if (content.includes('Add to HFS (new)')) {
             const updated = content
               .replace(/Add to HFS \(new\)/g, 'Add to Smaran HFS')
-              .replace(/const_1\.APP_PATH \+ '\\\\hfs\.ico'/g, "const_1.APP_PATH + '\\\\smaran.ico'");
+              .replace(
+                /const_1\.APP_PATH \+ '\\\\hfs\.ico'/g,
+                "const_1.APP_PATH + '\\\\smaran.ico'",
+              );
             fs.writeFileSync(vfsScript, updated, 'utf8');
           }
         } catch {
@@ -387,9 +406,13 @@ export class HfsProcessSupervisor {
       exec('reg query "HKCU\\Software\\Classes\\*\\shell\\AddToHFS3" /ve', (err, stdout) => {
         if (!err && stdout) {
           for (const k of ['*', 'Directory']) {
-            exec(`reg add "HKCU\\Software\\Classes\\${k}\\shell\\AddToHFS3" /ve /f /d "Add to Smaran HFS"`);
+            exec(
+              `reg add "HKCU\\Software\\Classes\\${k}\\shell\\AddToHFS3" /ve /f /d "Add to Smaran HFS"`,
+            );
             if (fs.existsSync(iconTarget)) {
-              exec(`reg add "HKCU\\Software\\Classes\\${k}\\shell\\AddToHFS3" /v icon /f /d "${iconTarget}"`);
+              exec(
+                `reg add "HKCU\\Software\\Classes\\${k}\\shell\\AddToHFS3" /v icon /f /d "${iconTarget}"`,
+              );
             }
           }
         }
@@ -403,7 +426,7 @@ export class HfsProcessSupervisor {
           if (!content.includes('apiRequired')) {
             const updated = content.replace(
               /exports\.version\s*=\s*[^;\n]+;?/,
-              'exports.version = 3.4;\nexports.description = "Smaran security monitor — monitors login events, failed authentication attempts, and user activity for desktop notifications.";\nexports.apiRequired = 1;'
+              'exports.version = 3.4;\nexports.description = "Smaran security monitor — monitors login events, failed authentication attempts, and user activity for desktop notifications.";\nexports.apiRequired = 1;',
             );
             fs.writeFileSync(secPlugin, updated, 'utf8');
           }
@@ -424,7 +447,11 @@ export class HfsProcessSupervisor {
     const runtimeCentral = path.join(this.runtimeDir, 'central.json');
 
     // If already extracted and verified, zero work needed
-    if (fs.existsSync(runtimeScript) && fs.existsSync(runtimePkg) && fs.existsSync(runtimeCentral)) {
+    if (
+      fs.existsSync(runtimeScript) &&
+      fs.existsSync(runtimePkg) &&
+      fs.existsSync(runtimeCentral)
+    ) {
       this.syncContextMenuIntegration();
       return;
     }
@@ -479,7 +506,10 @@ export class HfsProcessSupervisor {
         });
       });
     } catch (extractErr) {
-      this.addLog('error', `Failed to extract HFS engine: ${extractErr instanceof Error ? extractErr.message : String(extractErr)}`);
+      this.addLog(
+        'error',
+        `Failed to extract HFS engine: ${extractErr instanceof Error ? extractErr.message : String(extractErr)}`,
+      );
       // Clean up partial extraction
       try {
         if (fs.existsSync(runtimeScript)) fs.rmSync(runtimeScript, { force: true });
@@ -492,12 +522,18 @@ export class HfsProcessSupervisor {
     this.flattenNestedDistIfNeeded();
 
     // Post-extraction verification
-    if (!fs.existsSync(runtimeScript) || !fs.existsSync(runtimePkg) || !fs.existsSync(runtimeCentral)) {
+    if (
+      !fs.existsSync(runtimeScript) ||
+      !fs.existsSync(runtimePkg) ||
+      !fs.existsSync(runtimeCentral)
+    ) {
       const missing = [
         !fs.existsSync(runtimeScript) ? 'src/index.js' : null,
         !fs.existsSync(runtimePkg) ? 'package.json' : null,
         !fs.existsSync(runtimeCentral) ? 'central.json' : null,
-      ].filter(Boolean).join(', ');
+      ]
+        .filter(Boolean)
+        .join(', ');
       const err = `HFS engine extraction incomplete. Missing entry points: ${missing}`;
       this.addLog('error', err);
       throw new Error(err);
@@ -891,6 +927,71 @@ export class HfsProcessSupervisor {
     this.callbacks.onLogAdded?.(entry);
   }
 
+  private loadFailedLogins(): void {
+    try {
+      cleanupStaleTempFiles(path.dirname(this.failedLoginsPath), 'failed-logins.json');
+      const res = readValidatedJson(this.failedLoginsPath, z.array(FailedLoginRecordSchema), []);
+      const now = Date.now();
+      this.failedAttemptsByIp.clear();
+      for (const rec of res.data) {
+        if (now - rec.lastTime < HfsProcessSupervisor.FAILED_LOGIN_WINDOW_MS) {
+          this.failedAttemptsByIp.set(rec.ip, { count: rec.count, lastTime: rec.lastTime });
+        }
+      }
+    } catch (err) {
+      console.warn('[HfsSupervisor] Failed reading failed-logins.json:', err);
+      this.failedAttemptsByIp.clear();
+    }
+  }
+
+  private saveFailedLogins(): void {
+    try {
+      const now = Date.now();
+      // 1. Evict expired entries
+      for (const [ip, data] of this.failedAttemptsByIp.entries()) {
+        if (now - data.lastTime >= HfsProcessSupervisor.FAILED_LOGIN_WINDOW_MS) {
+          this.failedAttemptsByIp.delete(ip);
+        }
+      }
+
+      // 2. Bound memory/disk size
+      if (this.failedAttemptsByIp.size > HfsProcessSupervisor.MAX_TRACKED_IPS) {
+        const sorted = Array.from(this.failedAttemptsByIp.entries()).sort(
+          (a, b) => a[1].lastTime - b[1].lastTime,
+        );
+        const toRemove = sorted.slice(
+          0,
+          this.failedAttemptsByIp.size - HfsProcessSupervisor.MAX_TRACKED_IPS,
+        );
+        for (const [ip] of toRemove) {
+          this.failedAttemptsByIp.delete(ip);
+        }
+      }
+
+      // 3. Atomically write to disk
+      const records = Array.from(this.failedAttemptsByIp.entries()).map(([ip, val]) => ({
+        ip,
+        count: val.count,
+        lastTime: val.lastTime,
+      }));
+      writeAtomicFile(this.failedLoginsPath, JSON.stringify(records, null, 2), { backup: false });
+    } catch (err) {
+      console.warn('[HfsSupervisor] Failed persisting failed-logins.json:', err);
+    }
+  }
+
+  public getFailedLoginAttempts(ip: string): number {
+    const cleanIp = normalizeClientIp(ip);
+    const existing = this.failedAttemptsByIp.get(cleanIp);
+    if (!existing) return 0;
+    if (Date.now() - existing.lastTime >= HfsProcessSupervisor.FAILED_LOGIN_WINDOW_MS) {
+      this.failedAttemptsByIp.delete(cleanIp);
+      this.saveFailedLogins();
+      return 0;
+    }
+    return existing.count;
+  }
+
   private handleSecurityEventLine(jsonStr: string): void {
     try {
       const raw = JSON.parse(jsonStr);
@@ -901,14 +1002,18 @@ export class HfsProcessSupervisor {
       if (raw.type === 'failedLogin') {
         const now = Date.now();
         const existing = this.failedAttemptsByIp.get(cleanIp);
-        if (existing && now - existing.lastTime < 15 * 60 * 1000) {
+        if (existing && now - existing.lastTime < HfsProcessSupervisor.FAILED_LOGIN_WINDOW_MS) {
           repeatCount = existing.count + 1;
           this.failedAttemptsByIp.set(cleanIp, { count: repeatCount, lastTime: now });
         } else {
           this.failedAttemptsByIp.set(cleanIp, { count: 1, lastTime: now });
         }
+        this.saveFailedLogins();
       } else if (raw.type === 'login') {
-        this.failedAttemptsByIp.delete(cleanIp);
+        if (this.failedAttemptsByIp.has(cleanIp)) {
+          this.failedAttemptsByIp.delete(cleanIp);
+          this.saveFailedLogins();
+        }
       }
 
       const event: FileServerSecurityEvent = {
