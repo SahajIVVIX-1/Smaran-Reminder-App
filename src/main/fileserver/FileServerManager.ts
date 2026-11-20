@@ -6,7 +6,12 @@ import { promisify } from 'node:util';
 import { BrowserWindow, dialog, shell } from 'electron';
 import * as QRCode from 'qrcode';
 import { IPC } from '@shared/channels';
-import type { FileServerSettings, ServerLogEntry, ServerStatus } from '@shared/fileserver';
+import type {
+  FileServerSecurityEvent,
+  FileServerSettings,
+  ServerLogEntry,
+  ServerStatus,
+} from '@shared/fileserver';
 import { FileServerStore, generateDefaultAdminPassword, validateAdminPassword } from './FileServerStore';
 import {
   checkDirectoryPermissions,
@@ -20,20 +25,38 @@ import {
   syncHfsConfigFile,
 } from './HfsConfigBridge';
 
+import { normalizeClientIp } from './ipUtils';
+
 const execAsync = promisify(exec);
 
 export class FileServerManager {
   readonly store: FileServerStore;
   readonly supervisor: HfsProcessSupervisor;
   private syncQueue: Promise<unknown> = Promise.resolve();
+  private securityEvents: FileServerSecurityEvent[] = [];
+  private onSecurityEventCallback?: (event: FileServerSecurityEvent) => void;
 
   constructor(dataDir: string, isLicenseValid?: () => boolean) {
     this.store = new FileServerStore(dataDir);
     this.supervisor = new HfsProcessSupervisor(dataDir, this.store, {
       onStatusChanged: (status) => this.broadcast(IPC.fileserverStatusChanged, status),
       onLogAdded: (log) => this.broadcast(IPC.fileserverLogAdded, log),
+      onSecurityEvent: (event) => this.handleSecurityEvent(event),
       isLicenseValid,
     });
+  }
+
+  public setSecurityEventListener(listener: (event: FileServerSecurityEvent) => void): void {
+    this.onSecurityEventCallback = listener;
+  }
+
+  public getSecurityEvents(): FileServerSecurityEvent[] {
+    return [...this.securityEvents];
+  }
+
+  private handleSecurityEvent(event: FileServerSecurityEvent): void {
+    this.securityEvents = [event, ...this.securityEvents].slice(0, 200);
+    this.onSecurityEventCallback?.(event);
   }
 
   private queueOperation<T>(op: () => Promise<T>): Promise<T> {
@@ -135,6 +158,16 @@ export class FileServerManager {
         }
       }
 
+      if (patch.port !== undefined && patch.port !== prevSettings.port) {
+        this.supervisor.emitAdminActivity(`Server port changed from ${prevSettings.port} to ${patch.port}`);
+      }
+      if (patch.rootDir !== undefined && patch.rootDir !== prevSettings.rootDir) {
+        this.supervisor.emitAdminActivity(`Storage root directory changed to "${patch.rootDir || 'default'}"`);
+      }
+      if (patch.enabled !== undefined && patch.enabled !== prevSettings.enabled) {
+        this.supervisor.emitAdminActivity(`File server ${patch.enabled ? 'enabled' : 'disabled'}`);
+      }
+
       this.broadcast(IPC.fileserverStatusChanged, this.getStatus());
       return updated;
     });
@@ -144,9 +177,10 @@ export class FileServerManager {
     return this.queueOperation(async () => {
       const res = await this.supervisor.start();
       if (res.ok) {
+        const port = this.getStatus().port || 5901;
+        this.supervisor.emitAdminActivity(`File server started on port ${port}`);
         const settings = this.store.getSettings();
         if (settings.autoOpenAdminOnStart) {
-          const port = this.getStatus().port || 5901;
           const adminUrl = `http://localhost:${port}/~/admin/`;
           void shell.openExternal(adminUrl);
         }
@@ -159,8 +193,15 @@ export class FileServerManager {
   async stop(): Promise<void> {
     return this.queueOperation(async () => {
       await this.supervisor.stop();
+      if (!this.supervisor.isQuitting) {
+        this.supervisor.emitAdminActivity('File server stopped');
+      }
       this.broadcast(IPC.fileserverStatusChanged, this.getStatus());
     });
+  }
+
+  stopSync(): void {
+    this.supervisor.stopSync();
   }
 
   async restart(): Promise<{ ok: boolean; error?: string }> {
@@ -258,13 +299,16 @@ export class FileServerManager {
         const defaultDir = this.supervisor.getDefaultStorageDir();
         const freshPassword = generateDefaultAdminPassword();
         const defaultSettings: FileServerSettings = {
-          enabled: true,
+          enabled: false,
           port: 5901,
           rootDir: defaultDir,
-          autoStart: true,
+          autoStart: false,
           autoOpenAdminOnStart: false,
           adminUsername: 'smaran',
           adminPassword: freshPassword,
+          notifyOnLogin: true,
+          notifyOnFailedLogin: true,
+          notifyOnAdminActivity: true,
         };
 
         this.store.updateSettings(defaultSettings);
@@ -474,6 +518,30 @@ net start WebClient >nul 2>&1
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return { ok: false, error: msg };
+    }
+  }
+
+  async getSessions(): Promise<Array<{ id: string; ip: string; speed?: number }>> {
+    const api = this.supervisor.getApiClient();
+    if (!api) return [];
+    try {
+      const res = await api.getConnections();
+      return (res?.connections || []).map((c) => ({
+        ...c,
+        ip: normalizeClientIp(c.ip),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  async disconnectSession(id: string): Promise<{ ok: boolean }> {
+    const api = this.supervisor.getApiClient();
+    if (!api) return { ok: false };
+    try {
+      return await api.disconnect(id);
+    } catch {
+      return { ok: false };
     }
   }
 }

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { ServerStatus } from '@shared/fileserver';
 import type { FontCatalog } from '@shared/fonts';
 import type { AutomationNext, AutomationRun, NextFire, Route } from '@shared/ipc';
 import { plainRich } from '@shared/richText';
@@ -35,6 +36,9 @@ interface AppState {
   tasks: number;
   /** Fonts on this PC and fonts the user added; loaded on demand. */
   fonts: FontCatalog | null;
+  /** Authoritative persistent file server status synchronized with main process. */
+  fileServerStatus: ServerStatus | null;
+  setFileServerStatus(status: ServerStatus): void;
   loadFonts(): Promise<void>;
 
   init(config: Config, history: HistoryEntry[]): void;
@@ -75,6 +79,11 @@ export const useApp = create<AppState>((set, get) => ({
   pending: false,
   tasks: 0,
   fonts: null,
+  fileServerStatus: null,
+
+  setFileServerStatus(fileServerStatus) {
+    set({ fileServerStatus });
+  },
 
   async loadFonts() {
     set({ fonts: await get().track(window.smaran.fonts.list()) });

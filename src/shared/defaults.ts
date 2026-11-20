@@ -1,4 +1,5 @@
 import {
+  DEFAULT_AUTOMATION_SETTINGS,
   DEFAULT_NOTIFICATION_MOTION,
   SCHEMA_VERSION,
   type Action,
@@ -52,6 +53,7 @@ export const DEFAULT_SETTINGS: Settings = {
     reactToReminders: true,
     tray: { animate: true, families: ['Science & symbols'], everySec: 30, hoverDance: true },
   },
+  automation: DEFAULT_AUTOMATION_SETTINGS,
 };
 
 export function emptyState(): ReminderState {

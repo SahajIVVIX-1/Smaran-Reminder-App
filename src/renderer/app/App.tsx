@@ -97,15 +97,23 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    void Promise.all([window.smaran.config.get(), window.smaran.history.get()]).then(([c, h]) =>
-      init(c, h),
-    );
+    void Promise.all([
+      window.smaran.config.get(),
+      window.smaran.history.get(),
+      window.smaran.fileserver.status(),
+    ]).then(([c, h, fsStatus]) => {
+      init(c, h);
+      if (fsStatus) useApp.getState().setFileServerStatus(fsStatus);
+    });
     void window.smaran.automations.running().then(setRunning);
     const offs = [
       window.smaran.config.onChanged(external),
       window.smaran.automations.onRunning(setRunning),
       window.smaran.history.onChanged(setHistory),
       window.smaran.app.onNavigate(go),
+      window.smaran.fileserver.onStatusChanged((s) => {
+        if (s) useApp.getState().setFileServerStatus(s);
+      }),
     ];
     const timer = window.setInterval(() => void refreshNext(), 30_000);
     return () => {

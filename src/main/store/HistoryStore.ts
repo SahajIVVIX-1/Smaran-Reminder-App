@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { HistoryEntrySchema, type HistoryEntry } from '@shared/schema';
 
 export const HISTORY_FILE = 'history.json';
-export const HISTORY_LIMIT = 1000;
+export const HISTORY_LIMIT = 5000;
 
 export type HistoryListener = (entries: readonly HistoryEntry[]) => void;
 

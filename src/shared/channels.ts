@@ -28,6 +28,7 @@ export const IPC = {
   notifDone: 'notif:done',
   notifInteractive: 'notif:interactive',
   notifShape: 'notif:shape',
+  notifUnhover: 'notif:unhover',
   menuInit: 'menu:init',
   menuMeasured: 'menu:measured',
   menuPick: 'menu:pick',
@@ -79,9 +80,18 @@ export const IPC = {
   fileserverResetDefaults: 'fileserver:reset-defaults',
   fileserverEnableWebClient: 'fileserver:enableWebClient',
   fileserverExportMountScript: 'fileserver:exportMountScript',
+  // Notifications
+  notificationsGet: 'notifications:get',
+  notificationsMarkRead: 'notifications:markRead',
+  notificationsMarkAllRead: 'notifications:markAllRead',
+  notificationsDelete: 'notifications:delete',
+  notificationsClear: 'notifications:clear',
+  notificationsChanged: 'notifications:changed',
   // Broadcast events
   fileserverStatusChanged: 'fileserver:event:statusChanged',
   fileserverLogAdded: 'fileserver:event:logAdded',
+  fileserverSessionsGet: 'fileserver:sessions:get',
+  fileserverSessionDisconnect: 'fileserver:session:disconnect',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];

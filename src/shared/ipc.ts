@@ -34,6 +34,10 @@ export interface NotificationRequest {
   card?: CardShape;
   /** The reminder's own attention motion, instead of the one in Settings. */
   motion?: NotificationMotion;
+  /** Notification category for styling and presentation. */
+  category?: 'automations' | 'fileserver' | 'security' | 'reminders';
+  /** Extra contextual details (e.g. client IP, username, access type). */
+  details?: Record<string, string | number | boolean | undefined>;
 }
 
 /** What the card tells main. 'expired' = it hid itself without an answer. */

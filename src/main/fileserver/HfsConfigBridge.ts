@@ -30,6 +30,7 @@ export const DEFAULT_PLUGINS = [
   'copy-files',
   'Hide-file',
   'shared',
+  'smaran-security',
 ];
 
 export const DEFAULT_PLUGINS_CONFIG = {

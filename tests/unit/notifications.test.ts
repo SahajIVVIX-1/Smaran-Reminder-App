@@ -1,0 +1,103 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { isLanIp, normalizeClientIp } from '../../src/main/fileserver/ipUtils';
+import { NotificationStore } from '../../src/main/store/NotificationStore';
+import type { AppNotification } from '../../src/shared/notifications';
+
+describe('NotificationStore', () => {
+  it('adds, lists, and persists notifications', () => {
+    const tmp = path.join(os.tmpdir(), `notif-test-${Date.now()}`);
+    const store = new NotificationStore(tmp);
+
+    expect(store.list()).toEqual([]);
+
+    const item: AppNotification = {
+      id: 'n-1',
+      category: 'security',
+      title: 'Failed Login Alert',
+      description: 'Attempt rejected for user admin from 192.168.1.100',
+      timestamp: new Date().toISOString(),
+      severity: 'warning',
+      read: false,
+      source: 'fileserver',
+      metadata: { username: 'admin', clientIp: '192.168.1.100' },
+    };
+
+    store.add(item);
+    expect(store.list()).toHaveLength(1);
+    expect(store.list()[0]?.title).toBe('Failed Login Alert');
+    expect(store.list()[0]?.read).toBe(false);
+
+    // Test markRead
+    store.markRead('n-1');
+    expect(store.list()[0]?.read).toBe(true);
+
+    // Test reload from disk
+    const store2 = new NotificationStore(tmp);
+    expect(store2.list()).toHaveLength(1);
+    expect(store2.list()[0]?.read).toBe(true);
+
+    // Test delete
+    store2.delete('n-1');
+    expect(store2.list()).toHaveLength(0);
+
+    // Cleanup
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it('marks all as read and clears inbox without errors', () => {
+    const tmp = path.join(os.tmpdir(), `notif-test-${Date.now()}`);
+    const store = new NotificationStore(tmp);
+
+    for (let i = 1; i <= 5; i++) {
+      store.add({
+        id: `n-${i}`,
+        category: 'automations',
+        title: `Automation #${i}`,
+        description: 'Ran step',
+        timestamp: new Date().toISOString(),
+        severity: 'info',
+        read: false,
+        source: 'automations',
+      });
+    }
+
+    expect(store.list()).toHaveLength(5);
+    expect(store.list().filter((n) => !n.read)).toHaveLength(5);
+
+    store.markAllRead();
+    expect(store.list().filter((n) => !n.read)).toHaveLength(0);
+
+    store.clear();
+    expect(store.list()).toHaveLength(0);
+
+    // Cleanup
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+});
+
+describe('ipUtils', () => {
+  it('normalizes IPv4, IPv6 and IPv4-mapped IPv6 addresses', () => {
+    expect(normalizeClientIp('::ffff:192.168.1.50')).toBe('192.168.1.50');
+    expect(normalizeClientIp('::1')).toBe('127.0.0.1');
+    expect(normalizeClientIp('localhost')).toBe('127.0.0.1');
+    expect(normalizeClientIp('10.0.0.1')).toBe('10.0.0.1');
+    expect(normalizeClientIp('')).toBe('127.0.0.1');
+    expect(normalizeClientIp(null)).toBe('127.0.0.1');
+  });
+
+  it('accurately distinguishes LAN and External addresses', () => {
+    expect(isLanIp('127.0.0.1')).toBe(true);
+    expect(isLanIp('192.168.0.1')).toBe(true);
+    expect(isLanIp('10.1.2.3')).toBe(true);
+    expect(isLanIp('172.16.0.5')).toBe(true);
+    expect(isLanIp('::ffff:192.168.1.1')).toBe(true);
+
+    // Public / External
+    expect(isLanIp('8.8.8.8')).toBe(false);
+    expect(isLanIp('142.250.190.46')).toBe(false);
+    expect(isLanIp('203.0.113.195')).toBe(false);
+  });
+});

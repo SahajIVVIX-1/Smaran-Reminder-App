@@ -38,6 +38,7 @@ interface Card {
   closing: boolean;
   createdAt: number;
   glide: ReturnType<typeof setInterval> | null;
+  hoverCheckTimer?: ReturnType<typeof setInterval> | null;
 }
 
 /**
@@ -47,6 +48,7 @@ interface Card {
 export class NotificationCenter implements Notifier {
   private readonly cards = new Map<string, Card>();
   private readonly screenBorder: ScreenBorderWindow;
+  private isDestroyed = false;
   private onAction: (key: string, action: NotificationAction) => void = () => undefined;
   private onOpenApp: () => void = () => undefined;
   private onCount: (count: number) => void = () => undefined;
@@ -102,8 +104,41 @@ export class NotificationCenter implements Notifier {
     // The window is sized for the expanded card; outside the card, clicks reach the apps below.
     ipcMain.on(IPC.notifInteractive, (event, on: unknown) => {
       const card = this.fromSender(event.sender);
-      if (card && !card.win.isDestroyed())
-        card.win.setIgnoreMouseEvents(on !== true, { forward: true });
+      if (!card || card.win.isDestroyed()) return;
+
+      if (on === true) {
+        card.win.setIgnoreMouseEvents(false);
+        if (card.hoverCheckTimer) clearInterval(card.hoverCheckTimer);
+        card.hoverCheckTimer = setInterval(() => {
+          if (card.win.isDestroyed()) {
+            if (card.hoverCheckTimer) clearInterval(card.hoverCheckTimer);
+            return;
+          }
+          const point = screen.getCursorScreenPoint();
+          const bounds = card.win.getBounds();
+          const inside =
+            point.x >= bounds.x &&
+            point.x <= bounds.x + bounds.width &&
+            point.y >= bounds.y &&
+            point.y <= bounds.y + bounds.height;
+          if (!inside) {
+            if (card.hoverCheckTimer) {
+              clearInterval(card.hoverCheckTimer);
+              card.hoverCheckTimer = null;
+            }
+            card.win.setIgnoreMouseEvents(true, { forward: true });
+            if (!card.win.webContents.isDestroyed()) {
+              card.win.webContents.send(IPC.notifUnhover);
+            }
+          }
+        }, 120);
+      } else {
+        if (card.hoverCheckTimer) {
+          clearInterval(card.hoverCheckTimer);
+          card.hoverCheckTimer = null;
+        }
+        card.win.setIgnoreMouseEvents(true, { forward: true });
+      }
     });
     ipcMain.on(IPC.navigate, (event) => {
       if (this.fromSender(event.sender)) this.onOpenApp();
@@ -111,6 +146,7 @@ export class NotificationCenter implements Notifier {
   }
 
   show(request: NotificationRequest): void {
+    if (this.isDestroyed) return;
     const settings = this.settings();
     // A reminder's own card shape wins over the one in Settings.
     const shape = request.card ?? settings.notification.card;
@@ -138,9 +174,10 @@ export class NotificationCenter implements Notifier {
     const width = shape.width
       ? look.card.width + WINDOW_WIDTH.comfortable - CARD_WIDTH.comfortable
       : WINDOW_WIDTH[look.size];
+    // Window sized for expanded notifications plus shadow room.
     const win = new BrowserWindow({
       width,
-      height: 160,
+      height: 240,
       frame: false,
       transparent: true,
       resizable: false,
@@ -205,6 +242,7 @@ export class NotificationCenter implements Notifier {
   }
 
   closeAll(): void {
+    this.isDestroyed = true;
     for (const card of [...this.cards.values()]) this.destroy(card);
     this.screenBorder.hide();
   }
@@ -248,6 +286,7 @@ export class NotificationCenter implements Notifier {
     if (this.cards.get(card.key) !== card) return;
     this.cards.delete(card.key);
     if (card.glide) clearInterval(card.glide);
+    if (card.hoverCheckTimer) clearInterval(card.hoverCheckTimer);
     if (!card.win.isDestroyed()) card.win.destroy();
     this.layout();
   }
@@ -264,7 +303,6 @@ export class NotificationCenter implements Notifier {
       primaryDisplay.id,
       screen.getCursorScreenPoint(),
     );
-    const activeDisplay = allDisplays.find((d) => d.id === display.id) ?? primaryDisplay;
 
     const ready = [...this.cards.values()]
       .filter((c) => c.ready && !c.win.isDestroyed())
@@ -272,11 +310,8 @@ export class NotificationCenter implements Notifier {
     // The oldest cards stay; newer ones wait for room.
     const visible = ready.slice(0, MAX_VISIBLE).reverse();
 
-    if (visible.length > 0) {
-      this.screenBorder.show(activeDisplay);
-    } else {
-      this.screenBorder.hide();
-    }
+    // Screen border loading line removed as per 3.4.1 specification
+    this.screenBorder.hide();
     const positions = stackWindows(
       settings.corner,
       display.workArea,

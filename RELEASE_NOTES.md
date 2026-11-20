@@ -1,3 +1,61 @@
+# Smaran 3.4.1
+
+- **File Server Startup Control:**
+  - Disabled file server automatic startup on application launch by default. The server only starts when explicitly started by the user or when Auto-start is deliberately enabled in Settings.
+  - Eliminated automatic start coupling to previous `enabled` state.
+- **Complete Application Exit from System Tray:**
+  - Selecting "Quit Smaran" from the system tray terminates the application completely and immediately.
+  - Synchronously terminates the HFS process sidecar (`taskkill /F /T /PID`) and suppresses all exit notifications (e.g. "File server stopped").
+  - Cleanly destroys system tray and all notification windows with zero lingering background processes.
+- **Notification Theme & Hover/Unhover Fixes:**
+  - Restored Smaran's native warm theme tokens (`glass-card`, `text-ink`, `text-muted`, `bg-accent`, `bg-hover`, `border-line/60`, and native action buttons) on all notification cards.
+  - Resolved hover/unhover edge-case where cursor rapidly exiting the window left notifications stuck on screen; implemented main-process OS screen cursor bounds tracking (`screen.getCursorScreenPoint()`), unhover events, and renderer heartbeat verification.
+  - Clicking "Open File Server", "Open Smaran", or "Open History" navigates to the app and smoothly dismisses the notification.
+- **Attention Motion Setting:**
+  - Set Attention motion to OFF by default. Motion styles and configuration options only display when the master toggle is switched ON.
+- **Expanded Automation & File Server Desktop Notifications:**
+  - Designed dedicated expanded notification cards for Automations, File Server events, and Security alerts.
+  - Cards feature the Smaran animated brandmark, category badges (Automation, File Server, Security Alert), clear titles, detailed descriptions, event timestamps, metadata badges (User, Client IP, Access Type, Reason, Attempt count), and context-aware action buttons.
+  - Implemented smooth top-down entry animation (`translateY(-36px)` -> `translateY(0)`) and upward dismissal animation (`translateY(0)` -> `translateY(-36px)`).
+  - Preserved traditional phone-pill morphing and snooze behavior for ordinary reminder notifications.
+- **Removed Unwanted Loading Line:**
+  - Completely eliminated the animated screen border light beam (`ScreenBorderWindow`) and notification card perimeter border light (`<BorderRing />`).
+  - Progress countdown indicators now display exclusively within their respective automation cards.
+- **Resolved Critical File Server Status Flickering:**
+  - Synchronized authoritative process state (`stopped`, `starting`, `running`, `stopping`, `error`) from the main process supervisor into the global Zustand store (`useApp`).
+  - Eliminated the 0.5s temporary "Starting Server" flash when switching between application tabs.
+  - Added a start concurrency mutex in `HfsProcessSupervisor` preventing duplicate concurrent start invocations.
+
+---
+
+# Smaran 3.4.0
+
+- **Complete Settings Architecture Redesign:**
+  - Redesigned `Settings.tsx` into four distinct primary categories: **System**, **Reminders**, **Automations**, and **File Server**.
+  - **System Settings:** Windows startup control (`startAtLogin`), display font selector, theme options (Dark / Light / System), backup & restore (export, restore, add reminders from file, reveal data folder), and diagnostic system information.
+  - **Reminder Settings:** Focus & quiet hours, hold reminders while busy, global reminder pause, notification screen corner position, target display selector, notification card size presets, attention motion styles, notification card shapes, display duration presets & custom seconds, chime sound toggle, screen border light beam (thickness, brightness, interactive preview), and test reminder trigger.
+  - **Automation Settings:** Enable/disable automations, global automation pause, smart pre-execution desktop notifications toggle, configurable countdown slider (1 to 60 seconds, default 5 seconds), audio chime toggle, and failure notification alerts.
+  - **File Server Settings:** Master file server toggle, auto-start on Smaran launch, live port & network status, storage root directory picker with default reset, successful login alerts, failed login alerts, and administrator activity notifications.
+  - All configurations persist reliably in local storage and restore seamlessly across app restarts.
+- **Smart Automation Notification System:**
+  - Designed interactive desktop notification cards presented before executing scheduled automation actions.
+  - Includes Smaran branding, action description, scheduled execution time, animated countdown ("Starting in 5 s"), progress indicator bar, and action buttons: **Cancel** (aborts execution and records outcome in history) and **Run Now** (immediately executes action).
+  - Main-process timer orchestration ensures robust countdown handling regardless of renderer window state.
+  - Automatic failure notifications trigger if any automation step encounters an execution error.
+- **File Server Security & Activity Notifications:**
+  - Integrated real-time security event interception directly from the Smaran HFS sidecar process.
+  - Captures successful user logins, failed login attempts, and administrative modifications (port changes, storage root reconfigurations, server start/stop, credential updates).
+  - Implemented normalized client IP resolution (strips IPv4-mapped IPv6 `::ffff:` wrappers and maps local loopback addresses) with LAN vs. External network detection.
+  - Implemented rolling 15-minute brute-force tracking per IP: repeated failed attempts escalate in severity (warning to critical).
+  - Pushes security and activity events simultaneously to desktop notifications, persistent Notification Center inbox, and permanent History.
+- **Unified Notification Center & Extended Audit History:**
+  - Unified event data model spanning `reminders`, `automations`, `fileserver`, `security`, and `system`.
+  - Added slide-over **Notification Center Drawer** accessible from the navigation sidebar with live unread badge count, category filtering, mark as read, delete, and clear inbox controls.
+  - Extended **History** with category filters (All Events, Reminders, Automations, File Server, Security, System), real-time search filtering, date grouping, category-specific icons, and permanent audit retention (clearing inbox notifications never erases audit history).
+  - Added **Security & Live Connected Sessions** dashboard card in File Server view featuring live connected client monitoring with one-click session disconnection.
+
+---
+
 # Smaran 3.3.17
 
 - **HFS Engine Archive Root Extraction Fix:** Resolved server startup alert (`HFS engine extraction incomplete. Missing entry points: src/index.js, package.json, central.json`). Corrected the tar packaging pipeline in `scripts/prepare-release-dirs.mjs` to bundle engine resources strictly at the archive root (`-C resources/engine/dist .`) without an extraneous `dist/` directory prefix.

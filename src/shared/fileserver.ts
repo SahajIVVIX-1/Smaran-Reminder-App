@@ -10,7 +10,10 @@ export interface ServerLogEntry {
   ip?: string;
 }
 
+export type ServerState = 'stopped' | 'starting' | 'running' | 'stopping' | 'error';
+
 export interface ServerStatus {
+  state: ServerState;
   running: boolean;
   port: number;
   localUrl: string;
@@ -24,13 +27,38 @@ export const FileServerSettingsSchema = z.object({
   enabled: z.boolean().default(false),
   port: z.number().int().min(1024).max(65535).default(5901),
   rootDir: z.string().default(''),
-  autoStart: z.boolean().default(true),
+  autoStart: z.boolean().default(false),
+  autoStartConfigured: z.boolean().optional(),
   autoOpenAdminOnStart: z.boolean().default(false),
   adminUsername: z.string().default('admin'),
   adminPassword: z.string().default(''),
+  notifyOnLogin: z.boolean().default(true),
+  notifyOnFailedLogin: z.boolean().default(true),
+  notifyOnAdminActivity: z.boolean().default(true),
 });
 
 export type FileServerSettings = z.infer<typeof FileServerSettingsSchema>;
+
+export interface FileServerSecurityEvent {
+  id: string;
+  type: 'login' | 'failedLogin' | 'logout' | 'adminActivity';
+  username: string;
+  clientIp: string;
+  userAgent?: string;
+  accessType?: 'LAN' | 'External';
+  reason?: string;
+  repeatCount?: number;
+  timestamp: string;
+  details?: string;
+}
+
+export interface ActiveSession {
+  id: string;
+  username?: string;
+  ip: string;
+  speed?: number;
+  connectedAt?: string;
+}
 
 export interface UserAccount {
   id: string;

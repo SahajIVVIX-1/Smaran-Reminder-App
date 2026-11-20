@@ -1,4 +1,4 @@
-import { ChildProcess, exec, execFile, spawn } from 'node:child_process';
+import { ChildProcess, exec, execFile, execSync, spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { app } from 'electron';
 import type {
+  FileServerSecurityEvent,
   FileServerSettings,
   LogLevel,
   ServerLogEntry,
@@ -14,10 +15,12 @@ import type {
 import { HfsApiClient } from './HfsApiClient';
 import { DEFAULT_CUSTOM_HTML, syncHfsConfigFile } from './HfsConfigBridge';
 import type { FileServerStore } from './FileServerStore';
+import { isLanIp, normalizeClientIp } from './ipUtils';
 
 export interface SupervisorCallbacks {
   onStatusChanged?: (status: ServerStatus) => void;
   onLogAdded?: (log: ServerLogEntry) => void;
+  onSecurityEvent?: (event: FileServerSecurityEvent) => void;
   isLicenseValid?: () => boolean;
 }
 
@@ -82,10 +85,13 @@ export class HfsProcessSupervisor {
   private internalToken: string;
   private apiClient: HfsApiClient | null = null;
   private isStopping = false;
+  public isQuitting = false;
   private healthTimer: NodeJS.Timeout | null = null;
   private logs: ServerLogEntry[] = [];
   private startupErrorLogs: string[] = [];
   private currentStatus: ServerStatus;
+  private failedAttemptsByIp = new Map<string, { count: number; lastTime: number }>();
+  private startPromise: Promise<{ ok: boolean; error?: string }> | null = null;
 
   constructor(
     dataDir: string,
@@ -98,6 +104,7 @@ export class HfsProcessSupervisor {
 
     const settings = this.store.getSettings();
     this.currentStatus = {
+      state: 'stopped',
       running: false,
       port: settings.port,
       localUrl: `http://localhost:${settings.port}`,
@@ -131,6 +138,9 @@ export class HfsProcessSupervisor {
     if (status.error?.startsWith('License activation required') && this.callbacks.isLicenseValid?.()) {
       delete status.error;
       this.currentStatus.error = undefined;
+      if (this.currentStatus.state === 'error') {
+        this.currentStatus.state = this.child ? 'running' : 'stopped';
+      }
     }
     return status;
   }
@@ -289,6 +299,7 @@ export class HfsProcessSupervisor {
       }
 
       this.addLog('info', `Admin credentials updated for user "${creds.username}"`);
+      this.emitAdminActivity(`Admin credentials updated for user "${creds.username}"`, creds.username);
       return { ok: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -449,19 +460,33 @@ export class HfsProcessSupervisor {
   }
 
   async start(): Promise<{ ok: boolean; error?: string }> {
-    if (this.child) {
+    if (this.child && this.currentStatus.running) {
+      return { ok: true };
+    }
+    if (this.startPromise) {
+      return this.startPromise;
+    }
+    this.startPromise = this.doStart().finally(() => {
+      this.startPromise = null;
+    });
+    return this.startPromise;
+  }
+
+  private async doStart(): Promise<{ ok: boolean; error?: string }> {
+    if (this.child && this.currentStatus.running) {
       return { ok: true };
     }
 
     this.isStopping = false;
     this.startupErrorLogs = [];
+    this.updateStatus({ state: 'starting', running: false, error: undefined });
 
     // 1. License Check
     if (this.callbacks.isLicenseValid && !this.callbacks.isLicenseValid()) {
       const errorMsg =
         'License activation required. Smaran HFS will start after a valid license is activated.';
       this.addLog('warn', errorMsg);
-      this.updateStatus({ running: false, error: errorMsg });
+      this.updateStatus({ state: 'error', running: false, error: errorMsg });
       return { ok: false, error: errorMsg };
     }
 
@@ -473,7 +498,7 @@ export class HfsProcessSupervisor {
     } catch (resolveErr: unknown) {
       const errorMsg = resolveErr instanceof Error ? resolveErr.message : String(resolveErr);
       this.addLog('error', errorMsg);
-      this.updateStatus({ running: false, error: errorMsg });
+      this.updateStatus({ state: 'error', running: false, error: errorMsg });
       return { ok: false, error: errorMsg };
     }
 
@@ -484,7 +509,7 @@ export class HfsProcessSupervisor {
       if (!fs.existsSync(fp)) {
         const errorMsg = `Corrupt or incomplete HFS engine: missing ${reqFile} in ${engineInfo.engineDir}`;
         this.addLog('error', errorMsg);
-        this.updateStatus({ running: false, error: errorMsg });
+        this.updateStatus({ state: 'error', running: false, error: errorMsg });
         return { ok: false, error: errorMsg };
       }
     }
@@ -500,14 +525,14 @@ export class HfsProcessSupervisor {
     const storagePerm = checkDirectoryPermissions(rootDir);
     if (!storagePerm.ok) {
       this.addLog('error', storagePerm.error || 'Permission denied for storage folder');
-      this.updateStatus({ running: false, error: storagePerm.error });
+      this.updateStatus({ state: 'error', running: false, error: storagePerm.error });
       return { ok: false, error: storagePerm.error };
     }
 
     const runtimePerm = checkDirectoryPermissions(this.runtimeDir);
     if (!runtimePerm.ok) {
       this.addLog('error', runtimePerm.error || 'Permission denied for runtime folder');
-      this.updateStatus({ running: false, error: runtimePerm.error });
+      this.updateStatus({ state: 'error', running: false, error: runtimePerm.error });
       return { ok: false, error: runtimePerm.error };
     }
 
@@ -519,7 +544,7 @@ export class HfsProcessSupervisor {
     const portCheck = await checkPortAvailable(activePort);
     if (!portCheck.available) {
       this.addLog('error', portCheck.error || `Port ${activePort} is not available`);
-      this.updateStatus({ running: false, error: portCheck.error });
+      this.updateStatus({ state: 'error', running: false, error: portCheck.error });
       return { ok: false, error: portCheck.error };
     }
 
@@ -575,13 +600,16 @@ export class HfsProcessSupervisor {
         this.stopHealthCheck();
 
         const shouldRestart = !this.isStopping && this.store.getSettings().enabled;
+        const hasErr = !this.isStopping && code !== 0 && code !== null;
+        const errStr = this.isStopping
+          ? undefined
+          : this.startupErrorLogs.slice(-3).join('; ') || (hasErr ? exitMsg : undefined);
 
         this.updateStatus({
+          state: shouldRestart ? 'starting' : errStr ? 'error' : 'stopped',
           running: false,
           liveConnections: 0,
-          error: this.isStopping
-            ? undefined
-            : this.startupErrorLogs.slice(-3).join('; ') || exitMsg,
+          error: errStr,
         });
 
         if (shouldRestart) {
@@ -598,6 +626,7 @@ export class HfsProcessSupervisor {
 
       this.startHealthCheck();
       this.updateStatus({
+        state: 'running',
         running: true,
         port: activePort,
         localUrl: `http://localhost:${activePort}`,
@@ -614,7 +643,7 @@ export class HfsProcessSupervisor {
         this.startupErrorLogs.length > 0 ? ` (${this.startupErrorLogs.slice(-2).join('; ')})` : '';
       const fullError = `${errorMsg}${detail}`;
       this.addLog('error', `Failed to start Smaran HFS: ${fullError}`);
-      this.updateStatus({ running: false, error: fullError });
+      this.updateStatus({ state: 'error', running: false, error: fullError });
       await this.stop();
       return { ok: false, error: fullError };
     }
@@ -623,9 +652,10 @@ export class HfsProcessSupervisor {
   async stop(): Promise<void> {
     this.isStopping = true;
     this.stopHealthCheck();
+    this.updateStatus({ state: 'stopping', running: false });
 
     if (!this.child) {
-      this.updateStatus({ running: false, liveConnections: 0 });
+      this.updateStatus({ state: 'stopped', running: false, liveConnections: 0 });
       return;
     }
 
@@ -661,12 +691,32 @@ export class HfsProcessSupervisor {
 
     this.child = null;
     this.apiClient = null;
-    this.updateStatus({ running: false, liveConnections: 0 });
+    this.updateStatus({ state: 'stopped', running: false, liveConnections: 0 });
   }
 
   async restart(): Promise<{ ok: boolean; error?: string }> {
     await this.stop();
     return this.start();
+  }
+
+  public stopSync(): void {
+    this.isStopping = true;
+    this.isQuitting = true;
+    this.stopHealthCheck();
+    if (this.child?.pid) {
+      try {
+        execSync(`taskkill /F /T /PID ${this.child.pid}`, { stdio: 'ignore', windowsHide: true });
+      } catch {
+        try {
+          this.child.kill('SIGKILL');
+        } catch {
+          // ignore
+        }
+      }
+      this.child = null;
+    }
+    this.apiClient = null;
+    this.updateStatus({ state: 'stopped', running: false, liveConnections: 0 });
   }
 
   private killChildSync(): void {
@@ -755,7 +805,67 @@ export class HfsProcessSupervisor {
     this.callbacks.onLogAdded?.(entry);
   }
 
+  private handleSecurityEventLine(jsonStr: string): void {
+    try {
+      const raw = JSON.parse(jsonStr);
+      const cleanIp = normalizeClientIp(raw.clientIp);
+      const accessType = isLanIp(cleanIp) ? 'LAN' : 'External';
+
+      let repeatCount = 1;
+      if (raw.type === 'failedLogin') {
+        const now = Date.now();
+        const existing = this.failedAttemptsByIp.get(cleanIp);
+        if (existing && now - existing.lastTime < 15 * 60 * 1000) {
+          repeatCount = existing.count + 1;
+          this.failedAttemptsByIp.set(cleanIp, { count: repeatCount, lastTime: now });
+        } else {
+          this.failedAttemptsByIp.set(cleanIp, { count: 1, lastTime: now });
+        }
+      } else if (raw.type === 'login') {
+        this.failedAttemptsByIp.delete(cleanIp);
+      }
+
+      const event: FileServerSecurityEvent = {
+        id: crypto.randomUUID(),
+        type: raw.type,
+        username: raw.username || 'unknown',
+        clientIp: cleanIp,
+        userAgent: raw.userAgent || 'Unknown Client',
+        accessType,
+        reason: raw.reason,
+        repeatCount,
+        timestamp: raw.timestamp || new Date().toISOString(),
+        details: raw.details,
+      };
+
+      this.callbacks.onSecurityEvent?.(event);
+    } catch (err) {
+      console.warn('Failed parsing security event:', err);
+    }
+  }
+
+  public emitAdminActivity(details: string, username = 'smaran'): void {
+    if (this.isQuitting || this.isStopping) return;
+    const event: FileServerSecurityEvent = {
+      id: crypto.randomUUID(),
+      type: 'adminActivity',
+      username,
+      clientIp: '127.0.0.1',
+      userAgent: 'Smaran Desktop Admin',
+      accessType: 'LAN',
+      timestamp: new Date().toISOString(),
+      details,
+    };
+    this.callbacks.onSecurityEvent?.(event);
+  }
+
   private parseLogLine(line: string): void {
+    if (line.includes('[SMARAN_SECURITY_EVENT]')) {
+      const idx = line.indexOf('[SMARAN_SECURITY_EVENT]');
+      const jsonStr = line.substring(idx + '[SMARAN_SECURITY_EVENT]'.length).trim();
+      this.handleSecurityEventLine(jsonStr);
+      return;
+    }
     const lower = line.toLowerCase();
     if (lower.includes('error') || lower.includes('fail')) {
       this.addLog('error', line);

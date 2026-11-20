@@ -64,10 +64,13 @@ export class FileServerStore {
       enabled: false,
       port: 5901,
       rootDir: '',
-      autoStart: true,
+      autoStart: false,
       autoOpenAdminOnStart: false,
       adminUsername: 'smaran',
       adminPassword: '',
+      notifyOnLogin: true,
+      notifyOnFailedLogin: true,
+      notifyOnAdminActivity: true,
     };
 
     if (fs.existsSync(this.filePath)) {
@@ -76,6 +79,13 @@ export class FileServerStore {
         const parsed = JSON.parse(raw);
         let settings: FileServerSettings = { ...defaultSettings, ...(parsed.settings || {}) };
         let users: UserAccount[] = parsed.users || [];
+        let shouldSave = false;
+
+        // Ensure file server does not auto-start unless explicitly configured by the user
+        if (settings.autoStart && !parsed.settings?.autoStartConfigured) {
+          settings.autoStart = false;
+          shouldSave = true;
+        }
 
         // Upgrade insecure or empty legacy default passwords to the pattern password
         if (!settings.adminPassword || settings.adminPassword === 'smaran' || settings.adminPassword === 'admin') {
@@ -91,6 +101,10 @@ export class FileServerStore {
             },
             ...users.filter((u) => u.username !== 'smaran' && u.username !== 'admin'),
           ];
+          shouldSave = true;
+        }
+
+        if (shouldSave) {
           this.data = { settings, users };
           this.save();
         }

@@ -15,6 +15,7 @@ import type {
   SaveResult,
 } from '@shared/ipc';
 import type { FileServerSettings, ServerLogEntry, ServerStatus } from '@shared/fileserver';
+import type { AppNotification } from '@shared/notifications';
 import type { FontCatalog } from '@shared/fonts';
 import type { LicenseImportResult, LicenseInfo } from '@shared/license/info';
 import type { LogoState } from '@shared/logoState';
@@ -40,6 +41,15 @@ const api = {
     clear: (): Promise<void> => ipcRenderer.invoke(IPC.historyClear),
     onChanged: (listener: (entries: HistoryEntry[]) => void): (() => void) =>
       subscribe(IPC.historyChanged, listener),
+  },
+  notifications: {
+    list: (): Promise<AppNotification[]> => ipcRenderer.invoke(IPC.notificationsGet),
+    markRead: (id: string): Promise<void> => ipcRenderer.invoke(IPC.notificationsMarkRead, { id }),
+    markAllRead: (): Promise<void> => ipcRenderer.invoke(IPC.notificationsMarkAllRead),
+    delete: (id: string): Promise<void> => ipcRenderer.invoke(IPC.notificationsDelete, { id }),
+    clear: (): Promise<void> => ipcRenderer.invoke(IPC.notificationsClear),
+    onChanged: (listener: (notifications: AppNotification[]) => void): (() => void) =>
+      subscribe(IPC.notificationsChanged, listener),
   },
   reminders: {
     nextTimes: (): Promise<NextFire[]> => ipcRenderer.invoke(IPC.nextTimes),
@@ -139,6 +149,10 @@ const api = {
       subscribe(IPC.fileserverStatusChanged, listener),
     onLogAdded: (listener: (log: ServerLogEntry) => void): (() => void) =>
       subscribe(IPC.fileserverLogAdded, listener),
+    getSessions: (): Promise<Array<{ id: string; ip: string; speed?: number }>> =>
+      ipcRenderer.invoke(IPC.fileserverSessionsGet),
+    disconnectSession: (id: string): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke(IPC.fileserverSessionDisconnect, { id }),
   },
 };
 

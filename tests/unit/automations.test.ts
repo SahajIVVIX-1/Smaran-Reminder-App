@@ -184,6 +184,9 @@ describe('AutomationEngine', () => {
 
   function setup(automations: Automation[], change: (c: Config) => void = () => undefined) {
     const config: Config = { ...createDefaultConfig(), automations };
+    if (config.settings.automation) {
+      config.settings.automation.notifyPreExecution = false;
+    }
     change(config);
     const history: HistoryEntry[] = [];
     const shown: NotificationRequest[] = [];
@@ -325,6 +328,63 @@ describe('AutomationEngine', () => {
     expect(f.engine.runNow(f.engine.nextTimes()[0]!.automationId)).toBe(true);
     await tick(0);
     expect(f.history[0]).toMatchObject({ outcome: 'failed', detail: 'Lock the PC: nope' });
+    expect(f.shown.some((s) => s.title === 'Automation Failed')).toBe(true);
+  });
+
+  it('pre-execution notification countdown can be cancelled or run immediately', async () => {
+    const a = automation(daily9, [
+      { kind: 'open', what: 'app', path: 'C:\\App\\Test.exe', args: '', hidden: false },
+    ]);
+    const t = setup([a], (c) => {
+      c.settings.automation.notifyPreExecution = true;
+    });
+    t.engine.start({ signIn: false, boot: false });
+
+    // Advance to 09:00 - should show preExecution card with 5s countdown
+    await tick(60_000);
+    expect(t.shown).toHaveLength(1);
+    const card = t.shown[0]!;
+    expect(card.title).toBe('Smaran Automation');
+    expect(card.countdown).toBe(true);
+    expect(card.hideAfterSec).toBe(5);
+    expect(t.ran).toHaveLength(0);
+
+    // Cancel the pre-execution card
+    t.engine.handleCard(card.key, { kind: 'dismiss' });
+    await tick(10_000);
+    expect(t.ran).toHaveLength(0);
+    expect(t.history[0]).toMatchObject({ outcome: 'cancelled' });
+    t.engine.stop();
+    vi.setSystemTime(START);
+
+    // Test Run Now on card
+    const t2 = setup([a], (c) => {
+      c.settings.automation.notifyPreExecution = true;
+    });
+    t2.engine.start({ signIn: false, boot: false });
+    await tick(60_000);
+    expect(t2.shown).toHaveLength(1);
+    const card2 = t2.shown[0]!;
+    // Press Run Now ('done')
+    t2.engine.handleCard(card2.key, { kind: 'done' });
+    await tick(0);
+    expect(t2.ran).toHaveLength(1);
+    expect(t2.history[0]).toMatchObject({ outcome: 'ran' });
+    t2.engine.stop();
+    vi.setSystemTime(START);
+
+    // Test countdown completion (natural timeout runs the action)
+    const t3 = setup([a], (c) => {
+      c.settings.automation.notifyPreExecution = true;
+    });
+    t3.engine.start({ signIn: false, boot: false });
+    await tick(60_000); // 09:00 - shows card
+    expect(t3.shown).toHaveLength(1);
+    expect(t3.ran).toHaveLength(0);
+    await tick(5_000); // 5s countdown expires
+    expect(t3.ran).toHaveLength(1);
+    expect(t3.history[0]).toMatchObject({ outcome: 'ran' });
+    t3.engine.stop();
   });
 
   it('skips a time missed while the PC slept', async () => {

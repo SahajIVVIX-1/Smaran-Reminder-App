@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import type { FileServerSettings, ServerStatus } from '@shared/fileserver';
+import type { FileServerSettings } from '@shared/fileserver';
+import type { AppNotification } from '@shared/notifications';
+import { timeOf } from '../format';
 import { cx } from '../cx';
 import {
   ArrowDownIcon,
@@ -17,9 +19,10 @@ import {
   XIcon,
 } from '../icons';
 import { Button, Card, Dialog, IconButton, Input, Row, Switch } from '../ui';
+import { useApp } from '../store';
 
 export function FileServer() {
-  const [status, setStatus] = useState<ServerStatus | null>(null);
+  const status = useApp((s) => s.fileServerStatus);
   const [settings, setSettings] = useState<FileServerSettings | null>(null);
 
   // Administrator Credentials State
@@ -57,29 +60,94 @@ export function FileServer() {
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [resetting, setResetting] = useState(false);
 
+  // Security & Connected Sessions State
+  const [sessions, setSessions] = useState<Array<{ id: string; ip: string; speed?: number }>>([]);
+  const [securityEvents, setSecurityEvents] = useState<AppNotification[]>([]);
+  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
+
+  const refreshSessions = async () => {
+    try {
+      const active = await window.smaran.fileserver.getSessions();
+      setSessions(active || []);
+    } catch {
+      // transient
+    }
+  };
+
+  const refreshSecurityEvents = async () => {
+    try {
+      const all = await window.smaran.notifications.list();
+      setSecurityEvents(
+        all.filter(
+          (n) => n.source === 'fileserver' || n.category === 'security' || n.category === 'fileserver',
+        ),
+      );
+    } catch {
+      // transient
+    }
+  };
+
+  const handleDisconnect = async (id: string) => {
+    setDisconnectingId(id);
+    try {
+      await window.smaran.fileserver.disconnectSession(id);
+      await refreshSessions();
+    } finally {
+      setDisconnectingId(null);
+    }
+  };
+
   useEffect(() => {
-    void window.smaran.fileserver.status().then((s) => {
-      setStatus(s);
-      if (s?.error) setServerError(s.error);
-    });
-    void window.smaran.fileserver.getSettings().then((s) => {
-      setSettings(s);
-      if (s.adminUsername) setAdminUsername(s.adminUsername);
-      if (s.port) setPortInput(String(s.port));
-    });
-    void window.smaran.fileserver.getAdminCredentials().then((creds) => {
-      if (creds.username) setAdminUsername(creds.username);
-      if (creds.password) setAdminPassword(creds.password);
+    let mounted = true;
+
+    const loadInitialData = async () => {
+      try {
+        const [active, notifs, s, setts, creds] = await Promise.all([
+          window.smaran.fileserver.getSessions(),
+          window.smaran.notifications.list(),
+          window.smaran.fileserver.status(),
+          window.smaran.fileserver.getSettings(),
+          window.smaran.fileserver.getAdminCredentials(),
+        ]);
+        if (!mounted) return;
+        setSessions(active || []);
+        setSecurityEvents(
+          (notifs || []).filter(
+            (n) => n.source === 'fileserver' || n.category === 'security' || n.category === 'fileserver',
+          ),
+        );
+        if (s) useApp.getState().setFileServerStatus(s);
+        if (s?.error) setServerError(s.error);
+        setSettings(setts);
+        if (setts.adminUsername) setAdminUsername(setts.adminUsername);
+        if (setts.port) setPortInput(String(setts.port));
+        if (creds.username) setAdminUsername(creds.username);
+        if (creds.password) setAdminPassword(creds.password);
+      } catch {
+        // Handled in UI
+      }
+    };
+
+    void loadInitialData();
+
+    const interval = setInterval(() => {
+      void refreshSessions();
+    }, 4000);
+    const off = window.smaran.notifications.onChanged(() => {
+      void refreshSecurityEvents();
     });
 
     const offStatus = window.smaran.fileserver.onStatusChanged((s) => {
-      setStatus(s);
+      if (s) useApp.getState().setFileServerStatus(s);
       if (s?.error) setServerError(s.error);
       else if (s?.running) setServerError(null);
       if (s?.port) setPortInput(String(s.port));
     });
 
     return () => {
+      mounted = false;
+      clearInterval(interval);
+      off();
       offStatus();
     };
   }, []);
@@ -90,7 +158,7 @@ export function FileServer() {
     try {
       const res = await window.smaran.fileserver.start();
       const s = await window.smaran.fileserver.status();
-      setStatus(s);
+      if (s) useApp.getState().setFileServerStatus(s);
       if (!res.ok) {
         setServerError(res.error || 'Failed to start file server');
       }
@@ -106,7 +174,7 @@ export function FileServer() {
     try {
       await window.smaran.fileserver.stop();
       const s = await window.smaran.fileserver.status();
-      setStatus(s);
+      if (s) useApp.getState().setFileServerStatus(s);
     } catch (err: unknown) {
       setServerError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -120,7 +188,7 @@ export function FileServer() {
     try {
       const res = await window.smaran.fileserver.restart();
       const s = await window.smaran.fileserver.status();
-      setStatus(s);
+      if (s) useApp.getState().setFileServerStatus(s);
       if (!res.ok) {
         setServerError(res.error || 'Failed to restart file server');
       }
@@ -169,7 +237,7 @@ export function FileServer() {
       const updated = await window.smaran.fileserver.saveSettings({ port: num });
       setSettings(updated);
       const s = await window.smaran.fileserver.status();
-      setStatus(s);
+      if (s) useApp.getState().setFileServerStatus(s);
       setPortFeedback({
         type: 'success',
         message: `Port updated to ${num}${s.running ? ' and server restarted successfully' : ''}.`,
@@ -187,7 +255,7 @@ export function FileServer() {
 
   const handleAutoStartChange = async (autoStart: boolean) => {
     try {
-      const updated = await window.smaran.fileserver.saveSettings({ autoStart });
+      const updated = await window.smaran.fileserver.saveSettings({ autoStart, autoStartConfigured: true });
       setSettings(updated);
     } catch (err: unknown) {
       setServerError(err instanceof Error ? err.message : String(err));
@@ -207,7 +275,7 @@ export function FileServer() {
         const s = await window.smaran.fileserver.getSettings();
         setSettings(s);
         const curStatus = await window.smaran.fileserver.status();
-        setStatus(curStatus);
+        if (curStatus) useApp.getState().setFileServerStatus(curStatus);
         setStorageFeedback({
           type: 'success',
           message: `Storage root updated to "${picked}".`,
@@ -234,7 +302,7 @@ export function FileServer() {
       const updated = await window.smaran.fileserver.saveSettings({ rootDir: '' });
       setSettings(updated);
       const curStatus = await window.smaran.fileserver.status();
-      setStatus(curStatus);
+      if (curStatus) useApp.getState().setFileServerStatus(curStatus);
       setStorageFeedback({
         type: 'success',
         message: 'Storage root restored to default directory.',
@@ -459,6 +527,13 @@ export function FileServer() {
   };
 
   const isRunning = status?.running ?? false;
+  const isStarting = actionLoading === 'starting' || status?.state === 'starting';
+  const isStopping = actionLoading === 'stopping' || status?.state === 'stopping';
+  const isRestarting = actionLoading === 'restarting';
+  const isApplying = actionLoading === 'applying';
+  const isError = status?.state === 'error' && !isRunning;
+  const isPending = isStarting || isStopping || isRestarting || isApplying;
+
   const currentPort = status?.port ?? settings?.port ?? 5901;
   const adminUrl = `http://localhost:${currentPort}/~/admin/`;
   const webdavLocalUrl = `http://127.0.0.1:${currentPort}/`;
@@ -555,14 +630,16 @@ export function FileServer() {
                 <span
                   className={cx(
                     'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium border',
-                    actionLoading
+                    isPending
                       ? 'border-accent/30 bg-accent/10 text-accent'
                       : isRunning
                         ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-400'
-                        : 'border-line bg-raised text-muted',
+                        : isError
+                          ? 'border-rose-500/30 bg-rose-500/10 text-rose-400'
+                          : 'border-line bg-raised text-muted',
                   )}
                 >
-                  {actionLoading ? (
+                  {isPending ? (
                     <RefreshIcon size={11} className="animate-spin text-accent" />
                   ) : isRunning ? (
                     <span className="relative flex h-2 w-2">
@@ -572,11 +649,11 @@ export function FileServer() {
                   ) : (
                     <span className="h-1.5 w-1.5 rounded-full bg-faint" />
                   )}
-                  {actionLoading === 'starting' && 'Starting Server...'}
-                  {actionLoading === 'stopping' && 'Stopping Server...'}
-                  {actionLoading === 'restarting' && 'Restarting Server...'}
-                  {actionLoading === 'applying' && 'Applying Configuration...'}
-                  {!actionLoading && (isRunning ? `Running on port ${currentPort}` : 'Server Offline')}
+                  {isStarting && 'Starting Server...'}
+                  {isStopping && 'Stopping Server...'}
+                  {isRestarting && 'Restarting Server...'}
+                  {isApplying && 'Applying Configuration...'}
+                  {!isPending && (isRunning ? `Running on port ${currentPort}` : isError ? 'Server Error' : 'Server Offline')}
                 </span>
               </div>
               <p className="mt-0.5 font-serif text-[13px] text-muted italic">
@@ -870,7 +947,7 @@ export function FileServer() {
           <Switch
             id="set-fs-autostart"
             label="Auto-start File Server"
-            checked={settings?.autoStart ?? true}
+            checked={settings?.autoStart ?? false}
             onChange={handleAutoStartChange}
           />
         </Row>
@@ -1027,6 +1104,95 @@ export function FileServer() {
             </div>
           </Row>
         )}
+      </Card>
+
+      {/* Security & Connected Clients Monitoring */}
+      <Card
+        title="Security & Live Connected Sessions"
+        description="Active clients, recent logins, and rejected authentication attempts."
+        className="animate-enter [animation-delay:220ms]"
+      >
+        {/* Active Connected Clients */}
+        <div className="border-b border-line pb-4 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted">
+              Live Connected Clients ({sessions.length})
+            </h4>
+            <Button size="sm" variant="ghost" onClick={refreshSessions}>
+              <RefreshIcon size={13} /> Refresh
+            </Button>
+          </div>
+          {sessions.length === 0 ? (
+            <p className="text-xs text-faint font-serif italic py-2">
+              No client devices currently connected.
+            </p>
+          ) : (
+            <div className="divide-y divide-line/60 rounded-xl border border-line bg-raised/40 overflow-hidden">
+              {sessions.map((s) => (
+                <div key={s.id} className="flex items-center justify-between px-3 py-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                    <span className="font-mono font-medium text-ink">{s.ip}</span>
+                    <span className="text-faint font-mono text-[11px]">(ID: {s.id.slice(0, 8)})</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    disabled={disconnectingId === s.id}
+                    onClick={() => handleDisconnect(s.id)}
+                  >
+                    {disconnectingId === s.id ? 'Disconnecting…' : 'Disconnect'}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Recent Security & Activity Events */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted">
+              Recent Security Events ({securityEvents.length})
+            </h4>
+            <Button size="sm" variant="ghost" onClick={() => useApp.getState().go('history')}>
+              View in History →
+            </Button>
+          </div>
+          {securityEvents.length === 0 ? (
+            <p className="text-xs text-faint font-serif italic py-2">
+              No recent security events recorded.
+            </p>
+          ) : (
+            <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+              {securityEvents.slice(0, 10).map((ev) => (
+                <div
+                  key={ev.id}
+                  className="flex items-center justify-between rounded-lg border border-line bg-raised/40 px-3 py-2 text-xs"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <span className="shrink-0">
+                      {ev.severity === 'critical' || ev.severity === 'warning' ? (
+                        <ShieldIcon size={14} className="text-danger" />
+                      ) : (
+                        <ServerIcon size={14} className="text-accent" />
+                      )}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-ink truncate">{ev.title}</span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-surface text-muted">
+                          {timeOf(new Date(ev.timestamp))}
+                        </span>
+                      </div>
+                      <p className="text-[11.5px] text-muted truncate">{ev.description}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </Card>
 
       {/* Danger Zone: Reset to Factory Defaults */}

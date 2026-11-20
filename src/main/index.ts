@@ -142,6 +142,6 @@ function runApp(): void {
   app.on('window-all-closed', () => undefined);
 
   app.on('before-quit', () => {
-    smaran?.stop();
+    smaran?.quit();
   });
 }

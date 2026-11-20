@@ -85,6 +85,17 @@ export function registerIpcHandlers(smaran: SmaranApp): void {
   ipcMain.handle(IPC.historyGet, () => history.list());
   ipcMain.handle(IPC.historyClear, () => history.clear());
 
+  ipcMain.handle(IPC.notificationsGet, () => smaran.notificationStore.list());
+  ipcMain.handle(IPC.notificationsMarkRead, (_event, payload: { id: string }) =>
+    smaran.notificationStore.markRead(payload?.id),
+  );
+  ipcMain.handle(IPC.notificationsMarkAllRead, () => smaran.notificationStore.markAllRead());
+  ipcMain.handle(IPC.notificationsDelete, (_event, payload: { id: string }) =>
+    smaran.notificationStore.delete(payload?.id),
+  );
+  ipcMain.handle(IPC.notificationsClear, () => smaran.notificationStore.clear());
+  smaran.notificationStore.onChange((notifs) => broadcast(IPC.notificationsChanged, notifs));
+
   ipcMain.handle(IPC.nextTimes, () => engine.nextTimes());
   ipcMain.handle(IPC.showNow, (_event, payload: unknown) => {
     const parsed = ShowNowSchema.safeParse(payload);

@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import { useEffect, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { AppInfo, BackupResult } from '@shared/ipc';
+import type { FileServerSettings, ServerStatus } from '@shared/fileserver';
 import { CORNERS, type Settings as SettingsT } from '@shared/schema';
 import { tabVariants } from '../animations';
 import { cx } from '../cx';
@@ -13,7 +14,12 @@ import { Select } from '../components/Select';
 import { LogoSettingsCard } from '../components/LogoSettings';
 import { TimeField } from '../components/TimeField';
 import { Button, Card, NumberField, Row, Segmented, Slider, Switch } from '../ui';
-import { BellIcon, FileIcon, GearIcon, MoonIcon, SparkIcon } from '../icons';
+import {
+  BellIcon,
+  GearIcon,
+  ServerIcon,
+  SparkIcon,
+} from '../icons';
 
 const CORNER_LABEL: Record<SettingsT['notification']['corner'], string> = {
   'top-right': 'Top right',
@@ -32,7 +38,7 @@ function thicknessLabel(px: number): string {
   return 'Very Thick';
 }
 
-type SettingsTab = 'general' | 'notifications' | 'focus' | 'animations' | 'data';
+type SettingsTab = 'system' | 'reminders' | 'automations' | 'fileserver';
 
 interface TabItem {
   id: SettingsTab;
@@ -41,11 +47,10 @@ interface TabItem {
 }
 
 const SETTINGS_TABS: readonly TabItem[] = [
-  { id: 'general', label: 'General', icon: GearIcon },
-  { id: 'notifications', label: 'Notifications', icon: BellIcon },
-  { id: 'focus', label: 'Focus', icon: MoonIcon },
-  { id: 'animations', label: 'Animations', icon: SparkIcon },
-  { id: 'data', label: 'Your Data', icon: FileIcon },
+  { id: 'system', label: 'System', icon: GearIcon },
+  { id: 'reminders', label: 'Reminders', icon: BellIcon },
+  { id: 'automations', label: 'Automations', icon: SparkIcon },
+  { id: 'fileserver', label: 'File Server', icon: ServerIcon },
 ];
 
 /** A little screen with the five places a notification can appear. */
@@ -94,7 +99,7 @@ const STAY_PRESETS = [5, 8, 12, 20, 30, 60, 120];
 export function Settings() {
   const config = useApp((s) => s.config);
   const { setSettings } = useApp.getState();
-  const [tab, setTab] = useState<SettingsTab>('general');
+  const [tab, setTab] = useState<SettingsTab>('system');
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [backupMsg, setBackupMsg] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [customHideSec, setCustomHideSec] = useState(
@@ -104,15 +109,55 @@ export function Settings() {
       !STAY_PRESETS.includes(config.settings.notification.hideAfterSec),
   );
 
+  // File Server Settings state
+  const [fsSettings, setFsSettings] = useState<FileServerSettings | null>(null);
+  const [fsStatus, setFsStatus] = useState<ServerStatus | null>(null);
+  const [fsFeedback, setFsFeedback] = useState<string | null>(null);
+
   useEffect(() => {
     void window.smaran.app.info().then(setInfo);
+    void window.smaran.fileserver.getSettings().then(setFsSettings);
+    void window.smaran.fileserver.status().then(setFsStatus);
+
+    const offStatus = window.smaran.fileserver.onStatusChanged((status) => {
+      setFsStatus(status);
+    });
+
+    return () => {
+      offStatus();
+    };
   }, []);
 
   if (!config) return null;
   const s = config.settings;
   const n = s.notification;
+  const a = s.automation ?? {
+    enabled: true,
+    paused: false,
+    notifyPreExecution: true,
+    preExecutionCountdownSec: 5,
+    notifyOnFailure: true,
+    notifyOnSuccess: false,
+    sound: true,
+  };
+
   const setN = (patch: Partial<SettingsT['notification']>) =>
     setSettings((x) => ({ ...x, notification: { ...x.notification, ...patch } }));
+
+  const setA = (patch: Partial<SettingsT['automation']>) =>
+    setSettings((x) => ({ ...x, automation: { ...(x.automation ?? a), ...patch } }));
+
+  const updateFs = async (patch: Partial<FileServerSettings>) => {
+    try {
+      const updated = await window.smaran.fileserver.saveSettings(patch);
+      setFsSettings(updated);
+      setFsFeedback('Saved');
+      setTimeout(() => setFsFeedback(null), 2000);
+    } catch (err: unknown) {
+      setFsFeedback(err instanceof Error ? err.message : 'Error updating server settings');
+    }
+  };
+
   const paused = s.pausedUntil && new Date(s.pausedUntil) > new Date();
 
   const runBackup = async (action: () => Promise<BackupResult>) => {
@@ -139,7 +184,7 @@ export function Settings() {
       <header className="animate-enter">
         <h1 className="font-serif text-[26px] leading-tight">Settings</h1>
         <p className="mt-1 font-serif text-[14.5px] text-muted italic">
-          Changes are saved as you make them.
+          Unified system, reminders, automation and file server preferences.
         </p>
       </header>
 
@@ -188,404 +233,567 @@ export function Settings() {
           animate="animate"
           exit="exit"
         >
-        {tab === 'general' && (
-          <Card title="General">
-            <Row
-              label="Start Smaran when I sign in"
-              hint="It starts quietly in the tray."
-              htmlFor="set-login"
-            >
-              <Switch
-                id="set-login"
-                label="Start at login"
-                checked={s.startAtLogin}
-                onChange={(v) => setSettings((x) => ({ ...x, startAtLogin: v }))}
-              />
-            </Row>
-            <Row
-              label="Text Font"
-              hint="For text and buttons. Titles stay in Anthropic Serif, times in Anthropic Mono."
-            >
-              <FontPicker value={s.font} onChange={(font) => setSettings((x) => ({ ...x, font }))} />
-            </Row>
-            <Row label="Appearance">
-              <Segmented
-                label="Appearance"
-                value={s.theme}
-                onChange={(theme) => setSettings((x) => ({ ...x, theme }))}
-                options={[
-                  { value: 'light', label: 'Light' },
-                  { value: 'dark', label: 'Dark' },
-                  { value: 'system', label: 'System' },
-                ]}
-              />
-            </Row>
-          </Card>
-        )}
+          {/* ==================== A. SYSTEM SETTINGS ==================== */}
+          {tab === 'system' && (
+            <div className="space-y-6">
+              <Card title="Application Startup & Behavior" description="System integration and appearance.">
+                <Row
+                  label="Start with Windows"
+                  hint="Smaran starts automatically in the system tray when you sign in."
+                  htmlFor="set-login"
+                >
+                  <Switch
+                    id="set-login"
+                    label="Start with Windows"
+                    checked={s.startAtLogin}
+                    onChange={(v) => setSettings((x) => ({ ...x, startAtLogin: v }))}
+                  />
+                </Row>
+                <Row
+                  label="Appearance Theme"
+                  hint="Select light, dark, or follow your Windows system color scheme."
+                >
+                  <Segmented
+                    label="Appearance"
+                    value={s.theme}
+                    onChange={(theme) => setSettings((x) => ({ ...x, theme }))}
+                    options={[
+                      { value: 'light', label: 'Light' },
+                      { value: 'dark', label: 'Dark' },
+                      { value: 'system', label: 'System' },
+                    ]}
+                  />
+                </Row>
+                <Row
+                  label="Text Font"
+                  hint="For text and buttons. Titles stay in Anthropic Serif, times in Anthropic Mono."
+                >
+                  <FontPicker value={s.font} onChange={(font) => setSettings((x) => ({ ...x, font }))} />
+                </Row>
+              </Card>
 
-        {tab === 'animations' && <LogoSettingsCard />}
+              <Card
+                title="Data Storage & Backup"
+                description="Your reminders, automations, and settings are stored locally on this PC."
+              >
+                <Row label="Export backup" hint="Save complete configuration and reminders to a JSON file.">
+                  <Button onClick={() => void runBackup(() => window.smaran.backup.export())}>
+                    Back Up…
+                  </Button>
+                </Row>
+                <Row label="Restore backup" hint="Replace your current reminders and configuration with a backup.">
+                  <Button onClick={() => void runBackup(() => window.smaran.backup.import('replace'))}>
+                    Restore…
+                  </Button>
+                </Row>
+                <Row label="Import & Merge" hint="Add reminders from an external file without replacing current ones.">
+                  <Button onClick={() => void runBackup(() => window.smaran.backup.import('add'))}>
+                    Choose File…
+                  </Button>
+                </Row>
+                <Row label="Data folder" hint={info?.dataFolder || 'Local data storage directory'}>
+                  <Button variant="ghost" onClick={() => void window.smaran.app.openDataFolder()}>
+                    Open Folder
+                  </Button>
+                </Row>
+                {backupMsg && (
+                  <p
+                    role="status"
+                    className={cx(
+                      'animate-fade py-2 text-[12.5px] whitespace-pre-wrap',
+                      backupMsg.tone === 'error' ? 'text-danger' : 'text-ok',
+                    )}
+                  >
+                    {backupMsg.text}
+                  </p>
+                )}
+              </Card>
 
-        {tab === 'notifications' && (
-          <Card
-            title="Notifications"
-            description="How reminders appear on your screen."
-          >
-            <Row label="Position" hint={CORNER_LABEL[n.corner]}>
-              <CornerPicker value={n.corner} onChange={(corner) => setN({ corner })} />
-            </Row>
-            <Row label="Screen" htmlFor="set-screen">
-              <Select
-                id="set-screen"
-                className="w-64"
-                value={n.screen}
-                options={[
-                  { value: 'primary', label: 'Main Screen' },
-                  { value: 'cursor', label: 'Screen with the Mouse Pointer' },
-                ]}
-                onChange={(screen) => setN({ screen })}
-              />
-            </Row>
-            <Row label="Size">
-              <Segmented
-                label="Size"
-                value={n.size}
-                onChange={(size) => setN({ size })}
-                options={[
-                  { value: 'compact', label: 'Compact' },
-                  { value: 'comfortable', label: 'Comfortable' },
-                  { value: 'large', label: 'Large' },
-                ]}
-              />
-            </Row>
-            <NotificationMotionSettings
-              motion={n.motion}
-              onChange={(motion) => setN({ motion })}
-            />
-            <CardShape n={n} onChange={(card) => setN({ card })} />
-            <Row
-              label="Stay on screen"
-              hint={
-                n.hideAfterSec === null
-                  ? 'Notifications stay until you click Dismiss, Snooze, or Done.'
-                  : 'Normal reminders hide after this time. Important ones stay until you act.'
-              }
-            >
-              <div className="flex flex-col gap-2.5">
-                <Segmented<'timed' | 'permanent'>
-                  label="Display duration mode"
-                  value={n.hideAfterSec === null ? 'permanent' : 'timed'}
-                  options={[
-                    { value: 'timed', label: 'Timed' },
-                    { value: 'permanent', label: 'Permanent' },
-                  ]}
-                  onChange={(mode) =>
-                    setN({ hideAfterSec: mode === 'permanent' ? null : 8 })
+              <Card title="Diagnostics & System Information" description="Runtime environment and versions.">
+                <Row label="Smaran Version" hint={`Version ${info?.version ?? '3.4.0'} · ${info?.portable ? 'Portable Edition' : 'Installed Application'}`}>
+                  <span className="font-mono text-xs text-muted">v{info?.version ?? '3.4.0'}</span>
+                </Row>
+                <Row label="Electron Framework" hint={`Chromium & Node.js runtime (v${info?.electron ?? 'process'})`}>
+                  <span className="font-mono text-xs text-muted">Electron {info?.electron ?? ''}</span>
+                </Row>
+              </Card>
+            </div>
+          )}
+
+          {/* ==================== B. REMINDER SETTINGS ==================== */}
+          {tab === 'reminders' && (
+            <div className="space-y-6">
+              <Card
+                title="Focus & Quiet Hours"
+                description="Keep reminders gentle and non-disruptive when you need to concentrate."
+              >
+                <Row
+                  label="Quiet Hours"
+                  hint={
+                    s.quietHours.enabled
+                      ? 'Repeating reminders are skipped; timed ones wait until quiet hours end.'
+                      : 'Disabled'
                   }
-                />
-                {n.hideAfterSec !== null && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Select<number>
-                      id="set-hide"
-                      className="w-36"
-                      value={
-                        customHideSec || !STAY_PRESETS.includes(n.hideAfterSec)
-                          ? -1
-                          : n.hideAfterSec
-                      }
-                      options={[
-                        { value: 5, label: '5 seconds' },
-                        { value: 8, label: '8 seconds' },
-                        { value: 12, label: '12 seconds' },
-                        { value: 20, label: '20 seconds' },
-                        { value: 30, label: '30 seconds' },
-                        { value: 60, label: '1 minute' },
-                        { value: 120, label: '2 minutes' },
-                        { value: -1, label: 'Custom…' },
-                      ]}
-                      onChange={(sec) => {
-                        if (sec === -1) {
-                          setCustomHideSec(true);
-                        } else {
-                          setCustomHideSec(false);
-                          setN({ hideAfterSec: sec });
+                  htmlFor="set-quiet"
+                >
+                  {s.quietHours.enabled && (
+                    <span className="flex items-center gap-2 text-[13px] text-muted">
+                      <TimeField
+                        label="Quiet from"
+                        value={s.quietHours.from}
+                        onChange={(from) =>
+                          setSettings((x) => ({ ...x, quietHours: { ...x.quietHours, from } }))
                         }
-                      }}
-                    />
-                    {(customHideSec || !STAY_PRESETS.includes(n.hideAfterSec)) && (
-                      <NumberField
-                        label="Seconds on screen"
-                        value={n.hideAfterSec}
-                        min={3}
-                        max={600}
-                        suffix="seconds"
-                        onChange={(hideAfterSec) => setN({ hideAfterSec })}
                       />
+                      to
+                      <TimeField
+                        label="Quiet until"
+                        value={s.quietHours.to}
+                        onChange={(to) =>
+                          setSettings((x) => ({ ...x, quietHours: { ...x.quietHours, to } }))
+                        }
+                      />
+                    </span>
+                  )}
+                  <Switch
+                    id="set-quiet"
+                    label="Quiet Hours"
+                    checked={s.quietHours.enabled}
+                    onChange={(enabled) =>
+                      setSettings((x) => ({ ...x, quietHours: { ...x.quietHours, enabled } }))
+                    }
+                  />
+                </Row>
+                <Row
+                  label="Wait while in full-screen apps"
+                  hint="Games, videos and presentations: hold reminder until you return."
+                  htmlFor="set-busy"
+                >
+                  <Switch
+                    id="set-busy"
+                    label="Hold while busy"
+                    checked={s.holdWhenBusy}
+                    onChange={(holdWhenBusy) => setSettings((x) => ({ ...x, holdWhenBusy }))}
+                  />
+                </Row>
+                <Row
+                  label="Global Reminder Pause"
+                  hint={
+                    paused && s.pausedUntil
+                      ? new Date(s.pausedUntil).getFullYear() > 9000
+                        ? 'Paused until you resume'
+                        : `Paused until ${format(new Date(s.pausedUntil), 'HH:mm')}`
+                      : 'Reminders are active'
+                  }
+                >
+                  {paused ? (
+                    <Button onClick={() => void window.smaran.app.resume()}>Resume</Button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => void window.smaran.app.pause(60)}>
+                        1 hour
+                      </Button>
+                      <Button size="sm" onClick={() => void window.smaran.app.pause(180)}>
+                        3 hours
+                      </Button>
+                      <Button size="sm" onClick={() => void window.smaran.app.pause()}>
+                        Until Resumed
+                      </Button>
+                    </div>
+                  )}
+                </Row>
+              </Card>
+
+              <Card
+                title="Reminder Notification Appearance"
+                description="Customize how notification cards and attention effects display."
+              >
+                <Row label="Screen Corner" hint={CORNER_LABEL[n.corner]}>
+                  <CornerPicker value={n.corner} onChange={(corner) => setN({ corner })} />
+                </Row>
+                <Row label="Target Screen" htmlFor="set-screen">
+                  <Select
+                    id="set-screen"
+                    className="w-64"
+                    value={n.screen}
+                    options={[
+                      { value: 'primary', label: 'Primary Monitor' },
+                      { value: 'cursor', label: 'Screen with Mouse Cursor' },
+                    ]}
+                    onChange={(screen) => setN({ screen })}
+                  />
+                </Row>
+                <Row label="Card Size">
+                  <Segmented
+                    label="Size"
+                    value={n.size}
+                    onChange={(size) => setN({ size })}
+                    options={[
+                      { value: 'compact', label: 'Compact' },
+                      { value: 'comfortable', label: 'Comfortable' },
+                      { value: 'large', label: 'Large' },
+                    ]}
+                  />
+                </Row>
+                <NotificationMotionSettings
+                  motion={n.motion}
+                  onChange={(motion) => setN({ motion })}
+                />
+                <CardShape n={n} onChange={(card) => setN({ card })} />
+                <Row
+                  label="Display Duration"
+                  hint={
+                    n.hideAfterSec === null
+                      ? 'Cards stay on screen until dismissed, snoozed, or completed.'
+                      : 'Hides automatically after the configured duration.'
+                  }
+                >
+                  <div className="flex flex-col gap-2.5">
+                    <Segmented<'timed' | 'permanent'>
+                      label="Duration Mode"
+                      value={n.hideAfterSec === null ? 'permanent' : 'timed'}
+                      options={[
+                        { value: 'timed', label: 'Timed' },
+                        { value: 'permanent', label: 'Permanent' },
+                      ]}
+                      onChange={(mode) =>
+                        setN({ hideAfterSec: mode === 'permanent' ? null : 8 })
+                      }
+                    />
+                    {n.hideAfterSec !== null && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Select<number>
+                          id="set-hide"
+                          className="w-36"
+                          value={
+                            customHideSec || !STAY_PRESETS.includes(n.hideAfterSec)
+                              ? -1
+                              : n.hideAfterSec
+                          }
+                          options={[
+                            { value: 5, label: '5 seconds' },
+                            { value: 8, label: '8 seconds' },
+                            { value: 12, label: '12 seconds' },
+                            { value: 20, label: '20 seconds' },
+                            { value: 30, label: '30 seconds' },
+                            { value: 60, label: '1 minute' },
+                            { value: 120, label: '2 minutes' },
+                            { value: -1, label: 'Custom…' },
+                          ]}
+                          onChange={(sec) => {
+                            if (sec === -1) {
+                              setCustomHideSec(true);
+                            } else {
+                              setCustomHideSec(false);
+                              setN({ hideAfterSec: sec });
+                            }
+                          }}
+                        />
+                        {(customHideSec || !STAY_PRESETS.includes(n.hideAfterSec)) && (
+                          <NumberField
+                            label="Seconds on screen"
+                            value={n.hideAfterSec}
+                            min={3}
+                            max={600}
+                            suffix="seconds"
+                            onChange={(hideAfterSec) => setN({ hideAfterSec })}
+                          />
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
-            </Row>
-            <div className="border-b border-line py-2.5 last:border-b-0">
-              <div className="flex min-h-12 items-center gap-6">
-                <div className="min-w-0 flex-1">
-                  <label htmlFor="set-border-light" className="block text-[13px]">
-                    Screen border light
-                  </label>
-                </div>
-                <div className="flex shrink-0 items-center gap-3">
+                </Row>
+                <Row label="Notification Sound" hint="Gentle audible chime on appearance." htmlFor="set-sound">
+                  <Switch
+                    id="set-sound"
+                    label="Sound chime"
+                    checked={n.sound}
+                    onChange={(sound) => setN({ sound })}
+                  />
+                </Row>
+                <div className="border-b border-line py-2.5 last:border-b-0">
+                  <div className="flex min-h-12 items-center gap-6">
+                    <div className="min-w-0 flex-1">
+                      <label htmlFor="set-border-light" className="block text-[13px]">
+                        Screen border light beam
+                      </label>
+                      <p className="mt-0.5 font-serif text-[13px] leading-snug text-muted italic">
+                        Glowing accent along your display edge while notifications are active.
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                      {(n.borderLight ?? true) && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => void window.smaran.reminders.previewBorderLight()}
+                        >
+                          Preview Beam
+                        </Button>
+                      )}
+                      <Switch
+                        id="set-border-light"
+                        label="Screen border light"
+                        checked={n.borderLight ?? true}
+                        onChange={(borderLight) => setN({ borderLight })}
+                      />
+                    </div>
+                  </div>
                   {(n.borderLight ?? true) && (
+                    <div className="mt-3 space-y-3">
+                      <div>
+                        <div className="flex items-center justify-between text-xs text-muted">
+                          <span>Beam thickness ({n.borderLightThickness ?? 4} px)</span>
+                          <span>{thicknessLabel(n.borderLightThickness ?? 4)}</span>
+                        </div>
+                        <Slider
+                          label="Thickness"
+                          value={n.borderLightThickness ?? 4}
+                          min={1}
+                          max={24}
+                          step={1}
+                          suffix=" px"
+                          onChange={(borderLightThickness) => setN({ borderLightThickness })}
+                        />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between text-xs text-muted">
+                          <span>Brightness intensity</span>
+                          <span>{n.borderLightBrightness ?? 150}%</span>
+                        </div>
+                        <Segmented<'100' | '150' | '200'>
+                          label="Brightness"
+                          value={String(n.borderLightBrightness ?? 150) as '100' | '150' | '200'}
+                          onChange={(b) => setN({ borderLightBrightness: Number(b) })}
+                          options={[
+                            { value: '100', label: 'Normal (100%)' },
+                            { value: '150', label: 'Vivid (150%)' },
+                            { value: '200', label: 'Ultra (200%)' },
+                          ]}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <Row label="Preview Notification">
+                  <Button
+                    onClick={() =>
+                      void window.smaran.reminders.test({
+                        title: 'Reminder Preview',
+                        body: 'This is how your customized notification appears.',
+                        color: 'clay',
+                        important: false,
+                      })
+                    }
+                  >
+                    Send Test Notification
+                  </Button>
+                </Row>
+              </Card>
+
+              <LogoSettingsCard />
+            </div>
+          )}
+
+          {/* ==================== C. AUTOMATION SETTINGS ==================== */}
+          {tab === 'automations' && (
+            <div className="space-y-6">
+              <Card
+                title="Automation Execution"
+                description="Automate apps, links, scripts, and power actions based on schedules and system events."
+              >
+                <Row
+                  label="Enable Automations"
+                  hint="Master switch to activate or pause all configured background automations."
+                  htmlFor="set-auto-enable"
+                >
+                  <Switch
+                    id="set-auto-enable"
+                    label="Enable automations"
+                    checked={a.enabled}
+                    onChange={(enabled) => setA({ enabled })}
+                  />
+                </Row>
+                <Row
+                  label="Global Automation Pause"
+                  hint="Temporarily stop all scheduled automations without disabling individual items."
+                  htmlFor="set-auto-pause"
+                >
+                  <Switch
+                    id="set-auto-pause"
+                    label="Pause automations"
+                    checked={a.paused}
+                    onChange={(paused) => setA({ paused })}
+                  />
+                </Row>
+              </Card>
+
+              <Card
+                title="Smart Pre-Execution Notification System"
+                description="Display desktop countdown cards before any automation action is executed."
+              >
+                <Row
+                  label="Pre-execution countdown notification"
+                  hint="Shows a notification before executing the action, giving you time to cancel or run immediately."
+                  htmlFor="set-auto-notify-pre"
+                >
+                  <Switch
+                    id="set-auto-notify-pre"
+                    label="Pre-execution notification"
+                    checked={a.notifyPreExecution}
+                    onChange={(notifyPreExecution) => setA({ notifyPreExecution })}
+                  />
+                </Row>
+                {a.notifyPreExecution && (
+                  <div className="border-b border-line py-3 last:border-b-0">
+                    <div className="flex items-center justify-between text-xs text-muted mb-1.5">
+                      <span className="font-medium text-ink">Countdown Duration</span>
+                      <span className="font-mono tabular-nums text-accent font-semibold">
+                        {a.preExecutionCountdownSec} seconds
+                      </span>
+                    </div>
+                    <Slider
+                      label="Countdown duration"
+                      value={a.preExecutionCountdownSec}
+                      min={1}
+                      max={60}
+                      step={1}
+                      suffix=" sec"
+                      onChange={(preExecutionCountdownSec) => setA({ preExecutionCountdownSec })}
+                    />
+                    <p className="mt-1 font-serif text-[12.5px] text-muted italic">
+                      Default is 5 seconds. The automation executes only after the countdown completes or when you click Run Now.
+                    </p>
+                  </div>
+                )}
+                <Row
+                  label="Countdown Notification Sound"
+                  hint="Play subtle audio chime when the pre-execution card appears."
+                  htmlFor="set-auto-sound"
+                >
+                  <Switch
+                    id="set-auto-sound"
+                    label="Audio chime"
+                    checked={a.sound}
+                    onChange={(sound) => setA({ sound })}
+                  />
+                </Row>
+                <Row
+                  label="Failed Automation Alerts"
+                  hint="Receive immediate desktop alert if any automation script or action encounters an error."
+                  htmlFor="set-auto-notify-fail"
+                >
+                  <Switch
+                    id="set-auto-notify-fail"
+                    label="Failure alerts"
+                    checked={a.notifyOnFailure}
+                    onChange={(notifyOnFailure) => setA({ notifyOnFailure })}
+                  />
+                </Row>
+              </Card>
+            </div>
+          )}
+
+          {/* ==================== D. FILE SERVER SETTINGS ==================== */}
+          {tab === 'fileserver' && (
+            <div className="space-y-6">
+              <Card
+                title="Server Status & Network"
+                description="Fast, zero-trust local file server and WebDAV storage for PC, phones, and LAN devices."
+              >
+                <Row
+                  label="File Server Enabled"
+                  hint={
+                    fsStatus?.running
+                      ? `Running on port ${fsStatus.port}. LAN addresses accessible.`
+                      : 'File server is currently offline.'
+                  }
+                  htmlFor="set-fs-enable"
+                >
+                  <Switch
+                    id="set-fs-enable"
+                    label="Enable File Server"
+                    checked={fsSettings?.enabled ?? false}
+                    onChange={(enabled) => void updateFs({ enabled })}
+                  />
+                </Row>
+                <Row
+                  label="Start with Smaran"
+                  hint="Automatically launch the file server whenever Smaran starts."
+                  htmlFor="set-fs-autostart"
+                >
+                  <Switch
+                    id="set-fs-autostart"
+                    label="Auto-start with app"
+                    checked={fsSettings?.autoStart ?? false}
+                    onChange={(autoStart) => void updateFs({ autoStart, autoStartConfigured: true })}
+                  />
+                </Row>
+                <Row
+                  label="Server Port"
+                  hint="Unprivileged local TCP port (1024–65535, default 5901)."
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs px-2.5 py-1 rounded bg-raised border border-line">
+                      {fsSettings?.port ?? 5901}
+                    </span>
                     <Button
                       size="sm"
                       variant="secondary"
-                      onClick={() => void window.smaran.reminders.previewBorderLight()}
+                      onClick={() => useApp.getState().go('fileserver')}
                     >
-                      Preview on screen
+                      Configure Port & Root Folder…
                     </Button>
-                  )}
-                  <Switch
-                    id="set-border-light"
-                    label="Screen border light"
-                    checked={n.borderLight ?? true}
-                    onChange={(borderLight) => setN({ borderLight })}
-                  />
-                </div>
-              </div>
-              <p className="mt-0.5 font-serif text-[13px] leading-snug text-muted italic">
-                An animated, moving color beam along the edge of your screen while notifications are waiting.
-              </p>
-
-              {(n.borderLight ?? true) && (
-                <div className="mt-3 space-y-3">
-                  {/* Thickness */}
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[13px]">Border thickness</span>
-                      <span className="font-mono text-[12px] text-muted tabular-nums">
-                        {n.borderLightThickness ?? 4} px · {thicknessLabel(n.borderLightThickness ?? 4)}
-                      </span>
-                    </div>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                      {[
-                        { px: 1, label: 'Hairline (1px)' },
-                        { px: 2, label: 'Very Thin (2px)' },
-                        { px: 4, label: 'Thin (4px)' },
-                        { px: 8, label: 'Medium (8px)' },
-                        { px: 14, label: 'Thick (14px)' },
-                        { px: 20, label: 'Very Thick (20px)' },
-                      ].map((preset) => {
-                        const active = (n.borderLightThickness ?? 4) === preset.px;
-                        return (
-                          <button
-                            key={preset.px}
-                            type="button"
-                            onClick={() => setN({ borderLightThickness: preset.px })}
-                            className={cx(
-                              'rounded-lg px-2.5 py-1 text-xs font-medium transition-all duration-150',
-                              active
-                                ? 'bg-accent text-on-accent shadow-sm'
-                                : 'bg-raised text-muted hover:bg-hover hover:text-ink ring-1 ring-line',
-                            )}
-                          >
-                            {preset.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-2">
-                      <Slider
-                        label="Border thickness"
-                        value={n.borderLightThickness ?? 4}
-                        min={1}
-                        max={24}
-                        step={1}
-                        suffix=" px"
-                        onChange={(thickness) => setN({ borderLightThickness: thickness })}
-                      />
-                    </div>
                   </div>
-
-                  {/* Brightness */}
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[13px]">Border brightness</span>
-                      <span className="font-mono text-[12px] text-muted tabular-nums">
-                        {n.borderLightBrightness ?? 150}%
-                      </span>
-                    </div>
-                    <div className="mt-1.5">
-                      <Segmented<'100' | '150' | '200'>
-                        label="Border brightness"
-                        value={String(n.borderLightBrightness ?? 150) as '100' | '150' | '200'}
-                        onChange={(brightness) =>
-                          setN({ borderLightBrightness: Number(brightness) })
-                        }
-                        options={[
-                          { value: '100', label: 'Standard (100%)' },
-                          { value: '150', label: 'High (150%)' },
-                          { value: '200', label: 'Ultra Vivid (200%)' },
-                        ]}
-                      />
-                    </div>
-                    <p className="mt-1 font-serif text-[12px] leading-snug text-muted italic">
-                      High brightness illuminates screen edges with multi-layer neon glow and white-hot accents.
-                    </p>
-                  </div>
-
-                  <p className="font-serif text-[12px] leading-snug text-muted italic">
-                    Fades in smoothly when alerts arrive, and leaves strictly with a smooth fade-out when dismissed.
-                  </p>
-                </div>
-              )}
-            </div>
-            <Row label="Sound" hint="A soft chime when a reminder appears." htmlFor="set-sound">
-              <Switch
-                id="set-sound"
-                label="Sound"
-                checked={n.sound}
-                onChange={(sound) => setN({ sound })}
-              />
-            </Row>
-            <Row label="Try It">
-              <Button
-                onClick={() =>
-                  void window.smaran.reminders.test({
-                    title: 'This is how reminders look',
-                    body: 'Done, Snooze, or let it fade on its own.',
-                    color: 'clay',
-                    important: false,
-                  })
-                }
-              >
-                Send a Test Reminder
-              </Button>
-            </Row>
-          </Card>
-        )}
-
-        {tab === 'focus' && (
-          <Card
-            title="Focus"
-            description="Keep reminders out of the way when you need to concentrate."
-          >
-            <Row
-              label="Quiet Hours"
-              hint={
-                s.quietHours.enabled
-                  ? 'Repeating reminders are skipped; timed ones wait until quiet hours end. Important ones still come through.'
-                  : 'Off'
-              }
-              htmlFor="set-quiet"
-            >
-              {s.quietHours.enabled && (
-                <span className="flex items-center gap-2 text-[13px] text-muted">
-                  <TimeField
-                    label="Quiet from"
-                    value={s.quietHours.from}
-                    onChange={(from) =>
-                      setSettings((x) => ({ ...x, quietHours: { ...x.quietHours, from } }))
-                    }
-                  />
-                  to
-                  <TimeField
-                    label="Quiet until"
-                    value={s.quietHours.to}
-                    onChange={(to) =>
-                      setSettings((x) => ({ ...x, quietHours: { ...x.quietHours, to } }))
-                    }
-                  />
-                </span>
-              )}
-              <Switch
-                id="set-quiet"
-                label="Quiet Hours"
-                checked={s.quietHours.enabled}
-                onChange={(enabled) =>
-                  setSettings((x) => ({ ...x, quietHours: { ...x.quietHours, enabled } }))
-                }
-              />
-            </Row>
-            <Row
-              label="Wait while I’m in a full-screen app"
-              hint="Games, videos and presentations. The reminder shows when you’re back."
-              htmlFor="set-busy"
-            >
-              <Switch
-                id="set-busy"
-                label="Hold while busy"
-                checked={s.holdWhenBusy}
-                onChange={(holdWhenBusy) => setSettings((x) => ({ ...x, holdWhenBusy }))}
-              />
-            </Row>
-            <Row
-              label="Pause all reminders"
-              hint={
-                paused && s.pausedUntil
-                  ? new Date(s.pausedUntil).getFullYear() > 9000
-                    ? 'Paused until you resume'
-                    : `Paused until ${format(new Date(s.pausedUntil), 'HH:mm')}`
-                  : 'Reminders are on'
-              }
-            >
-              {paused ? (
-                <Button onClick={() => void window.smaran.app.resume()}>Resume</Button>
-              ) : (
-                <>
-                  <Button size="sm" onClick={() => void window.smaran.app.pause(60)}>
-                    1 hour
-                  </Button>
-                  <Button size="sm" onClick={() => void window.smaran.app.pause(180)}>
-                    3 hours
-                  </Button>
-                  <Button size="sm" onClick={() => void window.smaran.app.pause()}>
-                    Until I Resume
-                  </Button>
-                </>
-              )}
-            </Row>
-          </Card>
-        )}
-
-        {tab === 'data' && (
-          <Card
-            title="Your data"
-            description="Reminders are stored on this computer only."
-          >
-            <Row label="Back up" hint="Save all reminders and settings to a file.">
-              <Button onClick={() => void runBackup(() => window.smaran.backup.export())}>
-                Back Up…
-              </Button>
-            </Row>
-            <Row label="Restore" hint="Replace everything with a backup.">
-              <Button onClick={() => void runBackup(() => window.smaran.backup.import('replace'))}>
-                Restore…
-              </Button>
-            </Row>
-            <Row
-              label="Add from a file"
-              hint="Add reminders from a backup, Smaran 2.0 or Smaran v1 (smaran_settings.json)."
-            >
-              <Button onClick={() => void runBackup(() => window.smaran.backup.import('add'))}>
-                Choose File…
-              </Button>
-            </Row>
-            <Row label="Data folder" hint={info?.dataFolder}>
-              <Button variant="ghost" onClick={() => void window.smaran.app.openDataFolder()}>
-                Open
-              </Button>
-            </Row>
-            {backupMsg && (
-              <p
-                role="status"
-                className={cx(
-                  'animate-fade py-2 text-[12.5px] whitespace-pre-wrap',
-                  backupMsg.tone === 'error' ? 'text-danger' : 'text-ok',
+                </Row>
+                {fsFeedback && (
+                  <p className="text-xs text-accent font-medium py-1">{fsFeedback}</p>
                 )}
+              </Card>
+
+              <Card
+                title="Real-Time Security & Activity Notifications"
+                description="Receive instant alerts on your desktop whenever clients interact with the file server."
               >
-                {backupMsg.text}
-              </p>
-            )}
-          </Card>
-        )}
+                <Row
+                  label="Successful Login Alerts"
+                  hint="Notify whenever a user signs into Smaran HFS with IP address, device, and LAN/External tag."
+                  htmlFor="set-fs-notify-login"
+                >
+                  <Switch
+                    id="set-fs-notify-login"
+                    label="Login alerts"
+                    checked={fsSettings?.notifyOnLogin ?? true}
+                    onChange={(notifyOnLogin) => void updateFs({ notifyOnLogin })}
+                  />
+                </Row>
+                <Row
+                  label="Failed Login Security Alerts"
+                  hint="Alerts immediately when unauthorized or incorrect credentials are submitted, tracking repeat attempts."
+                  htmlFor="set-fs-notify-failed"
+                >
+                  <Switch
+                    id="set-fs-notify-failed"
+                    label="Failed login alerts"
+                    checked={fsSettings?.notifyOnFailedLogin ?? true}
+                    onChange={(notifyOnFailedLogin) => void updateFs({ notifyOnFailedLogin })}
+                  />
+                </Row>
+                <Row
+                  label="Administrator Activity Alerts"
+                  hint="Alerts when server port, storage root, administrator account, or lifecycle changes."
+                  htmlFor="set-fs-notify-admin"
+                >
+                  <Switch
+                    id="set-fs-notify-admin"
+                    label="Admin alerts"
+                    checked={fsSettings?.notifyOnAdminActivity ?? true}
+                    onChange={(notifyOnAdminActivity) => void updateFs({ notifyOnAdminActivity })}
+                  />
+                </Row>
+              </Card>
+            </div>
+          )}
         </motion.div>
       </AnimatePresence>
 

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { generateHfsConfigYaml } from '../../src/main/fileserver/HfsConfigBridge';
-import type { FileServerSettings, UserAccount, VfsNode } from '../../src/shared/fileserver';
+import type {
+  FileServerSecurityEvent,
+  FileServerSettings,
+  UserAccount,
+  VfsNode,
+} from '../../src/shared/fileserver';
 
 describe('HfsConfigBridge', () => {
   const dummySettings: FileServerSettings = {
@@ -11,6 +16,9 @@ describe('HfsConfigBridge', () => {
     autoOpenAdminOnStart: false,
     adminUsername: 'smaran',
     adminPassword: 'secretpassword123',
+    notifyOnLogin: true,
+    notifyOnFailedLogin: true,
+    notifyOnAdminActivity: true,
   };
 
   it('generates zero-trust config.yaml enforcing localhost_admin: false', () => {
@@ -211,25 +219,79 @@ describe('HfsProcessSupervisor port & environment verification', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it('extracts real resources/engine.tar.gz and verifies all root entry points exist', async () => {
+  it(
+    'extracts real resources/engine.tar.gz and verifies all root entry points exist',
+    async () => {
+      const { HfsProcessSupervisor } = await import('../../src/main/fileserver/HfsProcessSupervisor');
+      const { FileServerStore } = await import('../../src/main/fileserver/FileServerStore');
+      const os = await import('node:os');
+      const path = await import('node:path');
+      const fs = await import('node:fs');
+
+      const tempDir = path.join(os.tmpdir(), `smaran_extract_test_${Date.now()}`);
+      const store = new FileServerStore(tempDir);
+      const supervisor = new HfsProcessSupervisor(tempDir, store, {
+        isLicenseValid: () => true,
+      });
+
+      await supervisor.ensureEngineExtracted();
+
+      const runtimeDir = supervisor.runtimeDir;
+      expect(fs.existsSync(path.join(runtimeDir, 'src', 'index.js'))).toBe(true);
+      expect(fs.existsSync(path.join(runtimeDir, 'package.json'))).toBe(true);
+      expect(fs.existsSync(path.join(runtimeDir, 'central.json'))).toBe(true);
+
+      // Clean up
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    },
+    30000,
+  );
+
+  it('parses security events, normalizes IPs and tracks repeat failed attempts', async () => {
     const { HfsProcessSupervisor } = await import('../../src/main/fileserver/HfsProcessSupervisor');
     const { FileServerStore } = await import('../../src/main/fileserver/FileServerStore');
     const os = await import('node:os');
     const path = await import('node:path');
     const fs = await import('node:fs');
 
-    const tempDir = path.join(os.tmpdir(), `smaran_extract_test_${Date.now()}`);
+    const tempDir = path.join(os.tmpdir(), `smaran_sec_test_${Date.now()}`);
     const store = new FileServerStore(tempDir);
+    const events: FileServerSecurityEvent[] = [];
+
     const supervisor = new HfsProcessSupervisor(tempDir, store, {
       isLicenseValid: () => true,
+      onSecurityEvent: (ev: FileServerSecurityEvent) => events.push(ev),
     });
 
-    await supervisor.ensureEngineExtracted();
+    // 1. Simulate failed login line
+    const failedLine = `[SMARAN_SECURITY_EVENT] ${JSON.stringify({
+      type: 'failedLogin',
+      username: 'attacker',
+      clientIp: '::ffff:203.0.113.195',
+      userAgent: 'Mozilla/5.0',
+      reason: 'bad password',
+    })}`;
+    // @ts-expect-error calling private helper for unit test
+    supervisor.parseLogLine(failedLine);
 
-    const runtimeDir = supervisor.runtimeDir;
-    expect(fs.existsSync(path.join(runtimeDir, 'src', 'index.js'))).toBe(true);
-    expect(fs.existsSync(path.join(runtimeDir, 'package.json'))).toBe(true);
-    expect(fs.existsSync(path.join(runtimeDir, 'central.json'))).toBe(true);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.type).toBe('failedLogin');
+    expect(events[0]?.username).toBe('attacker');
+    expect(events[0]?.clientIp).toBe('203.0.113.195');
+    expect(events[0]?.accessType).toBe('External');
+    expect(events[0]?.repeatCount).toBe(1);
+
+    // 2. Repeat failed login from same IP
+    // @ts-expect-error calling private helper for unit test
+    supervisor.parseLogLine(failedLine);
+    expect(events).toHaveLength(2);
+    expect(events[1]?.repeatCount).toBe(2);
+
+    // 3. Admin activity emission
+    supervisor.emitAdminActivity('Changed server port to 5902');
+    expect(events).toHaveLength(3);
+    expect(events[2]?.type).toBe('adminActivity');
+    expect(events[2]?.details).toBe('Changed server port to 5902');
 
     // Clean up
     fs.rmSync(tempDir, { recursive: true, force: true });

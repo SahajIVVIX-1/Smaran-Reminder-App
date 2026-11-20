@@ -48,6 +48,7 @@ interface Run {
   state: AutomationRun['state'];
   until: Date | null;
   cancelled: boolean;
+  manual: boolean;
   /** Ends the current wait early (cancel). */
   wake: (() => void) | null;
   /** Answers the Cancel card: true = go ahead. */
@@ -280,6 +281,11 @@ export class AutomationEngine {
     }
     const config = this.deps.store.get();
     const now = this.now();
+    const autoSettings = config.settings.automation;
+    if (!manual && autoSettings && (!autoSettings.enabled || autoSettings.paused)) {
+      this.record(a, 'skipped', 'Automations are disabled or paused', dueAt);
+      return;
+    }
     if (!manual && a.respectPause) {
       if (isPaused(config, now)) {
         this.record(a, 'skipped', 'Paused', dueAt);
@@ -296,6 +302,7 @@ export class AutomationEngine {
       state: 'running',
       until: null,
       cancelled: false,
+      manual,
       wake: null,
       decide: null,
       cardKey: null,
@@ -310,6 +317,25 @@ export class AutomationEngine {
 
   private async steps(run: Run, trigger: string, dueAt?: Date): Promise<void> {
     const a = run.automation;
+    const autoSettings = this.deps.store.get().settings.automation;
+    const notifyPre = autoSettings?.notifyPreExecution ?? true;
+    const countdownSec = autoSettings?.preExecutionCountdownSec ?? 5;
+
+    // Show pre-execution countdown if enabled, not manual "Run Now", and not already covered by disruptive countdown
+    const firstStep = a.steps[0];
+    const isFirstStepDisruptiveWithWarn =
+      firstStep && isDisruptive(firstStep.action) && a.warnSec > 0;
+    if (
+      !run.manual &&
+      notifyPre &&
+      countdownSec > 0 &&
+      firstStep &&
+      !isFirstStepDisruptiveWithWarn
+    ) {
+      const go = await this.preExecutionCountdown(run, firstStep.action, countdownSec, dueAt);
+      if (!go) return;
+    }
+
     const done: string[] = [];
     let recorded = false;
     for (const step of a.steps) {
@@ -329,12 +355,93 @@ export class AutomationEngine {
       try {
         await this.deps.run(step.action);
       } catch (error) {
-        this.record(a, 'failed', `${label}: ${(error as Error).message}`, dueAt);
+        const msg = (error as Error).message;
+        this.record(a, 'failed', `${label}: ${msg}`, dueAt);
+        if (autoSettings?.notifyOnFailure ?? true) {
+          const failKey = `${CARD_PREFIX}fail-${++this.seq}`;
+          this.deps.notifier.show({
+            key: failKey,
+            reminderId: null,
+            title: 'Automation Failed',
+            body: `“${a.name}” failed at step ${label}: ${msg}`,
+            color: 'rose',
+            important: true,
+            label: 'Automation',
+            category: 'automations',
+            details: { automationName: a.name, step: label, error: msg },
+            hideAfterSec: 10,
+            sound: true,
+          });
+        }
         return;
       }
       done.push(label);
     }
     if (!recorded) this.record(a, 'ran', `${trigger}: ${done.join(', then ')}`, dueAt);
+  }
+
+  /**
+   * Pre-execution countdown notification: warns before running the action.
+   * Cancel prevents execution, Run Now executes immediately, timeout executes automatically.
+   */
+  private preExecutionCountdown(
+    run: Run,
+    firstAction: Action,
+    secondsSec: number,
+    dueAt?: Date,
+  ): Promise<boolean> {
+    if (run.cancelled) return Promise.resolve(false);
+    const a = run.automation;
+    const key = `${CARD_PREFIX}${++this.seq}`;
+    run.state = 'countdown';
+    run.until = new Date(this.now().getTime() + secondsSec * 1000);
+    run.cardKey = key;
+    this.changed();
+
+    const summary = actionSummary(firstAction);
+    const timeStr = dueAt ? ` · Scheduled time: ${format(dueAt, 'HH:mm')}` : '';
+
+    this.deps.notifier.show({
+      key,
+      reminderId: null,
+      title: 'Smaran Automation',
+      body: `${summary} is about to run.${timeStr}\nAutomation: ${a.name}`,
+      color: 'clay',
+      important: true,
+      label: 'Automation',
+      category: 'automations',
+      details: {
+        automationName: a.name,
+        actionSummary: summary,
+        scheduledTime: dueAt ? format(dueAt, 'HH:mm') : undefined,
+      },
+      hideAfterSec: secondsSec,
+      sound: this.deps.store.get().settings.automation?.sound ?? true,
+      countdown: true,
+    });
+
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        if (run.cardKey === key) {
+          run.decide = null;
+          run.cardKey = null;
+          this.deps.notifier.close(key);
+          resolve(!run.cancelled);
+        }
+      }, secondsSec * 1000);
+
+      run.decide = (go) => {
+        clearTimeout(timer);
+        run.decide = null;
+        run.cardKey = null;
+        this.deps.notifier.close(key);
+        if (!go) {
+          run.cancelled = true;
+          this.record(a, 'cancelled', 'Cancelled from notification', dueAt);
+        }
+        resolve(go && !run.cancelled);
+      };
+    });
   }
 
   /** Waits `ms`; false if the run was cancelled meanwhile. */
@@ -396,6 +503,8 @@ export class AutomationEngine {
 
   private record(a: Automation, outcome: Outcome, detail: string, dueAt?: Date): void {
     const now = this.now();
+    const severity =
+      outcome === 'failed' ? 'warning' : outcome === 'cancelled' ? 'info' : 'success';
     this.deps.history.add({
       id: this.newId(),
       reminderId: a.id,
@@ -404,6 +513,8 @@ export class AutomationEngine {
       at: now.toISOString(),
       outcome,
       detail,
+      category: 'automations',
+      severity,
     });
   }
 }

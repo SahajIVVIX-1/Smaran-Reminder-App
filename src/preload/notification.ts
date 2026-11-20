@@ -20,6 +20,7 @@ const CH = {
   notifDone: 'notif:done',
   notifInteractive: 'notif:interactive',
   notifShape: 'notif:shape',
+  notifUnhover: 'notif:unhover',
   menuPopup: 'menu:popup',
   navigate: 'app:navigate',
 } as const satisfies Partial<typeof IPC>;
@@ -35,6 +36,11 @@ const api = {
   /** Main asks the card to animate out; answer with done(). */
   onClose: (listener: () => void): void => {
     ipcRenderer.once(CH.notifClose, () => listener());
+  },
+  onUnhover: (listener: () => void): (() => void) => {
+    const handler = () => listener();
+    ipcRenderer.on(CH.notifUnhover, handler);
+    return () => ipcRenderer.removeListener(CH.notifUnhover, handler);
   },
   measured: (w: number, h: number): void => ipcRenderer.send(CH.notifMeasured, { w, h }),
   act: (action: NotificationAction): void => ipcRenderer.send(CH.notifAction, action),

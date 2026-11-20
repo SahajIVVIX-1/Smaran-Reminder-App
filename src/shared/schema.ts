@@ -81,6 +81,7 @@ export const CardShapeSchema = z.object({
 export type CardShape = z.infer<typeof CardShapeSchema>;
 
 export const NotificationMotionSchema = z.object({
+  enabled: z.boolean().optional(),
   type: z.enum(['fade-cycle', 'bounce', 'pulse', 'wiggle', 'slide']),
   fadeCycle: z.object({
     visibleSec: z.number().min(1).max(60),
@@ -107,6 +108,7 @@ export type NotificationMotion = z.infer<typeof NotificationMotionSchema>;
 export type MotionType = NotificationMotion['type'];
 
 export const DEFAULT_NOTIFICATION_MOTION: NotificationMotion = {
+  enabled: false,
   type: 'fade-cycle',
   fadeCycle: {
     visibleSec: 3,
@@ -210,6 +212,27 @@ export const LogoSettingsSchema = z.object({
 });
 export type LogoSettings = z.infer<typeof LogoSettingsSchema>;
 
+export const AutomationSettingsSchema = z.object({
+  enabled: z.boolean().default(true),
+  paused: z.boolean().default(false),
+  notifyPreExecution: z.boolean().default(true),
+  preExecutionCountdownSec: z.number().int().min(1).max(60).default(5),
+  notifyOnFailure: z.boolean().default(true),
+  notifyOnSuccess: z.boolean().default(false),
+  sound: z.boolean().default(true),
+});
+export type AutomationSettings = z.infer<typeof AutomationSettingsSchema>;
+
+export const DEFAULT_AUTOMATION_SETTINGS: AutomationSettings = {
+  enabled: true,
+  paused: false,
+  notifyPreExecution: true,
+  preExecutionCountdownSec: 5,
+  notifyOnFailure: true,
+  notifyOnSuccess: false,
+  sound: true,
+};
+
 export const SettingsSchema = z.object({
   startAtLogin: z.boolean(),
   theme: z.enum(['system', 'light', 'dark']),
@@ -242,6 +265,8 @@ export const SettingsSchema = z.object({
   onboarded: z.boolean(),
   /** The Smaran dots: title-bar logo and tray icon. */
   logo: LogoSettingsSchema,
+  /** Automation execution & pre-execution notification settings. */
+  automation: AutomationSettingsSchema.default(DEFAULT_AUTOMATION_SETTINGS),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 
@@ -390,20 +415,31 @@ export const OUTCOMES = [
   'ran',
   'failed',
   'cancelled',
+  // File Server & Security:
+  'login',
+  'failed_login',
+  'logout',
+  'server_started',
+  'server_stopped',
+  'config_changed',
 ] as const;
 
 export const HistoryEntrySchema = z.object({
   id: IdSchema,
-  /** The reminder, or the automation for 'ran', 'failed' and 'cancelled' (and its 'skipped'). */
+  /** The reminder, automation, or source entity id. */
   reminderId: IdSchema,
   title: z.string(),
-  /** When it was due. */
+  /** When it was due or scheduled. */
   dueAt: z.iso.datetime({ offset: true }),
   /** When the outcome happened. */
   at: z.iso.datetime({ offset: true }),
-  outcome: z.enum(OUTCOMES),
+  outcome: z.string(),
   /** Short plain-English detail, e.g. "Snoozed 15 min", "Quiet hours". */
   detail: z.string().optional(),
+  category: z.enum(['reminders', 'automations', 'fileserver', 'security', 'system']).optional(),
+  severity: z.enum(['info', 'success', 'warning', 'critical']).optional(),
+  read: z.boolean().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 export type HistoryEntry = z.infer<typeof HistoryEntrySchema>;
-export type Outcome = HistoryEntry['outcome'];
+export type Outcome = (typeof OUTCOMES)[number] | string;

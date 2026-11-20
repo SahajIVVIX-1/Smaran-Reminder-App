@@ -50,27 +50,46 @@ export function NotificationMotionSettings({
   const setSlide = (patch: Partial<NotificationMotion['slide']>) =>
     onChange({ ...motion, slide: { ...motion.slide, ...patch } });
 
+  const isEnabled = motion.enabled === true;
+
   return (
     <>
       <Row
         label="Attention motion"
-        hint={MOTION_DESCRIPTIONS[motion.type]}
-        htmlFor="set-motion-type"
+        hint={
+          isEnabled
+            ? MOTION_DESCRIPTIONS[motion.type]
+            : 'Off by default. Enable to choose continuous attention-grabbing animations.'
+        }
       >
-        <Select<MotionType>
-          id="set-motion-type"
-          className="w-52"
-          value={motion.type}
-          options={[
-            { value: 'fade-cycle', label: 'Fade Cycle' },
-            { value: 'bounce', label: 'Bounce / Spring' },
-            { value: 'pulse', label: 'Breathing Pulse' },
-            { value: 'wiggle', label: 'Attention Shake' },
-            { value: 'slide', label: 'Classic Slide' },
-          ]}
-          onChange={(type: MotionType) => setType(type)}
+        <Switch
+          label="Enable attention motion effects"
+          checked={isEnabled}
+          onChange={(enabled) => onChange({ ...motion, enabled })}
         />
       </Row>
+
+      {isEnabled && (
+        <>
+          <Row
+            label="Motion style"
+            hint={MOTION_DESCRIPTIONS[motion.type]}
+            htmlFor="set-motion-type"
+          >
+            <Select<MotionType>
+              id="set-motion-type"
+              className="w-52"
+              value={motion.type}
+              options={[
+                { value: 'fade-cycle', label: 'Fade Cycle' },
+                { value: 'bounce', label: 'Bounce / Spring' },
+                { value: 'pulse', label: 'Breathing Pulse' },
+                { value: 'wiggle', label: 'Attention Shake' },
+                { value: 'slide', label: 'Classic Slide' },
+              ]}
+              onChange={(type: MotionType) => setType(type)}
+            />
+          </Row>
 
       {/* Motion-specific options based on the chosen motion type */}
       {motion.type === 'fade-cycle' && (
@@ -277,6 +296,8 @@ export function NotificationMotionSettings({
             ]}
           />
         </Row>
+      )}
+        </>
       )}
     </>
   );
