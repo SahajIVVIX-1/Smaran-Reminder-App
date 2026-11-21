@@ -11,11 +11,12 @@ import { CardShape } from '../components/CardShape';
 import { FontPicker } from '../components/FontPicker';
 import { NotificationMotionSettings } from '../components/NotificationMotionSettings';
 import { Select } from '../components/Select';
-import { LogoSettingsCard } from '../components/LogoSettings';
+import { LogoSettingsCard, NotificationLogoCard } from '../components/LogoSettings';
 import { TimeField } from '../components/TimeField';
 import { Button, Card, NumberField, Row, Segmented, Slider, Switch } from '../ui';
 import {
   BellIcon,
+  ClockIcon,
   GearIcon,
   ServerIcon,
   SparkIcon,
@@ -30,15 +31,24 @@ const CORNER_LABEL: Record<SettingsT['notification']['corner'], string> = {
 };
 
 function thicknessLabel(px: number): string {
-  if (px <= 1) return 'Hairline (Ultra Thin)';
-  if (px <= 2) return 'Very Thin';
-  if (px <= 4) return 'Thin';
-  if (px <= 8) return 'Medium';
-  if (px <= 14) return 'Thick';
+  if (px <= 1) return 'Hairline (1px)';
+  if (px <= 2) return 'Very Thin (2px)';
+  if (px <= 4) return 'Thin (4px)';
+  if (px <= 8) return 'Medium (8px)';
+  if (px <= 14) return 'Thick (14px)';
   return 'Very Thick';
 }
 
-type SettingsTab = 'system' | 'reminders' | 'automations' | 'fileserver';
+const THICKNESS_PRESETS = [
+  { px: 1, label: 'Hairline' },
+  { px: 2, label: 'Very Thin' },
+  { px: 4, label: 'Thin' },
+  { px: 8, label: 'Medium' },
+  { px: 14, label: 'Thick' },
+  { px: 20, label: 'Very Thick' },
+];
+
+type SettingsTab = 'system' | 'notifications' | 'reminders' | 'automations' | 'fileserver';
 
 interface TabItem {
   id: SettingsTab;
@@ -48,7 +58,8 @@ interface TabItem {
 
 const SETTINGS_TABS: readonly TabItem[] = [
   { id: 'system', label: 'System', icon: GearIcon },
-  { id: 'reminders', label: 'Reminders', icon: BellIcon },
+  { id: 'notifications', label: 'Notifications', icon: BellIcon },
+  { id: 'reminders', label: 'Reminders', icon: ClockIcon },
   { id: 'automations', label: 'Automations', icon: SparkIcon },
   { id: 'fileserver', label: 'File Server', icon: ServerIcon },
 ];
@@ -139,6 +150,7 @@ export function Settings() {
     notifyOnFailure: true,
     notifyOnSuccess: false,
     sound: true,
+    borderLight: false,
   };
 
   const setN = (patch: Partial<SettingsT['notification']>) =>
@@ -184,7 +196,7 @@ export function Settings() {
       <header className="animate-enter">
         <h1 className="font-serif text-[26px] leading-tight">Settings</h1>
         <p className="mt-1 font-serif text-[14.5px] text-muted italic">
-          Unified system, reminders, automation and file server preferences.
+          Unified system, notifications, reminders, automations and file server preferences.
         </p>
       </header>
 
@@ -236,7 +248,7 @@ export function Settings() {
           {/* ==================== A. SYSTEM SETTINGS ==================== */}
           {tab === 'system' && (
             <div className="space-y-6">
-              <Card title="Application Startup & Behavior" description="System integration and appearance.">
+              <Card title="Application Startup & Window Behavior" description="System integration, minimize behavior, and window chrome.">
                 <Row
                   label="Start with Windows"
                   hint="Smaran starts automatically in the system tray when you sign in."
@@ -247,6 +259,30 @@ export function Settings() {
                     label="Start with Windows"
                     checked={s.startAtLogin}
                     onChange={(v) => setSettings((x) => ({ ...x, startAtLogin: v }))}
+                  />
+                </Row>
+                <Row
+                  label="Minimize to System Tray"
+                  hint="When minimizing, close the window to the system tray while Smaran continues running in the background."
+                  htmlFor="set-minimize-tray"
+                >
+                  <Switch
+                    id="set-minimize-tray"
+                    label="Minimize to tray"
+                    checked={s.minimizeToTray ?? false}
+                    onChange={(minimizeToTray) => setSettings((x) => ({ ...x, minimizeToTray }))}
+                  />
+                </Row>
+                <Row
+                  label="Keep in Tray on Close"
+                  hint="When clicking the title bar close (X) button, keep running quietly in the background tray."
+                  htmlFor="set-close-tray"
+                >
+                  <Switch
+                    id="set-close-tray"
+                    label="Keep in tray on close"
+                    checked={s.closeToTray ?? true}
+                    onChange={(closeToTray) => setSettings((x) => ({ ...x, closeToTray }))}
                   />
                 </Row>
                 <Row
@@ -271,6 +307,9 @@ export function Settings() {
                   <FontPicker value={s.font} onChange={(font) => setSettings((x) => ({ ...x, font }))} />
                 </Row>
               </Card>
+
+              {/* Title Bar Logo & System Tray */}
+              <LogoSettingsCard />
 
               <Card
                 title="Data Storage & Backup"
@@ -320,93 +359,143 @@ export function Settings() {
             </div>
           )}
 
-          {/* ==================== B. REMINDER SETTINGS ==================== */}
-          {tab === 'reminders' && (
+          {/* ==================== B. NOTIFICATIONS SETTINGS ==================== */}
+          {tab === 'notifications' && (
             <div className="space-y-6">
+              {/* 1. Screen Border Light Beam */}
               <Card
-                title="Focus & Quiet Hours"
-                description="Keep reminders gentle and non-disruptive when you need to concentrate."
+                title="Screen Border Light Beam"
+                description="An animated, luminous neon beam along the perimeter of your display while notifications are active."
               >
                 <Row
-                  label="Quiet Hours"
-                  hint={
-                    s.quietHours.enabled
-                      ? 'Repeating reminders are skipped; timed ones wait until quiet hours end.'
-                      : 'Disabled'
-                  }
-                  htmlFor="set-quiet"
+                  label="Screen Border Light"
+                  hint="Glowing accent along display edges. Default thickness is 2 px."
+                  htmlFor="set-border-light"
                 >
-                  {s.quietHours.enabled && (
-                    <span className="flex items-center gap-2 text-[13px] text-muted">
-                      <TimeField
-                        label="Quiet from"
-                        value={s.quietHours.from}
-                        onChange={(from) =>
-                          setSettings((x) => ({ ...x, quietHours: { ...x.quietHours, from } }))
-                        }
-                      />
-                      to
-                      <TimeField
-                        label="Quiet until"
-                        value={s.quietHours.to}
-                        onChange={(to) =>
-                          setSettings((x) => ({ ...x, quietHours: { ...x.quietHours, to } }))
-                        }
-                      />
-                    </span>
-                  )}
-                  <Switch
-                    id="set-quiet"
-                    label="Quiet Hours"
-                    checked={s.quietHours.enabled}
-                    onChange={(enabled) =>
-                      setSettings((x) => ({ ...x, quietHours: { ...x.quietHours, enabled } }))
-                    }
-                  />
+                  <div className="flex shrink-0 items-center gap-3">
+                    {(n.borderLight ?? true) && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => void window.smaran.reminders.previewBorderLight()}
+                      >
+                        Preview Beam
+                      </Button>
+                    )}
+                    <Switch
+                      id="set-border-light"
+                      label="Screen border light"
+                      checked={n.borderLight ?? true}
+                      onChange={(borderLight) => setN({ borderLight })}
+                    />
+                  </div>
                 </Row>
-                <Row
-                  label="Wait while in full-screen apps"
-                  hint="Games, videos and presentations: hold reminder until you return."
-                  htmlFor="set-busy"
-                >
-                  <Switch
-                    id="set-busy"
-                    label="Hold while busy"
-                    checked={s.holdWhenBusy}
-                    onChange={(holdWhenBusy) => setSettings((x) => ({ ...x, holdWhenBusy }))}
-                  />
-                </Row>
-                <Row
-                  label="Global Reminder Pause"
-                  hint={
-                    paused && s.pausedUntil
-                      ? new Date(s.pausedUntil).getFullYear() > 9000
-                        ? 'Paused until you resume'
-                        : `Paused until ${format(new Date(s.pausedUntil), 'HH:mm')}`
-                      : 'Reminders are active'
-                  }
-                >
-                  {paused ? (
-                    <Button onClick={() => void window.smaran.app.resume()}>Resume</Button>
-                  ) : (
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={() => void window.smaran.app.pause(60)}>
-                        1 hour
-                      </Button>
-                      <Button size="sm" onClick={() => void window.smaran.app.pause(180)}>
-                        3 hours
-                      </Button>
-                      <Button size="sm" onClick={() => void window.smaran.app.pause()}>
-                        Until Resumed
-                      </Button>
+
+                {(n.borderLight ?? true) && (
+                  <>
+                    <Row
+                      label="Beam Thickness"
+                      hint={`${n.borderLightThickness ?? 2} px · ${thicknessLabel(n.borderLightThickness ?? 2)}`}
+                    >
+                      <div className="flex flex-col items-end gap-2.5">
+                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                          {THICKNESS_PRESETS.map((preset) => {
+                            const active = (n.borderLightThickness ?? 2) === preset.px;
+                            return (
+                              <button
+                                key={preset.px}
+                                type="button"
+                                onClick={() => setN({ borderLightThickness: preset.px })}
+                                className={cx(
+                                  'rounded-lg px-2.5 py-1 text-xs font-medium transition-all',
+                                  active
+                                    ? 'bg-accent text-accent-contrast shadow-sm ring-1 ring-accent'
+                                    : 'bg-raised text-muted hover:text-ink hover:bg-hover',
+                                )}
+                              >
+                                {preset.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <Slider
+                          label="Border thickness"
+                          value={n.borderLightThickness ?? 2}
+                          min={1}
+                          max={24}
+                          step={1}
+                          suffix=" px"
+                          onChange={(borderLightThickness) => setN({ borderLightThickness })}
+                          className="justify-end w-48"
+                        />
+                      </div>
+                    </Row>
+
+                    <Row
+                      label="Brightness Intensity"
+                      hint="Luminous multi-layer neon glow and white-hot accents."
+                    >
+                      <Segmented<'100' | '150' | '200'>
+                        label="Brightness"
+                        value={String(n.borderLightBrightness ?? 150) as '100' | '150' | '200'}
+                        onChange={(b) => setN({ borderLightBrightness: Number(b) })}
+                        options={[
+                          { value: '100', label: 'Normal (100%)' },
+                          { value: '150', label: 'Vivid (150%)' },
+                          { value: '200', label: 'Ultra (200%)' },
+                        ]}
+                      />
+                    </Row>
+
+                    <div className="border-t border-line/60 pt-3 mt-1">
+                      <div className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+                        Active Subsystems & Edge Lighting
+                      </div>
+                      <Row
+                        label="Reminders Border Light"
+                        hint="Screen border line activates when reminders appear (enabled by default)."
+                        htmlFor="set-border-reminders"
+                      >
+                        <Switch
+                          id="set-border-reminders"
+                          label="Reminders border light"
+                          checked={n.borderLight ?? true}
+                          onChange={(borderLight) => setN({ borderLight })}
+                        />
+                      </Row>
+                      <Row
+                        label="Automations Border Light"
+                        hint="Screen border line activates during automation countdowns (off by default)."
+                        htmlFor="set-border-automations"
+                      >
+                        <Switch
+                          id="set-border-automations"
+                          label="Automations border light"
+                          checked={a.borderLight ?? false}
+                          onChange={(borderLight) => setA({ borderLight })}
+                        />
+                      </Row>
+                      <Row
+                        label="File Server Border Light"
+                        hint="Screen border line activates on client login and security alerts (off by default)."
+                        htmlFor="set-border-fileserver"
+                      >
+                        <Switch
+                          id="set-border-fileserver"
+                          label="File server border light"
+                          checked={fsSettings?.borderLight ?? false}
+                          onChange={(borderLight) => void updateFs({ borderLight })}
+                        />
+                      </Row>
                     </div>
-                  )}
-                </Row>
+                  </>
+                )}
               </Card>
 
+              {/* 2. Desktop Notification Card & Layout */}
               <Card
-                title="Reminder Notification Appearance"
-                description="Customize how notification cards and attention effects display."
+                title="Desktop Notification Card & Layout"
+                description="Configure card positioning, screen selection, dimensions, and attention motion."
               >
                 <Row label="Screen Corner" hint={CORNER_LABEL[n.corner]}>
                   <CornerPicker value={n.corner} onChange={(corner) => setN({ corner })} />
@@ -503,99 +592,274 @@ export function Settings() {
                     )}
                   </div>
                 </Row>
-                <Row label="Notification Sound" hint="Gentle audible chime on appearance." htmlFor="set-sound">
-                  <Switch
-                    id="set-sound"
-                    label="Sound chime"
-                    checked={n.sound}
-                    onChange={(sound) => setN({ sound })}
-                  />
-                </Row>
-                <div className="border-b border-line py-2.5 last:border-b-0">
-                  <div className="flex min-h-12 items-center gap-6">
-                    <div className="min-w-0 flex-1">
-                      <label htmlFor="set-border-light" className="block text-[13px]">
-                        Screen border light beam
-                      </label>
-                      <p className="mt-0.5 font-serif text-[13px] leading-snug text-muted italic">
-                        Glowing accent along your display edge while notifications are active.
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3">
-                      {(n.borderLight ?? true) && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => void window.smaran.reminders.previewBorderLight()}
-                        >
-                          Preview Beam
-                        </Button>
-                      )}
-                      <Switch
-                        id="set-border-light"
-                        label="Screen border light"
-                        checked={n.borderLight ?? true}
-                        onChange={(borderLight) => setN({ borderLight })}
-                      />
-                    </div>
-                  </div>
-                  {(n.borderLight ?? true) && (
-                    <div className="mt-3 space-y-3">
-                      <div>
-                        <div className="flex items-center justify-between text-xs text-muted">
-                          <span>Beam thickness ({n.borderLightThickness ?? 4} px)</span>
-                          <span>{thicknessLabel(n.borderLightThickness ?? 4)}</span>
-                        </div>
-                        <Slider
-                          label="Thickness"
-                          value={n.borderLightThickness ?? 4}
-                          min={1}
-                          max={24}
-                          step={1}
-                          suffix=" px"
-                          onChange={(borderLightThickness) => setN({ borderLightThickness })}
-                        />
-                      </div>
-                      <div>
-                        <div className="flex items-center justify-between text-xs text-muted">
-                          <span>Brightness intensity</span>
-                          <span>{n.borderLightBrightness ?? 150}%</span>
-                        </div>
-                        <Segmented<'100' | '150' | '200'>
-                          label="Brightness"
-                          value={String(n.borderLightBrightness ?? 150) as '100' | '150' | '200'}
-                          onChange={(b) => setN({ borderLightBrightness: Number(b) })}
-                          options={[
-                            { value: '100', label: 'Normal (100%)' },
-                            { value: '150', label: 'Vivid (150%)' },
-                            { value: '200', label: 'Ultra (200%)' },
-                          ]}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <Row label="Preview Notification">
-                  <Button
-                    onClick={() =>
-                      void window.smaran.reminders.test({
-                        title: 'Reminder Preview',
-                        body: 'This is how your customized notification appears.',
-                        color: 'clay',
-                        important: false,
-                      })
-                    }
-                  >
-                    Send Test Notification
-                  </Button>
-                </Row>
               </Card>
 
-              <LogoSettingsCard />
+              {/* 3. Notification Logo & Brandmark */}
+              <NotificationLogoCard />
+
+              {/* 4. Category Notification Preferences */}
+              <Card
+                title="Category Notification Preferences"
+                description="Fine-tune audio chimes, pre-execution countdowns, and security alerts for each subsystem."
+              >
+                {/* Reminders section */}
+                <div className="border-b border-line pb-3">
+                  <div className="text-xs font-semibold text-accent uppercase tracking-wider mb-2">
+                    Reminders
+                  </div>
+                  <Row label="Notification Sound" hint="Gentle audible chime on appearance." htmlFor="set-sound">
+                    <Switch
+                      id="set-sound"
+                      label="Sound chime"
+                      checked={n.sound}
+                      onChange={(sound) => setN({ sound })}
+                    />
+                  </Row>
+                  <Row label="Preview Notification" hint="Test your card position, animations, and sound.">
+                    <Button
+                      aria-label="Send a Test Reminder"
+                      onClick={() =>
+                        void window.smaran.reminders.test({
+                          title: 'Reminder Preview',
+                          body: 'This is how your customized notification appears.',
+                          color: 'clay',
+                          important: false,
+                        })
+                      }
+                    >
+                      Send Test Notification
+                    </Button>
+                  </Row>
+                </div>
+
+                {/* Automations section */}
+                <div className="border-b border-line py-3">
+                  <div className="text-xs font-semibold text-accent uppercase tracking-wider mb-2">
+                    Automations
+                  </div>
+                  <Row
+                    label="Pre-execution countdown notification"
+                    hint="Shows a notification before executing the action, giving you time to cancel or run immediately."
+                    htmlFor="set-auto-notify-pre"
+                  >
+                    <Switch
+                      id="set-auto-notify-pre"
+                      label="Pre-execution notification"
+                      checked={a.notifyPreExecution}
+                      onChange={(notifyPreExecution) => setA({ notifyPreExecution })}
+                    />
+                  </Row>
+                  {a.notifyPreExecution && (
+                    <div className="py-2.5">
+                      <div className="flex items-center justify-between text-xs text-muted mb-1.5">
+                        <span className="font-medium text-ink">Countdown Duration</span>
+                        <span className="font-mono tabular-nums text-accent font-semibold">
+                          {a.preExecutionCountdownSec} seconds
+                        </span>
+                      </div>
+                      <Slider
+                        label="Countdown duration"
+                        value={a.preExecutionCountdownSec}
+                        min={1}
+                        max={60}
+                        step={1}
+                        suffix=" sec"
+                        onChange={(preExecutionCountdownSec) => setA({ preExecutionCountdownSec })}
+                      />
+                    </div>
+                  )}
+                  <Row
+                    label="Countdown Notification Sound"
+                    hint="Play subtle audio chime when the pre-execution card appears."
+                    htmlFor="set-auto-sound"
+                  >
+                    <Switch
+                      id="set-auto-sound"
+                      label="Audio chime"
+                      checked={a.sound}
+                      onChange={(sound) => setA({ sound })}
+                    />
+                  </Row>
+                  <Row
+                    label="Failed Automation Alerts"
+                    hint="Receive immediate desktop alert if any automation script encounters an error."
+                    htmlFor="set-auto-notify-fail"
+                  >
+                    <Switch
+                      id="set-auto-notify-fail"
+                      label="Failure alerts"
+                      checked={a.notifyOnFailure}
+                      onChange={(notifyOnFailure) => setA({ notifyOnFailure })}
+                    />
+                  </Row>
+                </div>
+
+                {/* File Server section */}
+                <div className="pt-3">
+                  <div className="text-xs font-semibold text-accent uppercase tracking-wider mb-2">
+                    File Server
+                  </div>
+                  <Row
+                    label="Successful Login Alerts"
+                    hint="Notify whenever a user signs into Smaran HFS with IP address and device."
+                    htmlFor="set-fs-notify-login"
+                  >
+                    <Switch
+                      id="set-fs-notify-login"
+                      label="Login alerts"
+                      checked={fsSettings?.notifyOnLogin ?? true}
+                      onChange={(notifyOnLogin) => void updateFs({ notifyOnLogin })}
+                    />
+                  </Row>
+                  <Row
+                    label="Failed Login Security Alerts"
+                    hint="Alerts immediately when unauthorized or incorrect credentials are submitted."
+                    htmlFor="set-fs-notify-failed"
+                  >
+                    <Switch
+                      id="set-fs-notify-failed"
+                      label="Failed login alerts"
+                      checked={fsSettings?.notifyOnFailedLogin ?? true}
+                      onChange={(notifyOnFailedLogin) => void updateFs({ notifyOnFailedLogin })}
+                    />
+                  </Row>
+                  <Row
+                    label="Administrator Activity Alerts"
+                    hint="Alerts when server port, storage root, or administrator settings change."
+                    htmlFor="set-fs-notify-admin"
+                  >
+                    <Switch
+                      id="set-fs-notify-admin"
+                      label="Admin alerts"
+                      checked={fsSettings?.notifyOnAdminActivity ?? true}
+                      onChange={(notifyOnAdminActivity) => void updateFs({ notifyOnAdminActivity })}
+                    />
+                  </Row>
+                  <Row
+                    label="File Server Alert Sound"
+                    hint="Audible notification sound when file server alerts appear."
+                    htmlFor="set-fs-sound"
+                  >
+                    <Switch
+                      id="set-fs-sound"
+                      label="Alert sound chime"
+                      checked={fsSettings?.sound ?? true}
+                      onChange={(sound) => void updateFs({ sound })}
+                    />
+                  </Row>
+                </div>
+              </Card>
             </div>
           )}
 
-          {/* ==================== C. AUTOMATION SETTINGS ==================== */}
+          {/* ==================== C. REMINDER SETTINGS ==================== */}
+          {tab === 'reminders' && (
+            <div className="space-y-6">
+              <Card
+                title="Focus & Quiet Hours"
+                description="Keep reminders gentle and non-disruptive when you need to concentrate."
+              >
+                <Row
+                  label="Quiet Hours"
+                  hint={
+                    s.quietHours.enabled
+                      ? 'Repeating reminders are skipped; timed ones wait until quiet hours end.'
+                      : 'Disabled'
+                  }
+                  htmlFor="set-quiet"
+                >
+                  {s.quietHours.enabled && (
+                    <span className="flex items-center gap-2 text-[13px] text-muted">
+                      <TimeField
+                        label="Quiet from"
+                        value={s.quietHours.from}
+                        onChange={(from) =>
+                          setSettings((x) => ({ ...x, quietHours: { ...x.quietHours, from } }))
+                        }
+                      />
+                      to
+                      <TimeField
+                        label="Quiet until"
+                        value={s.quietHours.to}
+                        onChange={(to) =>
+                          setSettings((x) => ({ ...x, quietHours: { ...x.quietHours, to } }))
+                        }
+                      />
+                    </span>
+                  )}
+                  <Switch
+                    id="set-quiet"
+                    label="Quiet Hours"
+                    checked={s.quietHours.enabled}
+                    onChange={(enabled) =>
+                      setSettings((x) => ({ ...x, quietHours: { ...x.quietHours, enabled } }))
+                    }
+                  />
+                </Row>
+                <Row
+                  label="Wait while in full-screen apps"
+                  hint="Games, videos and presentations: hold reminder until you return."
+                  htmlFor="set-busy"
+                >
+                  <Switch
+                    id="set-busy"
+                    label="Hold while busy"
+                    checked={s.holdWhenBusy}
+                    onChange={(holdWhenBusy) => setSettings((x) => ({ ...x, holdWhenBusy }))}
+                  />
+                </Row>
+                <Row
+                  label="Global Reminder Pause"
+                  hint={
+                    paused && s.pausedUntil
+                      ? new Date(s.pausedUntil).getFullYear() > 9000
+                        ? 'Paused until you resume'
+                        : `Paused until ${format(new Date(s.pausedUntil), 'HH:mm')}`
+                      : 'Reminders are active'
+                  }
+                >
+                  {paused ? (
+                    <Button onClick={() => void window.smaran.app.resume()}>Resume</Button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => void window.smaran.app.pause(60)}>
+                        1 hour
+                      </Button>
+                      <Button size="sm" onClick={() => void window.smaran.app.pause(180)}>
+                        3 hours
+                      </Button>
+                      <Button size="sm" onClick={() => void window.smaran.app.pause()}>
+                        Until Resumed
+                      </Button>
+                    </div>
+                  )}
+                </Row>
+              </Card>
+
+              <Card
+                title="Reminder Quick Positioning"
+                description="Easily customize screen corner placement directly from reminder preferences."
+              >
+                <Row label="Screen Corner" hint={CORNER_LABEL[n.corner]}>
+                  <CornerPicker value={n.corner} onChange={(corner) => setN({ corner })} />
+                </Row>
+                <Row label="Target Screen" htmlFor="set-screen-reminders">
+                  <Select
+                    id="set-screen-reminders"
+                    className="w-64"
+                    value={n.screen}
+                    options={[
+                      { value: 'primary', label: 'Primary Monitor' },
+                      { value: 'cursor', label: 'Screen with Mouse Cursor' },
+                    ]}
+                    onChange={(screen) => setN({ screen })}
+                  />
+                </Row>
+              </Card>
+            </div>
+          )}
+
+          {/* ==================== D. AUTOMATION SETTINGS ==================== */}
           {tab === 'automations' && (
             <div className="space-y-6">
               <Card
@@ -626,75 +890,16 @@ export function Settings() {
                     onChange={(paused) => setA({ paused })}
                   />
                 </Row>
-              </Card>
-
-              <Card
-                title="Smart Pre-Execution Notification System"
-                description="Display desktop countdown cards before any automation action is executed."
-              >
-                <Row
-                  label="Pre-execution countdown notification"
-                  hint="Shows a notification before executing the action, giving you time to cancel or run immediately."
-                  htmlFor="set-auto-notify-pre"
-                >
-                  <Switch
-                    id="set-auto-notify-pre"
-                    label="Pre-execution notification"
-                    checked={a.notifyPreExecution}
-                    onChange={(notifyPreExecution) => setA({ notifyPreExecution })}
-                  />
-                </Row>
-                {a.notifyPreExecution && (
-                  <div className="border-b border-line py-3 last:border-b-0">
-                    <div className="flex items-center justify-between text-xs text-muted mb-1.5">
-                      <span className="font-medium text-ink">Countdown Duration</span>
-                      <span className="font-mono tabular-nums text-accent font-semibold">
-                        {a.preExecutionCountdownSec} seconds
-                      </span>
-                    </div>
-                    <Slider
-                      label="Countdown duration"
-                      value={a.preExecutionCountdownSec}
-                      min={1}
-                      max={60}
-                      step={1}
-                      suffix=" sec"
-                      onChange={(preExecutionCountdownSec) => setA({ preExecutionCountdownSec })}
-                    />
-                    <p className="mt-1 font-serif text-[12.5px] text-muted italic">
-                      Default is 5 seconds. The automation executes only after the countdown completes or when you click Run Now.
-                    </p>
-                  </div>
-                )}
-                <Row
-                  label="Countdown Notification Sound"
-                  hint="Play subtle audio chime when the pre-execution card appears."
-                  htmlFor="set-auto-sound"
-                >
-                  <Switch
-                    id="set-auto-sound"
-                    label="Audio chime"
-                    checked={a.sound}
-                    onChange={(sound) => setA({ sound })}
-                  />
-                </Row>
-                <Row
-                  label="Failed Automation Alerts"
-                  hint="Receive immediate desktop alert if any automation script or action encounters an error."
-                  htmlFor="set-auto-notify-fail"
-                >
-                  <Switch
-                    id="set-auto-notify-fail"
-                    label="Failure alerts"
-                    checked={a.notifyOnFailure}
-                    onChange={(notifyOnFailure) => setA({ notifyOnFailure })}
-                  />
+                <Row label="Manage Automations" hint="Create, inspect, and configure your automated workflows.">
+                  <Button variant="secondary" onClick={() => useApp.getState().go('automations')}>
+                    Open Automations Hub…
+                  </Button>
                 </Row>
               </Card>
             </div>
           )}
 
-          {/* ==================== D. FILE SERVER SETTINGS ==================== */}
+          {/* ==================== E. FILE SERVER SETTINGS ==================== */}
           {tab === 'fileserver' && (
             <div className="space-y-6">
               <Card
@@ -749,48 +954,6 @@ export function Settings() {
                 {fsFeedback && (
                   <p className="text-xs text-accent font-medium py-1">{fsFeedback}</p>
                 )}
-              </Card>
-
-              <Card
-                title="Real-Time Security & Activity Notifications"
-                description="Receive instant alerts on your desktop whenever clients interact with the file server."
-              >
-                <Row
-                  label="Successful Login Alerts"
-                  hint="Notify whenever a user signs into Smaran HFS with IP address, device, and LAN/External tag."
-                  htmlFor="set-fs-notify-login"
-                >
-                  <Switch
-                    id="set-fs-notify-login"
-                    label="Login alerts"
-                    checked={fsSettings?.notifyOnLogin ?? true}
-                    onChange={(notifyOnLogin) => void updateFs({ notifyOnLogin })}
-                  />
-                </Row>
-                <Row
-                  label="Failed Login Security Alerts"
-                  hint="Alerts immediately when unauthorized or incorrect credentials are submitted, tracking repeat attempts."
-                  htmlFor="set-fs-notify-failed"
-                >
-                  <Switch
-                    id="set-fs-notify-failed"
-                    label="Failed login alerts"
-                    checked={fsSettings?.notifyOnFailedLogin ?? true}
-                    onChange={(notifyOnFailedLogin) => void updateFs({ notifyOnFailedLogin })}
-                  />
-                </Row>
-                <Row
-                  label="Administrator Activity Alerts"
-                  hint="Alerts when server port, storage root, administrator account, or lifecycle changes."
-                  htmlFor="set-fs-notify-admin"
-                >
-                  <Switch
-                    id="set-fs-notify-admin"
-                    label="Admin alerts"
-                    checked={fsSettings?.notifyOnAdminActivity ?? true}
-                    onChange={(notifyOnAdminActivity) => void updateFs({ notifyOnAdminActivity })}
-                  />
-                </Row>
               </Card>
             </div>
           )}

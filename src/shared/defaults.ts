@@ -23,6 +23,8 @@ export const PAUSED_FOREVER = '9999-12-31T00:00:00.000Z';
 
 export const DEFAULT_SETTINGS: Settings = {
   startAtLogin: true,
+  minimizeToTray: false,
+  closeToTray: true,
   theme: 'dark',
   notification: {
     corner: 'top-center',
@@ -33,8 +35,10 @@ export const DEFAULT_SETTINGS: Settings = {
     card: { width: null, height: null, radius: null, padding: null },
     motion: DEFAULT_NOTIFICATION_MOTION,
     borderLight: true,
-    borderLightThickness: 4,
+    borderLightThickness: 2,
     borderLightBrightness: 150,
+    animateLogo: true,
+    logoAnimation: 'auto',
   },
   quietHours: { enabled: false, from: '22:00', to: '07:00' },
   holdWhenBusy: true,

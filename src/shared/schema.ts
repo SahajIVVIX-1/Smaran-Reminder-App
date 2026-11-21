@@ -220,6 +220,8 @@ export const AutomationSettingsSchema = z.object({
   notifyOnFailure: z.boolean().default(true),
   notifyOnSuccess: z.boolean().default(false),
   sound: z.boolean().default(true),
+  /** Moving light beam along the screen border while automation pre-execution is active (default off). */
+  borderLight: z.boolean().default(false),
 });
 export type AutomationSettings = z.infer<typeof AutomationSettingsSchema>;
 
@@ -231,10 +233,15 @@ export const DEFAULT_AUTOMATION_SETTINGS: AutomationSettings = {
   notifyOnFailure: true,
   notifyOnSuccess: false,
   sound: true,
+  borderLight: false,
 };
 
 export const SettingsSchema = z.object({
   startAtLogin: z.boolean(),
+  /** When minimizing, close/hide the window to the system tray while Smaran continues running in the background. */
+  minimizeToTray: z.boolean().default(false),
+  /** When clicking the close (X) button, keep running quietly in the system tray. */
+  closeToTray: z.boolean().default(true),
   theme: z.enum(['system', 'light', 'dark']),
   notification: z.object({
     corner: z.enum(CORNERS),
@@ -248,10 +255,14 @@ export const SettingsSchema = z.object({
     motion: NotificationMotionSchema.default(DEFAULT_NOTIFICATION_MOTION),
     /** Moving light beam along the screen border while notifications or tasks are active. */
     borderLight: z.boolean().default(true),
-    /** Thickness in px of the screen border light (1 to 24px, default 4). */
-    borderLightThickness: z.number().int().min(1).max(24).default(4),
+    /** Thickness in px of the screen border light (1 to 24px, default 2). */
+    borderLightThickness: z.number().int().min(1).max(24).default(2),
     /** Brightness percentage of the screen border light (50% to 200%, default 150%). */
     borderLightBrightness: z.number().int().min(50).max(200).default(150),
+    /** Keep animated Smaran dots branding on notification cards. */
+    animateLogo: z.boolean().default(true).optional(),
+    /** Scene or auto mode for notification dots mark. */
+    logoAnimation: z.string().default('auto').optional(),
   }),
   quietHours: z
     .object({ enabled: z.boolean(), from: TimeSchema, to: TimeSchema })

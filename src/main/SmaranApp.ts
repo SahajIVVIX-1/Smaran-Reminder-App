@@ -30,7 +30,7 @@ import { windowsIsBusy } from './system/focusAssist';
 import { FontLibrary } from './system/fonts';
 import { applyLoginItem, launchedHidden } from './system/loginItem';
 import { AppTray, iconPath } from './tray/Tray';
-import { GLASS, getAppWindow, showAppWindow } from './windows/AppWindow';
+import { GLASS, getAppWindow, setWindowBehavior, showAppWindow } from './windows/AppWindow';
 import { MenuWindow } from './windows/MenuWindow';
 import { NotificationCenter } from './windows/NotificationCenter';
 
@@ -70,6 +70,7 @@ export class SmaranApp {
     this.notifications = new NotificationCenter(
       () => this.store.get().settings,
       () => this.fonts.customFonts(),
+      () => this.fileserver.getSettings(),
     );
     this.menu = new MenuWindow(
       () => this.store.get().settings,
@@ -96,6 +97,11 @@ export class SmaranApp {
   start(): { notice: string | null; firstRun: boolean } {
     const { config, notice } = this.store.load();
     this.history.load();
+
+    setWindowBehavior(() => ({
+      minimizeToTray: this.store.get().settings.minimizeToTray ?? false,
+      closeToTray: this.store.get().settings.closeToTray ?? true,
+    }));
 
     this.fonts.serve();
     this.notifications.registerIpc();

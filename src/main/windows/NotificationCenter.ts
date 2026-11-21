@@ -10,6 +10,7 @@ import {
   type NotificationRequest,
 } from '@shared/ipc';
 import type { CustomFont } from '@shared/fonts';
+import type { FileServerSettings } from '@shared/fileserver';
 import { CARD_WIDTH, DEFAULT_NOTIFICATION_MOTION, type Settings } from '@shared/schema';
 import type { Notifier } from '../engine/Engine';
 import { loadRenderer, preloadPath } from './loadRenderer';
@@ -39,6 +40,7 @@ interface Card {
   createdAt: number;
   glide: ReturnType<typeof setInterval> | null;
   hoverCheckTimer?: ReturnType<typeof setInterval> | null;
+  category?: 'automations' | 'fileserver' | 'security' | 'reminders';
 }
 
 /**
@@ -56,12 +58,13 @@ export class NotificationCenter implements Notifier {
   constructor(
     private readonly settings: () => Settings,
     private readonly faces: () => CustomFont[] = () => [],
+    private readonly fsSettings?: () => FileServerSettings,
   ) {
     this.screenBorder = new ScreenBorderWindow(() => {
       const notif = this.settings().notification;
       return {
         enabled: notif.borderLight ?? true,
-        thickness: notif.borderLightThickness ?? 4,
+        thickness: notif.borderLightThickness ?? 2,
         brightness: notif.borderLightBrightness ?? 150,
       };
     });
@@ -169,6 +172,8 @@ export class NotificationCenter implements Notifier {
       motion,
       font: settings.font,
       faces: this.faces(),
+      animateLogo: settings.notification.animateLogo ?? true,
+      logoAnimation: settings.notification.logoAnimation ?? 'auto',
     };
     // First guess; the card reports its real size (card + shadow room).
     const width = shape.width
@@ -207,6 +212,7 @@ export class NotificationCenter implements Notifier {
       closing: false,
       createdAt: Date.now(),
       glide: null,
+      category: request.category,
     };
     this.cards.set(request.key, card);
     win.on('closed', () => {
@@ -311,7 +317,17 @@ export class NotificationCenter implements Notifier {
     const visible = ready.slice(0, MAX_VISIBLE).reverse();
 
     const activeDisplay = allDisplays.find((d) => d.id === display.id) ?? primaryDisplay;
-    if (visible.length > 0) {
+    const autoBorder = this.settings().automation?.borderLight ?? false;
+    const notifBorder = settings.borderLight ?? true;
+    const fsBorder = this.fsSettings ? (this.fsSettings().borderLight ?? false) : false;
+
+    const shouldShowBorder = visible.some((c) => {
+      if (c.category === 'automations') return autoBorder;
+      if (c.category === 'fileserver' || c.category === 'security') return fsBorder;
+      return notifBorder;
+    });
+
+    if (visible.length > 0 && shouldShowBorder) {
       this.screenBorder.show(activeDisplay);
     } else {
       this.screenBorder.hide();

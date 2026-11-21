@@ -67,6 +67,8 @@ export class FileServerStore {
       notifyOnLogin: true,
       notifyOnFailedLogin: true,
       notifyOnAdminActivity: true,
+      borderLight: false,
+      sound: true,
     };
 
     cleanupStaleTempFiles(path.dirname(this.filePath), FILE_SERVER_STORE_NAME);

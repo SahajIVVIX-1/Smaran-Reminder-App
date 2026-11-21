@@ -92,6 +92,8 @@ export const FileServerSettingsSchema = z.object({
   notifyOnLogin: z.boolean().default(true),
   notifyOnFailedLogin: z.boolean().default(true),
   notifyOnAdminActivity: z.boolean().default(true),
+  borderLight: z.boolean().default(false).optional(),
+  sound: z.boolean().default(true).optional(),
 });
 
 export type FileServerSettings = z.infer<typeof FileServerSettingsSchema>;

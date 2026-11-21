@@ -9,7 +9,7 @@ import {
   type SceneKey,
 } from '@shared/dots/dotsScenes';
 import { shapesIn } from '@shared/logoSettings';
-import type { LogoSettings as LogoSettingsT } from '@shared/schema';
+import type { LogoSettings as LogoSettingsT, Settings as SettingsT } from '@shared/schema';
 import { SmaranDots } from '../../dots';
 import { cx } from '../cx';
 import { SearchIcon } from '../icons';
@@ -55,8 +55,8 @@ export function LogoSettingsCard({ className }: { className?: string }) {
 
   return (
     <Card
-      title="Logo"
-      description="The Smaran dots in the title bar and the tray."
+      title="Title Bar Logo & System Tray"
+      description="The Smaran dots in the window title bar and Windows system tray."
       className={className}
     >
       <div className="flex items-center gap-5 border-b border-line py-4">
@@ -275,6 +275,112 @@ export function LogoSettingsCard({ className }: { className?: string }) {
         onPick={(scene) => {
           set({ mode: 'scene', scene });
           setPreview(null);
+          setBrowsing(false);
+        }}
+      />
+    </Card>
+  );
+}
+
+/**
+ * Settings → Notifications: Animated Smaran dots branding for notification cards.
+ * Controls react-to-state (bell, checks, moon) and dynamic motion for all notification types.
+ */
+export function NotificationLogoCard({ className }: { className?: string }) {
+  const config = useApp((s) => s.config);
+  const logo = config?.settings.logo;
+  const notif = config?.settings.notification;
+  const { setSettings } = useApp.getState();
+  const [browsing, setBrowsing] = useState(false);
+  const [preview, setPreview] = useState<SceneKey | null>(null);
+
+  if (!logo || !notif) return null;
+  const setLogo = (patch: Partial<LogoSettingsT>) =>
+    setSettings((x) => ({ ...x, logo: { ...x.logo, ...patch } }));
+  const setNotif = (patch: Partial<SettingsT['notification']>) =>
+    setSettings((x) => ({ ...x, notification: { ...x.notification, ...patch } }));
+
+  const activeScene =
+    preview ??
+    (notif.logoAnimation && notif.logoAnimation !== 'auto'
+      ? (notif.logoAnimation as SceneKey)
+      : undefined);
+
+  return (
+    <Card
+      title="Notification Logo & Brandmark"
+      description="The Smaran vector dots displayed inside desktop notification cards for reminders, automations, and file server alerts."
+      className={className}
+    >
+      <div className="flex items-center gap-5 border-b border-line py-4">
+        <div className="grid h-[80px] w-[80px] shrink-0 place-items-center rounded-2xl border border-line bg-raised">
+          <SmaranDots
+            size={52}
+            scene={activeScene}
+            paused={!(notif.animateLogo ?? true)}
+            interactive={false}
+            goo={false}
+            label="Notification logo preview"
+          />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="font-serif text-[15px] font-semibold">
+            {activeScene ? getScene(activeScene).name : 'Dynamic Notification Dots'}
+          </div>
+          <div className="font-serif text-[12.5px] text-muted italic">
+            {activeScene
+              ? `${getScene(activeScene).category} · chosen card animation`
+              : 'Auto-adapts to card status: bell on reminder, shield on security, checkmark on completion'}
+          </div>
+          <div className="mt-2.5 flex items-center gap-2">
+            <Button
+              size="sm"
+              variant={!activeScene ? 'primary' : 'secondary'}
+              onClick={() => {
+                setPreview(null);
+                setNotif({ logoAnimation: 'auto' });
+              }}
+            >
+              Auto Mode
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setBrowsing(true)}>
+              Choose Animation…
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <Row
+        label="React to Reminders & Events"
+        hint="A bell while a reminder is showing, a shield on file server alerts, a checkmark on complete, and a crescent moon when paused."
+      >
+        <Switch
+          label="React to reminders & events"
+          checked={logo.reactToReminders}
+          onChange={(reactToReminders) => setLogo({ reactToReminders })}
+        />
+      </Row>
+
+      <Row
+        label="Animate Logo on Cards"
+        hint="Displays fluid 60fps vector motion inside the notification card. Off keeps the mark stationary."
+      >
+        <Switch
+          label="Animate logo on cards"
+          checked={notif.animateLogo ?? true}
+          onChange={(animateLogo) => setNotif({ animateLogo })}
+        />
+      </Row>
+
+      <AnimationBrowser
+        open={browsing}
+        current={
+          notif.logoAnimation && notif.logoAnimation !== 'auto' ? notif.logoAnimation : null
+        }
+        onClose={() => setBrowsing(false)}
+        onPick={(scene) => {
+          setNotif({ logoAnimation: scene });
+          setPreview(scene);
           setBrowsing(false);
         }}
       />

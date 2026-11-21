@@ -55,12 +55,16 @@ export function NotificationCard({
   request,
   card,
   motion = DEFAULT_NOTIFICATION_MOTION,
+  animateLogo = true,
+  logoAnimation = 'auto',
 }: {
   request: NotificationRequest;
   /** Width, height (null = fit the content) and corner radius, from Settings. */
   card: NotificationLook['card'];
   /** Motion and attention animation options. */
   motion?: NotificationMotion;
+  animateLogo?: boolean;
+  logoAnimation?: string;
 }) {
   const wrapper = useRef<HTMLDivElement>(null);
   const fullRef = useRef<HTMLDivElement>(null);
@@ -479,10 +483,13 @@ export function NotificationCard({
                 <SmaranDots
                   size={22}
                   scene={
-                    request.animation && request.animation !== 'auto'
-                      ? (request.animation as SceneKey)
-                      : undefined
+                    (request.animation && request.animation !== 'auto'
+                      ? request.animation
+                      : logoAnimation && logoAnimation !== 'auto'
+                        ? logoAnimation
+                        : undefined) as SceneKey | undefined
                   }
+                  paused={!animateLogo}
                   interactive={false}
                 />
               </span>
@@ -757,10 +764,13 @@ export function NotificationCard({
                 <SmaranDots
                   size={30}
                   scene={
-                    request.animation && request.animation !== 'auto'
-                      ? (request.animation as SceneKey)
-                      : undefined
+                    (request.animation && request.animation !== 'auto'
+                      ? request.animation
+                      : logoAnimation && logoAnimation !== 'auto'
+                        ? logoAnimation
+                        : undefined) as SceneKey | undefined
                   }
+                  paused={!animateLogo}
                   interactive={false}
                 />
               </span>

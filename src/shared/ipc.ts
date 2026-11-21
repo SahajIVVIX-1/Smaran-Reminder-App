@@ -74,6 +74,8 @@ export interface NotificationLook {
   /** Font family chosen in Settings, and any font files the user added. */
   font: string;
   faces: CustomFont[];
+  animateLogo?: boolean;
+  logoAnimation?: string;
 }
 
 export interface NotificationInit {

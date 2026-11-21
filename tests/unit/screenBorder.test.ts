@@ -1,13 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '@shared/defaults';
+import { FileServerSettingsSchema } from '@shared/fileserver';
 import { PerimeterRect } from '@shared/perimeter';
-import { SettingsSchema } from '@shared/schema';
+import { DEFAULT_AUTOMATION_SETTINGS, SettingsSchema } from '@shared/schema';
 
 describe('Screen Border Light settings & schema', () => {
-  it('has valid default settings for screen border light with high brightness', () => {
+  it('has valid default settings for screen border light with high brightness and 2px thickness', () => {
     expect(DEFAULT_SETTINGS.notification.borderLight).toBe(true);
-    expect(DEFAULT_SETTINGS.notification.borderLightThickness).toBe(4);
+    expect(DEFAULT_SETTINGS.notification.borderLightThickness).toBe(2);
     expect(DEFAULT_SETTINGS.notification.borderLightBrightness).toBe(150);
+  });
+
+  it('defaults automation and fileserver border light to false (opt-in only)', () => {
+    expect(DEFAULT_AUTOMATION_SETTINGS.borderLight).toBe(false);
+    expect(FileServerSettingsSchema.parse({}).borderLight).toBe(false);
+  });
+
+  it('validates window minimize and close tray behavior in settings schema', () => {
+    expect(DEFAULT_SETTINGS.minimizeToTray).toBe(false);
+    expect(DEFAULT_SETTINGS.closeToTray).toBe(true);
+
+    const parsed = SettingsSchema.parse({
+      ...DEFAULT_SETTINGS,
+      minimizeToTray: true,
+      closeToTray: false,
+    });
+    expect(parsed.minimizeToTray).toBe(true);
+    expect(parsed.closeToTray).toBe(false);
   });
 
   it('validates thickness within limits (1px to 24px)', () => {
@@ -102,7 +121,7 @@ describe('Screen Border Light settings & schema', () => {
     const parsed = SettingsSchema.safeParse(raw);
     expect(parsed.success).toBe(true);
     if (parsed.success) {
-      expect(parsed.data.notification.borderLightThickness).toBe(4);
+      expect(parsed.data.notification.borderLightThickness).toBe(2);
       expect(parsed.data.notification.borderLightBrightness).toBe(150);
     }
   });

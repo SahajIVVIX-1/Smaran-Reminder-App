@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import { IPC, type Route } from '@shared/ipc';
 import { supportsGlass } from '../system/glass';
 import { iconPath } from '../tray/Tray';
@@ -14,6 +14,20 @@ const CLEAR = '#00000000';
 
 /** True when the window gets Windows 11's acrylic backdrop. */
 export const GLASS = supportsGlass();
+
+export interface WindowBehavior {
+  minimizeToTray?: boolean;
+  closeToTray?: boolean;
+}
+
+let getWindowBehavior: () => WindowBehavior = () => ({
+  minimizeToTray: false,
+  closeToTray: true,
+});
+
+export function setWindowBehavior(getter: () => WindowBehavior): void {
+  getWindowBehavior = getter;
+}
 
 let appWindow: BrowserWindow | null = null;
 let pendingRoute: Route | null = null;
@@ -48,6 +62,18 @@ function createAppWindow(dark: boolean): BrowserWindow {
       sandbox: true,
       nodeIntegration: false,
     },
+  });
+
+  win.on('minimize', () => {
+    if (getWindowBehavior().minimizeToTray) {
+      win.hide();
+    }
+  });
+
+  win.on('close', () => {
+    if (getWindowBehavior().closeToTray === false) {
+      app.quit();
+    }
   });
 
   win.once('ready-to-show', () => win.show());

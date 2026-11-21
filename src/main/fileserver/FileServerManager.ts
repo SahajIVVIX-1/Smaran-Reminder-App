@@ -475,6 +475,8 @@ export class FileServerManager {
           notifyOnLogin: true,
           notifyOnFailedLogin: true,
           notifyOnAdminActivity: true,
+          borderLight: false,
+          sound: true,
         };
 
         this.store.updateSettings(defaultSettings);

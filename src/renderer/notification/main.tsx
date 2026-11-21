@@ -25,6 +25,8 @@ window.smaranNotification.onInit((init: NotificationInit) => {
         request={init.request}
         card={init.look.card}
         motion={init.look.motion}
+        animateLogo={init.look.animateLogo}
+        logoAnimation={init.look.logoAnimation}
       />
     </StrictMode>,
   );
