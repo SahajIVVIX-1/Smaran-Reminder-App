@@ -135,6 +135,7 @@ export type Route =
   | 'reminders'
   | 'automations'
   | 'fileserver'
+  | 'remotehub'
   | 'history'
   | 'license'
   | 'settings';

@@ -19,6 +19,7 @@ import {
   GearIcon,
   KeyIcon,
   MoonIcon,
+  NetworkIcon,
   PlusIcon,
   ServerIcon,
   SparkIcon,
@@ -29,6 +30,7 @@ import { FileServer } from './pages/FileServer';
 import { History } from './pages/History';
 import { License } from './pages/License';
 import { Reminders } from './pages/Reminders';
+import { RemoteHub } from './pages/RemoteHub';
 import { Settings } from './pages/Settings';
 import { Today } from './pages/Today';
 import { defaultRule } from './rules';
@@ -44,6 +46,7 @@ const NAV: { route: Route; label: string; icon: ReactNode }[] = [
   { route: 'reminders', label: 'Reminders', icon: <BellIcon size={16} /> },
   { route: 'automations', label: 'Automations', icon: <BoltIcon size={16} /> },
   { route: 'fileserver', label: 'File Server', icon: <ServerIcon size={16} /> },
+  { route: 'remotehub', label: 'Remote Hub', icon: <NetworkIcon size={16} /> },
   { route: 'history', label: 'History', icon: <ClockIcon size={16} /> },
 ];
 
@@ -101,9 +104,11 @@ export function App() {
       window.smaran.config.get(),
       window.smaran.history.get(),
       window.smaran.fileserver.status(),
-    ]).then(([c, h, fsStatus]) => {
+      window.smaran.remotehub.overview(),
+    ]).then(([c, h, fsStatus, rhOverview]) => {
       init(c, h);
       if (fsStatus) useApp.getState().setFileServerStatus(fsStatus);
+      if (rhOverview) useApp.getState().setRemoteHubOverview(rhOverview);
     });
     void window.smaran.automations.running().then(setRunning);
     const offs = [
@@ -113,6 +118,9 @@ export function App() {
       window.smaran.app.onNavigate(go),
       window.smaran.fileserver.onStatusChanged((s) => {
         if (s) useApp.getState().setFileServerStatus(s);
+      }),
+      window.smaran.remotehub.onOverviewChanged((ov) => {
+        if (ov) useApp.getState().setRemoteHubOverview(ov);
       }),
     ];
     const timer = window.setInterval(() => void refreshNext(), 30_000);
@@ -162,6 +170,8 @@ export function App() {
                 <Automations />
               ) : route === 'fileserver' ? (
                 <FileServer />
+              ) : route === 'remotehub' ? (
+                <RemoteHub />
               ) : route === 'history' ? (
                 <History />
               ) : route === 'license' ? (

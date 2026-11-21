@@ -29,6 +29,11 @@ test.describe('Navigation & Sidebar Routing', () => {
     expect(await getActiveNav(p)).toBe('File Server');
     await assertNoHorizontalOverflow(p);
 
+    // Navigate to Remote Hub
+    await navigateTo(p, 'remotehub');
+    expect(await getActiveNav(p)).toBe('Remote Hub');
+    await assertNoHorizontalOverflow(p);
+
     // Navigate to History
     await navigateTo(p, 'history');
     expect(await getActiveNav(p)).toBe('History');

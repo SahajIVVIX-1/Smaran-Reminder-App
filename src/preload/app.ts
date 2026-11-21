@@ -24,6 +24,16 @@ import type {
   ServerStatus,
   StartupDiagnosticInfo,
 } from '@shared/fileserver';
+import type {
+  AvailableScreenSource,
+  RemoteHubDevice,
+  RemoteHubLogEntry,
+  RemoteHubOverview,
+  RemoteHubSettings,
+  RemoteHubStream,
+  RemoteHubUser,
+  UserRole,
+} from '@shared/remotehub';
 import type { AppNotification } from '@shared/notifications';
 import type { FontCatalog } from '@shared/fonts';
 import type { LicenseImportResult, LicenseInfo } from '@shared/license/info';
@@ -179,6 +189,69 @@ const api = {
       ipcRenderer.invoke(IPC.fileserverSessionDisconnect, { id }),
     getSecurityEvents: (filter?: FileServerAuditFilter): Promise<FileServerSecurityEvent[]> =>
       ipcRenderer.invoke(IPC.fileserverSecurityEventsGet, filter),
+  },
+  remotehub: {
+    overview: (): Promise<RemoteHubOverview> => ipcRenderer.invoke(IPC.remotehubOverview),
+    start: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke(IPC.remotehubStart),
+    stop: (): Promise<void> => ipcRenderer.invoke(IPC.remotehubStop),
+    restart: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke(IPC.remotehubRestart),
+    getSettings: (): Promise<RemoteHubSettings> => ipcRenderer.invoke(IPC.remotehubSettingsGet),
+    saveSettings: (patch: Partial<RemoteHubSettings>): Promise<RemoteHubSettings> =>
+      ipcRenderer.invoke(IPC.remotehubSettingsSave, patch),
+    createAdmin: (creds: {
+      username: string;
+      password: string;
+      displayName: string;
+    }): Promise<RemoteHubUser> => ipcRenderer.invoke(IPC.remotehubAdminCreate, creds),
+    getUsers: (): Promise<RemoteHubUser[]> => ipcRenderer.invoke(IPC.remotehubUsersList),
+    createUser: (payload: {
+      username: string;
+      password: string;
+      displayName: string;
+      role: UserRole;
+    }): Promise<RemoteHubUser> => ipcRenderer.invoke(IPC.remotehubUserCreate, payload),
+    updateUser: (payload: {
+      id: string;
+      patch: { displayName?: string; role?: UserRole; enabled?: boolean; password?: string };
+    }): Promise<RemoteHubUser> => ipcRenderer.invoke(IPC.remotehubUserUpdate, payload),
+    deleteUser: (id: string): Promise<boolean> => ipcRenderer.invoke(IPC.remotehubUserDelete, id),
+    getDevices: (): Promise<RemoteHubDevice[]> => ipcRenderer.invoke(IPC.remotehubDevicesList),
+    requestPairCode: (): Promise<{ code: string; expiresAt: number }> =>
+      ipcRenderer.invoke(IPC.remotehubDevicePairRequest),
+    revokeDevice: (id: string): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.remotehubDeviceRevoke, id),
+    getSources: (): Promise<AvailableScreenSource[]> =>
+      ipcRenderer.invoke(IPC.remotehubSourcesList),
+    getStreams: (): Promise<RemoteHubStream[]> => ipcRenderer.invoke(IPC.remotehubStreamsList),
+    startStream: (params: {
+      sourceId: string;
+      name?: string;
+      resolution?: string;
+      fps?: number;
+      bitrateKbps?: number;
+      enableSrt?: boolean;
+      srtMode?: 'caller' | 'listener';
+      srtPort?: number;
+      srtLatencyMs?: number;
+      srtPassphrase?: string;
+    }): Promise<RemoteHubStream> => ipcRenderer.invoke(IPC.remotehubStreamStart, params),
+    stopStream: (streamId: string): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.remotehubStreamStop, streamId),
+    updateStreamSrt: (payload: {
+      streamId: string;
+      params: { mode?: 'caller' | 'listener'; port?: number; latencyMs?: number; passphrase?: string };
+    }): Promise<RemoteHubStream> => ipcRenderer.invoke(IPC.remotehubStreamSrtUpdate, payload),
+    approveControl: (sessionId: string): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.remotehubControlApprove, sessionId),
+    revokeControl: (): Promise<boolean> => ipcRenderer.invoke(IPC.remotehubControlRevoke),
+    logs: {
+      get: (): Promise<RemoteHubLogEntry[]> => ipcRenderer.invoke(IPC.remotehubLogsGet),
+      clear: (): Promise<void> => ipcRenderer.invoke(IPC.remotehubLogsClear),
+    },
+    onOverviewChanged: (listener: (overview: RemoteHubOverview) => void): (() => void) =>
+      subscribe(IPC.remotehubOverviewChanged, listener),
+    onLogAdded: (listener: (log: RemoteHubLogEntry) => void): (() => void) =>
+      subscribe(IPC.remotehubLogAdded, listener),
   },
 };
 

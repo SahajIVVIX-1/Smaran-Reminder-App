@@ -208,3 +208,19 @@ export const GlobeIcon = (p: IconProps) => (
     <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
   </Icon>
 );
+export const NetworkIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="16" y="16" width="6" height="6" rx="1" />
+    <rect x="2" y="16" width="6" height="6" rx="1" />
+    <rect x="9" y="2" width="6" height="6" rx="1" />
+    <path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3" />
+    <path d="M12 12V8" />
+  </Icon>
+);
+export const MonitorIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="2" y="3" width="20" height="14" rx="2" />
+    <line x1="8" y1="21" x2="16" y2="21" />
+    <line x1="12" y1="17" x2="12" y2="21" />
+  </Icon>
+);

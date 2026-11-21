@@ -21,6 +21,7 @@ import type { FileServerSecurityEvent } from '@shared/fileserver';
 import type { AppNotification } from '@shared/notifications';
 import { Engine, isPaused } from './engine/Engine';
 import { FileServerManager } from './fileserver/FileServerManager';
+import { RemoteHubManager } from './remotehub/RemoteHubManager';
 import { LogoAnimator } from './logo/LogoAnimator';
 import { LogoConductor } from './logo/LogoConductor';
 import { ConfigStore } from './store/ConfigStore';
@@ -48,6 +49,7 @@ export class SmaranApp {
   readonly fonts: FontLibrary;
   readonly menu: MenuWindow;
   readonly fileserver: FileServerManager;
+  readonly remotehub: RemoteHubManager;
   readonly notificationStore: NotificationStore;
   private tray: AppTray | null = null;
   private logoAnimator: LogoAnimator | null = null;
@@ -91,6 +93,39 @@ export class SmaranApp {
     });
     this.fileserver = new FileServerManager(dataDir, this.isLicenseValid);
     this.fileserver.setSecurityEventListener((event) => this.handleSecurityEvent(event));
+    this.remotehub = new RemoteHubManager(dataDir);
+    this.remotehub.setNoticeListener(
+      (title, body, category) => {
+        const notifCategory =
+          (category as 'automations' | 'fileserver' | 'security' | 'reminders') || 'fileserver';
+        this.notifications.show({
+          key: `rh-${Date.now()}`,
+          reminderId: null,
+          title,
+          body,
+          color: 'slate',
+          important: false,
+          label: 'Remote Hub',
+          hideAfterSec: 6,
+          sound: true,
+          category: notifCategory,
+        });
+      },
+      (title, detail) => {
+        const nowIso = new Date().toISOString();
+        this.history.add({
+          id: crypto.randomUUID(),
+          reminderId: 'remotehub',
+          title,
+          dueAt: nowIso,
+          at: nowIso,
+          outcome: 'remotehub_event',
+          detail,
+          category: 'system',
+          severity: 'info',
+        });
+      },
+    );
   }
 
   /** Loads data and starts everything. Returns a notice to show the user, if any. */
@@ -174,6 +209,10 @@ export class SmaranApp {
     if (canStart && serverSettings.autoStart === true) {
       void this.fileserver.start();
     }
+    const rhSettings = this.remotehub.getSettings();
+    if (canStart && rhSettings.autoStart === true && rhSettings.enabled === true) {
+      void this.remotehub.start();
+    }
     const signIn = launchedHidden();
     this.automations.start({ signIn, boot: signIn && uptime() < BOOT_WINDOW_SEC });
     this.syncSystem(config);
@@ -192,6 +231,7 @@ export class SmaranApp {
     this.engine.stop();
     this.automations.stop();
     this.fileserver.stopSync();
+    this.remotehub.stopSync();
     this.menu.destroy();
     this.logo?.stop();
     this.logoAnimator?.destroy();

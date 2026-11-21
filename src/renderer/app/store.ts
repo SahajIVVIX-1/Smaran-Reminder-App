@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { ServerStatus } from '@shared/fileserver';
+import type { RemoteHubOverview } from '@shared/remotehub';
 import type { FontCatalog } from '@shared/fonts';
 import type { AutomationNext, AutomationRun, NextFire, Route } from '@shared/ipc';
 import { plainRich } from '@shared/richText';
@@ -39,6 +40,8 @@ interface AppState {
   /** Authoritative persistent file server status synchronized with main process. */
   fileServerStatus: ServerStatus | null;
   setFileServerStatus(status: ServerStatus): void;
+  remoteHubOverview: RemoteHubOverview | null;
+  setRemoteHubOverview(overview: RemoteHubOverview): void;
   loadFonts(): Promise<void>;
 
   init(config: Config, history: HistoryEntry[]): void;
@@ -83,6 +86,12 @@ export const useApp = create<AppState>((set, get) => ({
 
   setFileServerStatus(fileServerStatus) {
     set({ fileServerStatus });
+  },
+
+  remoteHubOverview: null,
+
+  setRemoteHubOverview(remoteHubOverview) {
+    set({ remoteHubOverview });
   },
 
   async loadFonts() {

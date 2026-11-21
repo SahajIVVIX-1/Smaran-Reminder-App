@@ -20,6 +20,7 @@ import { ConfigSchema } from '@shared/schema';
 import { detectBrowsers } from '../automations/browsers';
 import type { SmaranApp } from '../SmaranApp';
 import { registerFileServerIpc } from '../fileserver/ipc';
+import { registerRemoteHubIpc } from '../remotehub/ipc';
 import { exportJson, mergeReminders, parseBackupJson } from '../store/backup';
 import { setTitleBarTheme } from '../windows/AppWindow';
 import { registerSafeHandle, registerSafeOn } from './security';
@@ -62,6 +63,7 @@ function broadcast(channel: string, payload: unknown): void {
 export function registerIpcHandlers(smaran: SmaranApp): void {
   const { store, history, engine, automations } = smaran;
   registerFileServerIpc(smaran.fileserver);
+  registerRemoteHubIpc(smaran.remotehub);
 
   registerSafeHandle(IPC.configGet, ['app', 'menu', 'setup'], () => store.get());
   registerSafeHandle(IPC.logoGet, ['app', 'menu', 'trayart'], () => smaran.logoState);

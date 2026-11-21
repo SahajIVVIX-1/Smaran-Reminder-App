@@ -5,6 +5,7 @@ export type AppRoute =
   | 'reminders'
   | 'automations'
   | 'fileserver'
+  | 'remotehub'
   | 'history'
   | 'license'
   | 'settings';
@@ -14,6 +15,7 @@ const ROUTE_LABELS: Record<AppRoute, string> = {
   reminders: 'Reminders',
   automations: 'Automations',
   fileserver: 'File Server',
+  remotehub: 'Remote Hub',
   history: 'History',
   license: 'License',
   settings: 'Settings',
