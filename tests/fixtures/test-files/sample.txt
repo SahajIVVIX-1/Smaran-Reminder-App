@@ -1,0 +1,2 @@
+Hello from Smaran E2E Automated Test Suite!
+This file is used for testing file server uploads, downloads, and previewing.

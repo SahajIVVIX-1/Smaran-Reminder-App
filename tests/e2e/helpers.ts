@@ -35,9 +35,12 @@ export async function launch(
   if (seed) writeFileSync(join(userData, 'config.json'), JSON.stringify(seed, null, 2));
   if (history.length) writeFileSync(join(userData, 'history.json'), JSON.stringify(history));
   // Development builds may skip the license check; packaged builds never can.
+  // Ensure ELECTRON_RUN_AS_NODE is stripped so Electron launches as a full GUI desktop application.
+  const env: Record<string, string | undefined> = { ...process.env, SMARAN_LICENSE_CHECK: 'off' };
+  delete env['ELECTRON_RUN_AS_NODE'];
   const app = await electron.launch({
     args: ['.', `--user-data-dir=${userData}`, ...extraArgs],
-    env: { ...process.env, SMARAN_LICENSE_CHECK: 'off' },
+    env: env as Record<string, string>,
   });
   const page = await appWindow(app);
   return {
