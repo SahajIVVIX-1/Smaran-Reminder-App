@@ -51,24 +51,10 @@ test.describe('Smaran Remote Hub Lifecycle & Navigation E2E', () => {
       const healthy = await pingHealth(5902);
       expect(healthy).toBe(true);
 
-      // Verify dashboard tabs work smoothly
-      const streamsTab = p.getByRole('button', { name: /Streams & Screens/i });
-      if (await streamsTab.isVisible()) {
-        await streamsTab.click();
-        await expect(p.getByText('Active Screen & Window Feeds')).toBeVisible();
-      }
-
-      const devicesTab = p.getByRole('button', { name: /Registered Devices/i });
-      if (await devicesTab.isVisible()) {
-        await devicesTab.click();
-        await expect(p.getByText('Registered Devices').first()).toBeVisible();
-      }
-
-      const usersTab = p.getByRole('button', { name: /Users & Roles/i });
-      if (await usersTab.isVisible()) {
-        await usersTab.click();
-        await expect(p.getByText('User Accounts & Access Control')).toBeVisible();
-      }
+      // Verify dashboard cards exist directly on the page (mirroring FileServer copy-paste layout)
+      await expect(p.getByText('Active Screen & Window Broadcasts')).toBeVisible();
+      await expect(p.getByText('Registered Devices & Sharing Agents')).toBeVisible();
+      await expect(p.getByText('User Accounts & Access Control')).toBeVisible();
 
       // Stop the server
       await stopBtn.click();
