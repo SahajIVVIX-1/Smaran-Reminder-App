@@ -1,3 +1,21 @@
+# Smaran 3.4.11
+
+- **Unified Modular Settings Architecture (`Settings.tsx`, `schema.ts`, `defaults.ts`):**
+  - Reorganized Settings into 5 dedicated, logically grouped tabs: `System`, `Notifications`, `Reminders`, `Automations`, and `File Server`.
+  - System tab houses general window behavior, tray behavior, launch-on-boot, theme selection, font picker, and application info.
+- **Granular Screen Border Light & Beam Thickness Presets (`Settings.tsx`, `schema.ts`, `defaults.ts`, `main.ts`):**
+  - Dedicated notification settings tab with independent border beam lighting switches for Reminders (default ON), Automations (default OFF), and File Server (default OFF).
+  - Default beam thickness set to 2px, accompanied by 6 thickness presets: Hairline (1px), Very Thin (2px), Thin (4px), Medium (8px), Thick (14px), and Very Thick (20px).
+  - Consolidated notification motion settings, logo animations, and card geometry controls into the notifications configuration.
+- **Window Minimization and Tray Lifecycle Control (`AppWindow.ts`, `schema.ts`, `defaults.ts`):**
+  - Added `minimizeToTray` option (default false): when enabled, minimizing Smaran closes the window to the system tray while keeping the application running in the background.
+  - Maintained `closeToTray` option (default true) allowing seamless window close to tray without terminating the process.
+- **Massive Test Suite Expansion & Extreme Reliability Verification (601 Tests across 52 Suites):**
+  - Implemented 24 new comprehensive unit test suites (+254 tests, expanding coverage from 347 to 601 passing tests).
+  - Covered scheduling math, leap years, DST transitions, atomic persistence, credential cryptography, IP filtering, WebDAV backup, Bezier kinematics, and natural language quick parsing.
+- **Enforced Build Verification (`package.json`):**
+  - Enforced `npm run test && npm run typecheck` execution before every build, ensuring that packaged artifacts cannot be generated if any test or typecheck fails.
+
 # Smaran 3.4.10
 
 - **Screen Corner Line & Notification Border Loading Line Restoration (`NotificationCenter.ts`, `NotificationCard.tsx`):**
