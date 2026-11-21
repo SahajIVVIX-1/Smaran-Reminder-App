@@ -58,6 +58,7 @@ test.describe('Notification Cards & Stacking', () => {
     const r2 = mockReminder({ title: 'Task B' });
     const h = await launchApp({
       seed: createTestConfig((c) => {
+        c.settings.notification.hideAfterSec = 30;
         c.reminders = [r1, r2];
       }),
     });
@@ -73,7 +74,12 @@ test.describe('Notification Cards & Stacking', () => {
       .poll(() =>
         h.app.evaluate(
           ({ BrowserWindow }) =>
-            BrowserWindow.getAllWindows().filter((w) => w.isVisible() && !w.isFocusable()).length,
+            BrowserWindow.getAllWindows().filter(
+              (w) =>
+                w.isVisible() &&
+                !w.isFocusable() &&
+                w.webContents.getURL().includes('/notification/'),
+            ).length,
         ),
       )
       .toBe(2);
@@ -81,7 +87,12 @@ test.describe('Notification Cards & Stacking', () => {
     const bounds = () =>
       h.app.evaluate(({ BrowserWindow }) =>
         BrowserWindow.getAllWindows()
-          .filter((w) => w.isVisible() && !w.isFocusable())
+          .filter(
+            (w) =>
+              w.isVisible() &&
+              !w.isFocusable() &&
+              w.webContents.getURL().includes('/notification/'),
+          )
           .map((w) => w.getBounds()),
       );
 

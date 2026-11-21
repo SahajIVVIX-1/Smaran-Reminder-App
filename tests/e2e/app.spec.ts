@@ -192,7 +192,11 @@ test('right-click opens the themed menu on reminders and on cards', async () => 
 });
 
 test('several cards stack in the corner without overlapping', async () => {
-  const h = await launch(seedConfig());
+  const h = await launch(
+    seedConfig((c) => {
+      c.settings.notification.hideAfterSec = 30;
+    }),
+  );
   const [a, b] = h.readConfig().reminders;
   await h.page.evaluate(
     (ids) => Promise.all(ids.map((rid) => window.smaran.reminders.showNow(rid))),
@@ -202,14 +206,24 @@ test('several cards stack in the corner without overlapping', async () => {
     .poll(() =>
       h.app.evaluate(
         ({ BrowserWindow }) =>
-          BrowserWindow.getAllWindows().filter((w) => w.isVisible() && !w.isFocusable()).length,
+          BrowserWindow.getAllWindows().filter(
+            (w) =>
+              w.isVisible() &&
+              !w.isFocusable() &&
+              w.webContents.getURL().includes('/notification/'),
+          ).length,
       ),
     )
     .toBe(2);
   const bounds = () =>
     h.app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()
-        .filter((w) => w.isVisible() && !w.isFocusable())
+        .filter(
+          (w) =>
+            w.isVisible() &&
+            !w.isFocusable() &&
+            w.webContents.getURL().includes('/notification/'),
+        )
         .map((w) => w.getBounds()),
     );
   const apart = async () => {
