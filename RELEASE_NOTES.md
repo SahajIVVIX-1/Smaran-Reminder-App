@@ -1,3 +1,20 @@
+# Smaran 3.4.10
+
+- **Screen Corner Line & Notification Border Loading Line Restoration (`NotificationCenter.ts`, `NotificationCard.tsx`):**
+  - Restored full screen corner border light illumination when notifications are active (`NotificationCenter.layout()` shows on active display).
+  - Restored animated travelling border loading ring (`<BorderRing />` with `.ring-light` and `.ring-glow`) around notifications.
+- **File Server Copy Button & Client Link Reliability (`FileServer.tsx`, `clipboard.ts`, `handlers.ts`, `HfsConfigBridge.ts`, `channels.ts`, `preload/app.ts`):**
+  - Added native main-process clipboard write IPC (`IPC.clipboardWrite`) to eliminate clipboard write failures caused by window focus restrictions in Electron.
+  - Implemented multi-tier `copyToClipboard()` utility falling back through IPC, `navigator.clipboard`, and legacy `document.execCommand('copy')`.
+  - Fixed client link and diagnostics copy buttons in the File Server manager to copy the exact URL reliably with visual confirmation.
+  - Added fallback copying mechanism to the HFS WebDAV client popup in `HfsConfigBridge.ts` so copies work smoothly across mobile browsers and non-SSL local HTTP origins.
+- **Installer "Launch Smaran" Startup Reliability (`install.ts`, `index.ts`):**
+  - Replaced broken PowerShell `$windows.Item()` COM script with direct, reliable `Shell.Application` `ShellExecute` execution.
+  - Added synchronous timeout handling (`timeout: 4000`) and automatic fallback to direct process spawn if de-elevation fails.
+  - Added a 350ms detachment buffer in the installer window before process exit to prevent premature process termination.
+- **Reminder Editor Streamlining (`ReminderEditor.tsx`):**
+  - Removed the unused "Colour" selector section from the reminder creation/editing dialog while preserving schema defaults and reminder list dot compatibility.
+
 # Smaran 3.4.9
 
 - **Synchronized Administrator Credential Management & Zero-Plaintext Storage (`FileServerManager.ts`, `FileServerStore.ts`, `secureStorage.ts`, `HfsApiClient.ts`):**

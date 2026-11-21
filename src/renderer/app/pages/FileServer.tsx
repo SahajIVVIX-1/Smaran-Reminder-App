@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { FileServerSecurityEvent, FileServerSettings } from '@shared/fileserver';
 import { timeOf } from '../format';
 import { cx } from '../cx';
+import { copyToClipboard } from '../clipboard';
 import {
   ArrowDownIcon,
   BoltIcon,
@@ -221,10 +222,12 @@ export function FileServer() {
     await window.smaran.fileserver.openUrl(url);
   };
 
-  const handleCopyUrl = (url: string) => {
-    void navigator.clipboard.writeText(url);
-    setCopiedUrl(url);
-    setTimeout(() => setCopiedUrl(null), 2000);
+  const handleCopyUrl = async (url: string) => {
+    const ok = await copyToClipboard(url);
+    if (ok) {
+      setCopiedUrl(url);
+      setTimeout(() => setCopiedUrl(null), 2000);
+    }
   };
 
   const handleShowQr = async (url: string) => {
@@ -269,10 +272,12 @@ export function FileServer() {
     }
   };
 
-  const handleCopyDiagnostics = () => {
-    void navigator.clipboard.writeText(diagnosticsText);
-    setCopiedDiag(true);
-    setTimeout(() => setCopiedDiag(false), 2000);
+  const handleCopyDiagnostics = async () => {
+    const ok = await copyToClipboard(diagnosticsText);
+    if (ok) {
+      setCopiedDiag(true);
+      setTimeout(() => setCopiedDiag(false), 2000);
+    }
   };
 
   // Section: Server Port Apply

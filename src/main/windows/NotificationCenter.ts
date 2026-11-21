@@ -310,8 +310,12 @@ export class NotificationCenter implements Notifier {
     // The oldest cards stay; newer ones wait for room.
     const visible = ready.slice(0, MAX_VISIBLE).reverse();
 
-    // Screen border loading line removed as per 3.4.1 specification
-    this.screenBorder.hide();
+    const activeDisplay = allDisplays.find((d) => d.id === display.id) ?? primaryDisplay;
+    if (visible.length > 0) {
+      this.screenBorder.show(activeDisplay);
+    } else {
+      this.screenBorder.hide();
+    }
     const positions = stackWindows(
       settings.corner,
       display.workArea,

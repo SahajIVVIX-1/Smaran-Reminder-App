@@ -34,6 +34,7 @@ export const IPC = {
   menuPick: 'menu:pick',
   menuPopup: 'menu:popup',
   appEdit: 'app:edit',
+  clipboardWrite: 'app:clipboard:write',
   logoPlay: 'logo:play',
   logoFrame: 'logo:frame',
   logoState: 'logo:state',

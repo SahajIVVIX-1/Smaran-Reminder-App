@@ -3,8 +3,9 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { appEnv, EXE_NAME, isProcessElevated } from '../../src/main/setup/winSystem';
-import { defaultInstallDir, localInstallDir, programFilesInstallDir, verifyEngineArchive, verifyInstalledFiles } from '../../src/main/setup/install';
+import { defaultInstallDir, launchInstalled, localInstallDir, programFilesInstallDir, verifyEngineArchive, verifyInstalledFiles } from '../../src/main/setup/install';
 import { generateDefaultAdminPassword, generateSecurePassword, validateAdminPassword } from '../../src/main/fileserver/FileServerStore';
+import { IPC } from '../../src/shared/channels';
 
 describe('Setup Architecture & WinSystem Tests', () => {
   it('appEnv strictly strips all PORTABLE_EXECUTABLE_* variables while preserving others', () => {
@@ -140,5 +141,13 @@ describe('Setup Architecture & WinSystem Tests', () => {
     ];
     expect(phases).toContain('ready');
     expect(phases).toContain('verifying');
+  });
+
+  it('launchInstalled is exported as a callable function', () => {
+    expect(typeof launchInstalled).toBe('function');
+  });
+
+  it('IPC includes clipboardWrite channel definition', () => {
+    expect(IPC.clipboardWrite).toBe('app:clipboard:write');
   });
 });

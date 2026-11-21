@@ -1,5 +1,5 @@
 import * as fs from 'node:fs';
-import { BrowserWindow, dialog, screen, shell } from 'electron';
+import { BrowserWindow, clipboard, dialog, screen, shell } from 'electron';
 import { z } from 'zod';
 import {
   AutomationIdSchema,
@@ -70,6 +70,24 @@ export function registerIpcHandlers(smaran: SmaranApp): void {
   registerSafeOn(IPC.appEdit, ['app', 'setup', 'license'], (event, payload: unknown) => {
     const command = EditCommandSchema.safeParse(payload);
     if (command.success) event.sender[command.data]();
+  });
+
+  // Native clipboard write helper for reliable cross-platform copying without focus requirements
+  registerSafeHandle(IPC.clipboardWrite, ['app', 'setup', 'license', 'menu'], (_event, payload: unknown) => {
+    if (typeof payload === 'string') {
+      clipboard.writeText(payload);
+      return true;
+    }
+    if (
+      typeof payload === 'object' &&
+      payload !== null &&
+      'text' in payload &&
+      typeof (payload as { text: unknown }).text === 'string'
+    ) {
+      clipboard.writeText((payload as { text: string }).text);
+      return true;
+    }
+    return false;
   });
 
   // The engine owns state and the pause; a save from the app never overwrites them.

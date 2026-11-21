@@ -1363,7 +1363,7 @@ body::before {
     <div class="smaran-pop-url-box">
       <div class="smaran-pop-label">
         <span>Direct WebDAV URL</span>
-        <button class="smaran-copy-btn" id="smaran-copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('smaran-pop-url').innerText);this.innerText='Copied!';setTimeout(()=>{this.innerText='Copy';},2000);" title="Copy URL">Copy</button>
+        <button class="smaran-copy-btn" id="smaran-copy-btn" onclick="smaranCopyWebdavUrl(this)" title="Copy URL">Copy</button>
       </div>
       <div class="smaran-pop-url" id="smaran-pop-url"></div>
     </div>
@@ -1381,6 +1381,42 @@ body::before {
     var u = window.location.protocol + '//' + window.location.host + '/';
     var el = document.getElementById('smaran-pop-url');
     if (el) el.innerText = u;
+
+    window.smaranCopyWebdavUrl = function(btn) {
+      var targetEl = document.getElementById('smaran-pop-url');
+      if (!targetEl) return;
+      var text = targetEl.innerText || targetEl.textContent || '';
+      var done = function() {
+        if (btn) {
+          var prev = btn.innerText;
+          btn.innerText = 'Copied!';
+          setTimeout(function() { btn.innerText = prev; }, 2000);
+        }
+      };
+
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(done).catch(function() { fallback(text); });
+      } else {
+        fallback(text);
+      }
+
+      function fallback(t) {
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = t;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          ta.style.pointerEvents = 'none';
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          var ok = document.execCommand('copy');
+          document.body.removeChild(ta);
+          if (ok) done();
+        } catch (e) {}
+      }
+    };
+
     document.addEventListener('click', function(e){
       var w = document.getElementById('smaran-webdav-widget');
       var p = document.getElementById('smaran-webdav-pop');

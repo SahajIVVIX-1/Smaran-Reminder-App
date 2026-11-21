@@ -273,19 +273,8 @@ export function launchInstalled(target: string): void {
     try {
       const cleanExe = exe.replace(/'/g, "''");
       const cleanTarget = target.replace(/'/g, "''");
-      const psScript = `
-        try {
-          $shell = New-Object -ComObject 'Shell.Application'
-          $windows = $shell.Windows()
-          $desktop = $windows.Item()
-          if ($desktop) {
-            $desktop.Document.Application.ShellExecute('${cleanExe}', '', '${cleanTarget}', 'open', 1)
-            exit 0
-          }
-        } catch {}
-        Start-Process -FilePath 'explorer.exe' -ArgumentList '"${cleanExe}"'
-      `;
-      const child = spawn(
+      const psScript = `$s = New-Object -ComObject 'Shell.Application'; $s.ShellExecute('${cleanExe}', '', '${cleanTarget}', 'open', 1)`;
+      execFileSync(
         'powershell.exe',
         [
           '-WindowStyle',
@@ -296,21 +285,14 @@ export function launchInstalled(target: string): void {
           psScript,
         ],
         {
-          detached: true,
-          stdio: 'ignore',
           windowsHide: true,
+          timeout: 4000,
+          stdio: 'ignore',
         },
       );
-      child.unref();
       return;
     } catch {
-      try {
-        const child2 = spawn('explorer.exe', [exe], { detached: true, stdio: 'ignore' });
-        child2.unref();
-        return;
-      } catch {
-        // Fall back to direct spawn below
-      }
+      // Fall back to direct spawn below if Shell.Application de-elevation fails
     }
   }
 

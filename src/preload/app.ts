@@ -99,6 +99,10 @@ const api = {
     onNavigate: (listener: (route: Route) => void): (() => void) =>
       subscribe(IPC.navigate, listener),
   },
+  clipboard: {
+    /** Writes text to the system clipboard via main process with zero focus/permission restrictions. */
+    writeText: (text: string): Promise<boolean> => ipcRenderer.invoke(IPC.clipboardWrite, { text }),
+  },
   logo: {
     /** What the Smaran dots should show right now, and every change after. */
     get: (): Promise<LogoState> => ipcRenderer.invoke(IPC.logoGet),

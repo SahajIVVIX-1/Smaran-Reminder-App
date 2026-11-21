@@ -180,13 +180,19 @@ export function runSetup(): void {
       try {
         if (!win.isDestroyed()) {
           win.hide();
-          win.destroy();
         }
       } catch {
         // ignore
       }
       launchInstalled(target);
-      app.quit();
+      setTimeout(() => {
+        try {
+          if (!win.isDestroyed()) win.destroy();
+        } catch {
+          // ignore
+        }
+        app.quit();
+      }, 350);
     });
 
     ipcMain.on(IPC.setupRetry, (event) => {

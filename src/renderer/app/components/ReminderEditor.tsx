@@ -10,13 +10,11 @@ import { hasRich, plainRich, RICH_MARKERS, type RichMark } from '@shared/richTex
 import { ruleSummary } from '@shared/ruleSummary';
 import {
   CARD_WIDTH,
-  COLORS,
   DEFAULT_NOTIFICATION_MOTION,
   ReminderSchema,
   type Reminder,
 } from '@shared/schema';
 import { tabVariants } from '../animations';
-import { COLOR_BG, COLOR_NAME } from '../../colors';
 import { cx } from '../cx';
 import { useExit } from '../useExit';
 import { whenLabel } from '../format';
@@ -365,27 +363,6 @@ export function ReminderEditor() {
 
               <Section title="When" hint={ruleSummary(form.rule)}>
                 <ScheduleEditor rule={form.rule} onChange={(rule) => change({ rule })} />
-              </Section>
-
-              <Section title="Colour">
-                <div className="flex gap-2" role="radiogroup" aria-label="Colour">
-                  {COLORS.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      role="radio"
-                      aria-checked={form.color === c}
-                      aria-label={COLOR_NAME[c]}
-                      title={COLOR_NAME[c]}
-                      onClick={() => change({ color: c })}
-                      className={cx(
-                        'h-6 w-6 rounded-full transition-transform duration-150 hover:scale-110',
-                        COLOR_BG[c],
-                        form.color === c && 'ring-2 ring-ink/70 ring-offset-2 ring-offset-bg',
-                      )}
-                    />
-                  ))}
-                </div>
               </Section>
             </div>
           )}

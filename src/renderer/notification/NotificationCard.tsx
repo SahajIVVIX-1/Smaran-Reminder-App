@@ -629,6 +629,9 @@ export function NotificationCard({
               </>
             )}
           </div>
+
+          {/* A colourful travelling light rotates around the notification border */}
+          <BorderRing />
         </div>
       </div>
     );
@@ -829,8 +832,25 @@ export function NotificationCard({
             </div>
           </div>
         </div>
+
+        {/* A colourful travelling light rotates around the notification border */}
+        <BorderRing />
       </div>
     </div>
+  );
+}
+
+/**
+ * A soft light in Google's colours, blended into one another, that travels round the card's border
+ * like a loading indicator: it speeds up and slows down through each lap and stretches and shrinks
+ * as it goes, with faded ends and a blurred glow underneath. Pure CSS (see .ring-light in theme.css).
+ */
+function BorderRing() {
+  return (
+    <>
+      <div className="ring-light ring-glow" aria-hidden />
+      <div className="ring-light" aria-hidden />
+    </>
   );
 }
 

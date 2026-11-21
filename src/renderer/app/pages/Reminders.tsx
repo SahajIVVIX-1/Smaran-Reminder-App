@@ -145,7 +145,7 @@ export function Reminders() {
                   <span
                     className={cx(
                       'h-2.5 w-2.5 shrink-0 rounded-full',
-                      COLOR_BG[r.color],
+                      (r.color && COLOR_BG[r.color]) || 'bg-accent',
                       !r.enabled && 'opacity-40',
                     )}
                   />
