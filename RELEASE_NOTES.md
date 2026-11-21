@@ -1,5 +1,10 @@
 # Smaran 3.4.8
 
+- **Permanent Automated End-to-End (E2E) Testing Infrastructure (`tests/`):**
+  - Built a comprehensive, permanent automated testing suite with Playwright driving the genuine Electron desktop application process (`_electron.launch()`).
+  - Added 12 modular test specifications spanning application launch, first-run onboarding, sidebar navigation, reminder CRUD, settings (theme, screen corner positioning, quiet hours), automation flows, multi-window floating notifications, persistent history, HFS file server sidecar lifecycle, admin authentication, and public file sharing.
+  - Added reusable test harness (`tests/helpers/app-launcher.ts`) with temporary directory sandboxing and `ELECTRON_RUN_AS_NODE` sanitization.
+  - Added permanent npm scripts: `test:all`, `test:e2e`, `test:e2e:smoke`, `test:e2e:ui`, `test:e2e:fileserver`, `test:e2e:report`.
 - **Administrator Privilege-Aware Installation Targets (`install.ts`, `winSystem.ts`):**
   - Added `isProcessElevated()` to detect whether the installer is executing with elevated Administrator privileges on Windows (`Run as administrator`).
   - When run as Administrator, the installer defaults to machine-wide installation at `C:\Program Files\Smaran` (writing uninstall keys under `HKLM`).
@@ -181,7 +186,7 @@
 
 ---
 
-# Smaran 3.4.0
+# Smaran 3.4.0 (Rolled into v3.4.1 Release)
 
 - **Complete Settings Architecture Redesign:**
   - Redesigned `Settings.tsx` into four distinct primary categories: **System**, **Reminders**, **Automations**, and **File Server**.
