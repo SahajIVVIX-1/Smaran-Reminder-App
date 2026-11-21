@@ -27,7 +27,7 @@
     "test:e2e:fileserver": "playwright test tests/e2e/fileserver.spec.ts tests/e2e/authentication.spec.ts tests/e2e/file-sharing.spec.ts",
     "test:e2e:report": "playwright show-report test-results/html",
     "test:smoke": "playwright test -c playwright.smoke.config.ts",
-    "build": "npm run typecheck && electron-vite build",
+    "build": "npm run test && npm run typecheck && electron-vite build",
     "build:win": "npm run build && node scripts/prepare-release-dirs.mjs && electron-builder --win --x64 && node scripts/make-setup.mjs",
     "build:unpack": "npm run build && node scripts/prepare-release-dirs.mjs && electron-builder --win --x64 --dir",
     "icon": "node scripts/make-icon.mjs",
