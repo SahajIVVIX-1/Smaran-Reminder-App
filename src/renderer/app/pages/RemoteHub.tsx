@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type {
   AvailableScreenSource,
   RemoteHubDevice,
@@ -9,65 +9,98 @@ import type {
   RemoteHubUser,
   UserRole,
 } from '@shared/remotehub';
-import { copyToClipboard } from '../clipboard';
 import { cx } from '../cx';
 import {
-  CheckIcon,
+  ActivityIcon,
   CopyIcon,
+  GearIcon,
   GlobeIcon,
   MonitorIcon,
   NetworkIcon,
   PlayIcon,
   PlusIcon,
   PowerIcon,
-  QrIcon,
   RefreshIcon,
-  ShieldIcon,
   TrashIcon,
-  XIcon,
 } from '../icons';
-import { Button, Card, Dialog, IconButton, Input, Row, Switch } from '../ui';
+import { useApp } from '../store';
+import { Button, Dialog, Input, Switch } from '../ui';
+
+type SubTab = 'overview' | 'streams' | 'devices' | 'users';
+
+function Badge({
+  variant = 'neutral',
+  children,
+}: {
+  variant?: 'success' | 'danger' | 'accent' | 'neutral';
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      className={cx(
+        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium tracking-wide',
+        variant === 'success' && 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20',
+        variant === 'danger' && 'bg-rose-500/10 text-rose-500 border border-rose-500/20',
+        variant === 'accent' && 'bg-sky-500/10 text-sky-400 border border-sky-500/20',
+        variant === 'neutral' && 'bg-sheet text-muted border border-line',
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+function Select<T extends string>({
+  value,
+  onChange,
+  options,
+  className,
+}: {
+  value: T;
+  onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  options: { value: T; label: string }[];
+  className?: string;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={onChange}
+      className={cx(
+        'h-8 w-full rounded-lg border border-line bg-surface px-2 text-[13px] text-ink transition focus:border-accent focus:outline-none',
+        className,
+      )}
+    >
+      {options.map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+  );
+}
 
 export function RemoteHub() {
+  const [activeTab, setActiveTab] = useState<SubTab>('overview');
   const [overview, setOverview] = useState<RemoteHubOverview | null>(null);
+  const [settings, setSettings] = useState<RemoteHubSettings | null>(null);
   const [streams, setStreams] = useState<RemoteHubStream[]>([]);
   const [devices, setDevices] = useState<RemoteHubDevice[]>([]);
   const [users, setUsers] = useState<RemoteHubUser[]>([]);
-  const [settings, setSettings] = useState<RemoteHubSettings | null>(null);
+  const [sources, setSources] = useState<AvailableScreenSource[]>([]);
   const [logs, setLogs] = useState<RemoteHubLogEntry[]>([]);
 
-  // Server Port State
-  const [portInput, setPortInput] = useState('5902');
-  const [portSaving, setPortSaving] = useState(false);
-  const [portFeedback, setPortFeedback] = useState<{
-    type: 'success' | 'error';
-    message: string;
-  } | null>(null);
-
-  // Administrator Credentials State
-  const [adminUsername, setAdminUsername] = useState('admin');
-  const [adminPassword, setAdminPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [credSaving, setCredSaving] = useState(false);
-  const [credFeedback, setCredFeedback] = useState<{
-    type: 'success' | 'error';
-    message: string;
-  } | null>(null);
-
-  // General Lifecycle State
-  const [actionLoading, setActionLoading] = useState<
-    'starting' | 'stopping' | 'restarting' | 'applying' | null
-  >(null);
-  const [serverError, setServerError] = useState<string | null>(null);
-  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
-
-  // QR Modal
-  const [qrModalUrl, setQrModalUrl] = useState<string | null>(null);
-  const [qrCodeData, setQrCodeData] = useState<string | null>(null);
-
-  // New Stream Modal
+  // Modals state
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showLogsModal, setShowLogsModal] = useState(false);
   const [showNewStreamModal, setShowNewStreamModal] = useState(false);
-  const [sources, setSources] = useState<AvailableScreenSource[]>([]);
+  const [showPairModal, setShowPairModal] = useState(false);
+  const [showNewUserModal, setShowNewUserModal] = useState(false);
+  const [showAdminInitModal, setShowAdminInitModal] = useState(false);
+  const [pairCodeInfo, setPairCodeInfo] = useState<{ code: string; expiresAt: number } | null>(
+    null,
+  );
+
+  // Form states
   const [selectedSourceId, setSelectedSourceId] = useState<string>('');
   const [streamName, setStreamName] = useState('');
   const [streamResolution, setStreamResolution] = useState('1080p');
@@ -76,42 +109,30 @@ export function RemoteHub() {
   const [streamSrtPort, setStreamSrtPort] = useState(6000);
   const [streamSrtLatency, setStreamSrtLatency] = useState(120);
 
-  // Pair Modal
-  const [showPairModal, setShowPairModal] = useState(false);
-  const [pairCodeInfo, setPairCodeInfo] = useState<{ code: string; expiresAt: number } | null>(
-    null,
-  );
-
-  // User Accounts Modal & State
-  const [showNewUserModal, setShowNewUserModal] = useState(false);
+  // User form states
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newDisplayName, setNewDisplayName] = useState('');
   const [newUserRole, setNewUserRole] = useState<UserRole>('operator');
 
-  // First Run Admin Init Modal
-  const [showAdminInitModal, setShowAdminInitModal] = useState(false);
-
-  // Loading indicator for stream operations
-  const [streamActionLoading, setStreamActionLoading] = useState(false);
+  // Loading/action states
+  const [loading, setLoading] = useState(false);
+  const { toastMsg } = useApp.getState();
 
   const loadAllData = async () => {
     try {
-      const [ov, st, dev, us, setts, lg] = await Promise.all([
+      const [ov, st, dev, us, lg] = await Promise.all([
         window.smaran.remotehub.overview(),
         window.smaran.remotehub.getStreams(),
         window.smaran.remotehub.getDevices(),
         window.smaran.remotehub.getUsers(),
-        window.smaran.remotehub.getSettings(),
         window.smaran.remotehub.logs.get(),
       ]);
       setOverview(ov);
       setStreams(st);
       setDevices(dev);
       setUsers(us);
-      setSettings(setts);
       setLogs(lg);
-      if (ov.port) setPortInput(String(ov.port));
       if (!ov.adminCreated) {
         setShowAdminInitModal(true);
       }
@@ -127,18 +148,15 @@ export function RemoteHub() {
       window.smaran.remotehub.getStreams(),
       window.smaran.remotehub.getDevices(),
       window.smaran.remotehub.getUsers(),
-      window.smaran.remotehub.getSettings(),
       window.smaran.remotehub.logs.get(),
     ])
-      .then(([ov, st, dev, us, setts, lg]) => {
+      .then(([ov, st, dev, us, lg]) => {
         if (!mounted) return;
         setOverview(ov);
         setStreams(st);
         setDevices(dev);
         setUsers(us);
-        setSettings(setts);
         setLogs(lg);
-        if (ov.port) setPortInput(String(ov.port));
         if (!ov.adminCreated) {
           setShowAdminInitModal(true);
         }
@@ -148,12 +166,8 @@ export function RemoteHub() {
       });
 
     const unsubOverview = window.smaran.remotehub.onOverviewChanged((newOv) => {
-      if (mounted) {
-        setOverview(newOv);
-        if (newOv.port) setPortInput(String(newOv.port));
-      }
+      if (mounted) setOverview(newOv);
     });
-
     const unsubLog = window.smaran.remotehub.onLogAdded((log) => {
       if (mounted) setLogs((prev) => [log, ...prev.slice(0, 499)]);
     });
@@ -165,7 +179,7 @@ export function RemoteHub() {
       void window.smaran.remotehub.getDevices().then((d) => {
         if (mounted) setDevices(d);
       });
-    }, 4000);
+    }, 5000);
 
     return () => {
       mounted = false;
@@ -175,183 +189,72 @@ export function RemoteHub() {
     };
   }, []);
 
-  const isRunning = overview?.status === 'running';
-  const isStarting = actionLoading === 'starting' || overview?.status === 'starting';
-  const isStopping = actionLoading === 'stopping' || overview?.status === 'stopping';
-  const isRestarting = actionLoading === 'restarting';
-  const isApplying = actionLoading === 'applying';
-  const isPending = isStarting || isStopping || isRestarting || isApplying;
-  const isError = overview?.status === 'error';
-  const currentPort = overview?.port ?? 5902;
-  const primaryLanUrl = overview?.lanUrl || `http://127.0.0.1:${currentPort}/`;
-
-  const handleStart = async () => {
-    setActionLoading('starting');
-    setServerError(null);
-    try {
-      const res = await window.smaran.remotehub.start();
-      if (!res.ok) {
-        setServerError(res.error || 'Failed to start Remote Hub Server');
-      }
-      await loadAllData();
-    } catch (err: unknown) {
-      setServerError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setActionLoading(null);
+  const handleStartServer = async () => {
+    setLoading(true);
+    const res = await window.smaran.remotehub.start();
+    setLoading(false);
+    if (!res.ok) {
+      toastMsg(res.error || 'Failed to start Remote Hub Server', 'error');
+    } else {
+      toastMsg('Remote Hub Server started on port ' + (overview?.port || 5902));
+      void loadAllData();
     }
   };
 
-  const handleStop = async () => {
-    setActionLoading('stopping');
-    try {
-      await window.smaran.remotehub.stop();
-      await loadAllData();
-    } catch (err: unknown) {
-      setServerError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setActionLoading(null);
+  const handleStopServer = async () => {
+    setLoading(true);
+    await window.smaran.remotehub.stop();
+    setLoading(false);
+    toastMsg('Remote Hub Server stopped.');
+    void loadAllData();
+  };
+
+  const handleRestartServer = async () => {
+    setLoading(true);
+    const res = await window.smaran.remotehub.restart();
+    setLoading(false);
+    if (!res.ok) {
+      toastMsg(res.error || 'Failed to restart server', 'error');
+    } else {
+      toastMsg('Remote Hub Server restarted.');
+      void loadAllData();
     }
   };
 
-  const handleRestart = async () => {
-    setActionLoading('restarting');
-    setServerError(null);
-    try {
-      const res = await window.smaran.remotehub.restart();
-      if (!res.ok) {
-        setServerError(res.error || 'Failed to restart Remote Hub Server');
-      }
-      await loadAllData();
-    } catch (err: unknown) {
-      setServerError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setActionLoading(null);
+  const openWebDashboard = () => {
+    if (overview?.lanUrl) {
+      window.open(overview.lanUrl, '_blank');
     }
   };
 
-  const handleOpenUrl = (url: string) => {
-    window.open(url, '_blank');
-  };
-
-  const handleCopyUrl = async (url: string) => {
-    const ok = await copyToClipboard(url);
-    if (ok) {
-      setCopiedUrl(url);
-      setTimeout(() => setCopiedUrl(null), 2000);
+  const copyLanUrl = () => {
+    if (overview?.lanUrl) {
+      navigator.clipboard.writeText(overview.lanUrl);
+      toastMsg('Access URL copied to clipboard: ' + overview.lanUrl);
     }
   };
 
-  const handleShowQr = async (url: string) => {
-    try {
-      const qrData = await window.smaran.fileserver.generateQr(url);
-      setQrCodeData(qrData);
-    } catch {
-      setQrCodeData(null);
-    }
-    setQrModalUrl(url);
-  };
-
-  const handleApplyPort = async () => {
-    const p = parseInt(portInput.trim(), 10);
-    if (Number.isNaN(p) || p < 1024 || p > 65535) {
-      setPortFeedback({
-        type: 'error',
-        message: 'Port must be a valid number between 1024 and 65535.',
-      });
-      return;
-    }
-    setPortSaving(true);
-    setPortFeedback(null);
-    if (isRunning) {
-      setActionLoading('applying');
-    }
-    try {
-      const updated = await window.smaran.remotehub.saveSettings({ port: p });
-      setSettings(updated);
-      setPortFeedback({
-        type: 'success',
-        message: `Port updated to ${p}.${isRunning ? ' Server restarted with new port.' : ''}`,
-      });
-      await loadAllData();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setPortFeedback({ type: 'error', message: msg });
-      setServerError(msg);
-    } finally {
-      setPortSaving(false);
-      setActionLoading(null);
-      setTimeout(() => setPortFeedback(null), 6000);
-    }
-  };
-
-  const handleSaveCredentials = async () => {
-    if (!adminUsername.trim()) {
-      setCredFeedback({
-        type: 'error',
-        message: 'Admin username cannot be empty.',
-      });
-      return;
-    }
-    if (!adminPassword.trim()) {
-      setCredFeedback({
-        type: 'error',
-        message: 'Admin password cannot be empty.',
-      });
-      return;
-    }
-    if (adminPassword.trim().length < 8) {
-      setCredFeedback({
-        type: 'error',
-        message: 'Password must be at least 8 characters long.',
-      });
-      return;
-    }
-    setCredSaving(true);
-    setCredFeedback(null);
-    try {
-      await window.smaran.remotehub.createAdmin({
-        username: adminUsername.trim(),
-        password: adminPassword.trim(),
-        displayName: 'Administrator',
-      });
-      setCredFeedback({
-        type: 'success',
-        message: 'Administrator credentials updated and secured.',
-      });
-      setAdminPassword('');
-      await loadAllData();
-    } catch (err: unknown) {
-      setCredFeedback({
-        type: 'error',
-        message: err instanceof Error ? err.message : String(err),
-      });
-    } finally {
-      setCredSaving(false);
-      setTimeout(() => setCredFeedback(null), 6000);
-    }
-  };
-
-  const handleOpenStreamModal = async () => {
+  const openNewStreamModal = async () => {
     try {
       const srcList = await window.smaran.remotehub.getSources();
       setSources(srcList);
-      if (srcList.length > 0 && srcList[0]) {
+      if (srcList[0]) {
         setSelectedSourceId(srcList[0].id);
         setStreamName(srcList[0].name);
       }
       setShowNewStreamModal(true);
-    } catch (err) {
-      setServerError('Failed to fetch capture sources: ' + String(err));
+    } catch {
+      toastMsg('Failed to enumerate screen sources.', 'error');
     }
   };
 
-  const handleStartStream = async () => {
+  const handleCreateStream = async () => {
     if (!selectedSourceId) return;
-    setStreamActionLoading(true);
+    setLoading(true);
     try {
       await window.smaran.remotehub.startStream({
         sourceId: selectedSourceId,
-        name: streamName || 'Display Feed',
+        name: streamName,
         resolution: streamResolution,
         fps: streamFps,
         enableSrt: true,
@@ -360,21 +263,19 @@ export function RemoteHub() {
         srtLatencyMs: streamSrtLatency,
       });
       setShowNewStreamModal(false);
-      await loadAllData();
+      toastMsg('Stream broadcast started with independent SRT output.');
+      void loadAllData();
     } catch (err) {
-      setServerError('Error starting stream: ' + String(err));
+      toastMsg('Error starting stream: ' + String(err), 'error');
     } finally {
-      setStreamActionLoading(false);
+      setLoading(false);
     }
   };
 
   const handleStopStream = async (id: string) => {
-    try {
-      await window.smaran.remotehub.stopStream(id);
-      await loadAllData();
-    } catch (err) {
-      setServerError(String(err));
-    }
+    await window.smaran.remotehub.stopStream(id);
+    toastMsg('Stream stopped.');
+    void loadAllData();
   };
 
   const handleGeneratePairCode = async () => {
@@ -385,819 +286,494 @@ export function RemoteHub() {
 
   const handleRevokeDevice = async (id: string) => {
     try {
-      await window.smaran.remotehub.revokeDevice(id);
-      await loadAllData();
+      const ok = await window.smaran.remotehub.revokeDevice(id);
+      if (ok) {
+        toastMsg('Device revoked.');
+        void loadAllData();
+      }
     } catch (err) {
-      setServerError(String(err));
+      toastMsg(String(err), 'error');
     }
   };
 
   const handleCreateUser = async () => {
-    if (!newUsername.trim() || !newPassword.trim()) return;
     try {
       await window.smaran.remotehub.createUser({
-        username: newUsername.trim(),
-        password: newPassword.trim(),
-        displayName: newDisplayName.trim() || newUsername.trim(),
+        username: newUsername,
+        password: newPassword,
+        displayName: newDisplayName,
         role: newUserRole,
       });
       setShowNewUserModal(false);
       setNewUsername('');
       setNewPassword('');
       setNewDisplayName('');
-      await loadAllData();
+      toastMsg(`User "${newUsername}" created.`);
+      void loadAllData();
     } catch (err) {
-      setServerError(String(err));
+      toastMsg(String(err), 'error');
     }
   };
 
-  const handleDeleteUser = async (id: string) => {
+  const handleCreateAdmin = async () => {
     try {
-      await window.smaran.remotehub.deleteUser(id);
-      await loadAllData();
+      await window.smaran.remotehub.createAdmin({
+        username: newUsername,
+        password: newPassword,
+        displayName: newDisplayName || 'Administrator',
+      });
+      setShowAdminInitModal(false);
+      setNewUsername('');
+      setNewPassword('');
+      setNewDisplayName('');
+      toastMsg('Administrator account initialized.');
+      void loadAllData();
     } catch (err) {
-      setServerError(String(err));
+      toastMsg(String(err), 'error');
     }
   };
 
-  const handleEmergencyRevokeControl = async () => {
-    try {
-      await window.smaran.remotehub.revokeControl();
-      await loadAllData();
-    } catch (err) {
-      setServerError(String(err));
-    }
-  };
+  const isRunning = overview?.status === 'running';
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Canonical Smaran Header (Exact FileServer structure) */}
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Remote Hub</h1>
-          <p className="mt-1 font-serif text-[13px] text-muted italic">
-            Multi-screen streaming, independent SRT outputs, and password-protected remote control.
-          </p>
+    <div className="flex h-full flex-col overflow-y-auto p-6 text-ink">
+      {/* Header */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-line pb-5">
+        <div className="flex items-center gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-accent">
+            <NetworkIcon size={22} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h1 className="text-xl font-bold tracking-tight">Remote Hub</h1>
+              <Badge
+                variant={
+                  overview?.status === 'running'
+                    ? 'success'
+                    : overview?.status === 'error'
+                      ? 'danger'
+                      : 'neutral'
+                }
+              >
+                ● {overview?.status?.toUpperCase() || 'STOPPED'}
+              </Badge>
+            </div>
+            <p className="font-serif text-[13.5px] text-muted italic">
+              Multi-screen live streaming, independent SRT pipelines & controlled remote desktop.
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Global Action Bar */}
+        <div className="flex flex-wrap items-center gap-2">
           {isRunning ? (
-            <div className="flex items-center gap-2 animate-fade transition-all duration-300">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => handleOpenUrl(primaryLanUrl)}
-                title="Open Remote Hub Web Dashboard in browser"
-              >
-                <GlobeIcon size={13} />
-                Open Browser
+            <>
+              <Button variant="ghost" size="sm" onClick={openWebDashboard}>
+                <GlobeIcon size={14} /> Web Dashboard
               </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleRestart}
-                disabled={actionLoading !== null}
-                title="Restart Remote Hub Server"
-              >
-                <RefreshIcon
-                  size={13}
-                  className={actionLoading === 'restarting' ? 'animate-spin text-accent' : ''}
-                />
-                Restart
+              <Button variant="ghost" size="sm" onClick={copyLanUrl}>
+                <CopyIcon size={14} /> Copy URL
               </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={handleStop}
-                disabled={actionLoading !== null}
-              >
-                {actionLoading === 'stopping' ? (
-                  <RefreshIcon size={14} className="animate-spin text-white" />
-                ) : (
-                  <PowerIcon size={14} />
-                )}
-                {actionLoading === 'stopping' ? 'Stopping…' : 'Stop Server'}
+              <Button variant="ghost" size="sm" onClick={handleRestartServer} disabled={loading}>
+                <RefreshIcon size={14} /> Restart
               </Button>
-            </div>
+              <Button variant="danger" size="sm" onClick={handleStopServer} disabled={loading}>
+                <PowerIcon size={14} /> Stop Server
+              </Button>
+            </>
           ) : (
-            <div className="flex items-center gap-2 animate-fade transition-all duration-300">
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleStart}
-                disabled={actionLoading !== null}
-              >
-                {actionLoading === 'starting' ? (
-                  <RefreshIcon size={14} className="animate-spin text-on-accent" />
-                ) : (
-                  <PlayIcon size={14} />
-                )}
-                {actionLoading === 'starting' ? 'Starting Server…' : 'Start Server'}
-              </Button>
-            </div>
+            <Button variant="primary" size="sm" onClick={handleStartServer} disabled={loading}>
+              <PlayIcon size={14} /> Start Server (TCP 5902)
+            </Button>
           )}
-        </div>
-      </header>
 
-      {/* Global Error Banner */}
-      {serverError && (
-        <div className="flex items-start justify-between gap-3 p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-200 text-xs shadow-xs animate-fade transition-all duration-300">
-          <div className="flex items-start gap-2.5">
-            <span className="font-semibold text-rose-300">Server Alert:</span>
-            <span className="leading-relaxed">{serverError}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setServerError(null)}
-            className="text-rose-400 hover:text-rose-100 transition-colors cursor-pointer shrink-0"
-            aria-label="Dismiss error"
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              void window.smaran.remotehub.getSettings().then((s) => {
+                setSettings(s);
+                setShowSettingsModal(true);
+              });
+            }}
           >
-            <XIcon size={14} />
-          </button>
-        </div>
-      )}
+            <GearIcon size={14} /> Settings
+          </Button>
 
-      {/* Hero / Live Server Status Card (Exact FileServer structure) */}
-      <div className="animate-enter rounded-xl border border-line bg-surface p-4.5 space-y-4 [animation-delay:40ms] transition-all duration-500 ease-in-out">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent transition-transform duration-300">
-              <NetworkIcon size={20} />
-            </span>
-            <div>
-              <div className="flex items-center gap-2.5">
-                <span className="font-medium text-ink text-[15px]">Smaran Remote Hub Engine</span>
-                <span
-                  className={cx(
-                    'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium border transition-all duration-300 ease-out',
-                    isPending
-                      ? 'border-accent/30 bg-accent/10 text-accent'
-                      : isRunning
-                        ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-400'
-                        : isError
-                          ? 'border-rose-500/30 bg-rose-500/10 text-rose-400'
-                          : 'border-line bg-raised text-muted',
-                  )}
-                >
-                  {isPending ? (
-                    <RefreshIcon size={11} className="animate-spin text-accent" />
-                  ) : isRunning ? (
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                    </span>
-                  ) : (
-                    <span className="h-1.5 w-1.5 rounded-full bg-faint" />
-                  )}
-                  {isStarting && 'Starting Server...'}
-                  {isStopping && 'Stopping Server...'}
-                  {isRestarting && 'Restarting Server...'}
-                  {isApplying && 'Applying Configuration...'}
-                  {!isPending &&
-                    (isRunning
-                      ? `Running on port ${currentPort}`
-                      : isError
-                        ? 'Server Error'
-                        : 'Server Offline')}
-                </span>
-              </div>
-              <p className="mt-0.5 font-serif text-[13px] text-muted italic">
-                Central multi-screen broadcast server, independent SRT feeds, and secure host remote
-                control.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Collapsible 4-column metric badges strip */}
-        <div
-          className={cx(
-            'transition-all duration-500 ease-in-out overflow-hidden',
-            isRunning
-              ? 'max-h-60 opacity-100 pt-3 border-t border-line translate-y-0'
-              : 'max-h-0 opacity-0 pt-0 border-t-0 -translate-y-2 pointer-events-none',
-          )}
-        >
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            <div className="rounded-lg border border-line bg-raised p-2.5 space-y-0.5 transition-all duration-300">
-              <span className="text-[11px] font-medium text-muted uppercase tracking-wider block">
-                TCP Port
-              </span>
-              <span className="font-mono text-[13px] font-semibold text-accent">{currentPort}</span>
-            </div>
-            <div className="rounded-lg border border-line bg-raised p-2.5 space-y-0.5 transition-all duration-300">
-              <span className="text-[11px] font-medium text-muted uppercase tracking-wider block">
-                Connected Users
-              </span>
-              <span className="font-mono text-[13px] font-semibold text-ink">
-                {overview?.connectedUsers ?? 0}{' '}
-                <span className="text-[11px] text-muted font-normal font-sans">
-                  {(overview?.connectedUsers ?? 0) === 1 ? 'user' : 'users'}
-                </span>
-              </span>
-            </div>
-            <div className="rounded-lg border border-line bg-raised p-2.5 space-y-0.5 transition-all duration-300">
-              <span className="text-[11px] font-medium text-muted uppercase tracking-wider block">
-                Network Access
-              </span>
-              <span
-                className="text-[12px] font-medium text-emerald-400 flex items-center gap-1.5"
-                title="Localhost and local Wi-Fi / LAN devices can connect."
-              >
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                LAN &amp; Localhost
-              </span>
-            </div>
-            <div className="rounded-lg border border-line bg-raised p-2.5 space-y-0.5 transition-all duration-300">
-              <span className="text-[11px] font-medium text-muted uppercase tracking-wider block">
-                Active Streams
-              </span>
-              <span className="font-mono text-[13px] font-semibold text-sky-400">
-                {overview?.activeStreams ?? 0}{' '}
-                <span className="text-[11px] text-muted font-normal font-sans">
-                  {(overview?.activeStreams ?? 0) === 1 ? 'feed' : 'feeds'}
-                </span>
-              </span>
-            </div>
-          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              void window.smaran.remotehub.logs.get().then((lg) => {
+                setLogs(lg);
+                setShowLogsModal(true);
+              });
+            }}
+          >
+            <ActivityIcon size={14} /> Logs
+          </Button>
         </div>
       </div>
 
-      {/* Network Access & Mobile Sharing (Exact FileServer structure) */}
-      <Card
-        title="Local Network & Mobile Sharing"
-        description="Connect smartphones, tablets, or other computers on your Wi-Fi network to view live feeds or control the host PC."
-        className="animate-enter [animation-delay:80ms]"
-      >
-        <Row
-          label="Wi-Fi Connection Link"
-          hint={
-            isRunning
-              ? 'Open on any phone or browser connected to the same Wi-Fi network.'
-              : 'Start the server above to enable Wi-Fi sharing.'
-          }
+      {/* Tabs */}
+      <div className="mb-6 flex border-b border-line gap-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab('overview')}
+          className={cx(
+            'px-3.5 py-2 text-[13px] font-medium border-b-2 transition -mb-px',
+            activeTab === 'overview'
+              ? 'border-accent text-accent'
+              : 'border-transparent text-muted hover:text-ink',
+          )}
         >
-          <div className="min-h-[32px] flex items-center transition-all duration-300">
-            {isRunning ? (
-              <div className="flex items-center gap-2 animate-fade transition-all duration-300">
-                <span className="font-mono text-xs text-accent px-2.5 py-1 rounded-md bg-raised border border-line select-all">
-                  {primaryLanUrl}
-                </span>
-                <Button size="sm" variant="secondary" onClick={() => handleShowQr(primaryLanUrl)}>
-                  <QrIcon size={13} />
-                  QR Code
-                </Button>
-                <Button size="sm" variant="secondary" onClick={() => handleOpenUrl(primaryLanUrl)}>
-                  <GlobeIcon size={13} />
-                  Open Web ↗
-                </Button>
-                <IconButton
-                  aria-label="Copy Wi-Fi URL"
-                  title="Copy Wi-Fi URL"
-                  onClick={() => handleCopyUrl(primaryLanUrl)}
-                >
-                  {copiedUrl === primaryLanUrl ? (
-                    <CheckIcon size={14} className="text-emerald-500" />
-                  ) : (
-                    <CopyIcon size={14} />
-                  )}
-                </IconButton>
-              </div>
-            ) : (
-              <span className="text-[12.5px] text-faint italic font-serif animate-fade transition-opacity duration-300">
-                Server Offline
+          Overview & Status
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('streams')}
+          className={cx(
+            'px-3.5 py-2 text-[13px] font-medium border-b-2 transition -mb-px',
+            activeTab === 'streams'
+              ? 'border-accent text-accent'
+              : 'border-transparent text-muted hover:text-ink',
+          )}
+        >
+          Active Streams ({streams.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('devices')}
+          className={cx(
+            'px-3.5 py-2 text-[13px] font-medium border-b-2 transition -mb-px',
+            activeTab === 'devices'
+              ? 'border-accent text-accent'
+              : 'border-transparent text-muted hover:text-ink',
+          )}
+        >
+          Devices ({devices.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('users')}
+          className={cx(
+            'px-3.5 py-2 text-[13px] font-medium border-b-2 transition -mb-px',
+            activeTab === 'users'
+              ? 'border-accent text-accent'
+              : 'border-transparent text-muted hover:text-ink',
+          )}
+        >
+          Users & Roles ({users.length})
+        </button>
+      </div>
+
+      {/* TAB CONTENT: Overview */}
+      {activeTab === 'overview' && (
+        <div className="space-y-6">
+          {/* Key Metrics Cards */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-line bg-sheet/40 p-4 flex flex-col justify-between">
+              <span className="text-[12px] font-medium tracking-wider text-muted uppercase">
+                Server Status
               </span>
-            )}
-          </div>
-        </Row>
-      </Card>
-
-      {/* Active Screen & Window Broadcasts */}
-      <Card
-        title="Active Screen & Window Broadcasts"
-        description="Share multiple displays and individual application windows concurrently. Every feed gets an independent SRT stream for OBS Studio or vMix."
-        className="animate-enter [animation-delay:120ms]"
-      >
-        <div className="flex items-center justify-between pb-3 border-b border-line">
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted">
-              Live Broadcast Feeds ({streams.length})
-            </span>
-          </div>
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={handleOpenStreamModal}
-            disabled={!isRunning}
-            title={isRunning ? 'Broadcast new screen or window' : 'Start server to broadcast'}
-          >
-            <PlusIcon size={13} /> Broadcast Screen / Window
-          </Button>
-        </div>
-
-        {streams.length === 0 ? (
-          <div className="py-6 text-center">
-            <MonitorIcon size={28} className="mx-auto mb-2 opacity-40 text-muted" />
-            <p className="text-xs text-faint font-serif italic">
-              No active broadcast feeds. Click &quot;Broadcast Screen / Window&quot; above to begin
-              streaming.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-3">
-            {streams.map((st) => (
-              <div
-                key={st.id}
-                className="overflow-hidden rounded-xl border border-line bg-raised/40 p-0 flex flex-col"
-              >
-                <div className="relative aspect-video w-full bg-black/80 flex items-center justify-center">
-                  {st.thumbnailUrl ? (
-                    <img
-                      src={st.thumbnailUrl}
-                      alt={st.name}
-                      className="h-full w-full object-contain"
-                    />
-                  ) : (
-                    <MonitorIcon size={32} className="text-muted/50" />
-                  )}
-                  <div className="absolute top-2 left-2 flex gap-1.5">
-                    <span className="rounded bg-emerald-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white">
-                      ● LIVE
-                    </span>
-                    <span className="rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white/90">
-                      {st.resolution} · {st.fps} FPS
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
-                  <div>
-                    <div className="flex items-baseline justify-between gap-2">
-                      <h4 className="text-[13.5px] font-semibold text-ink truncate">{st.name}</h4>
-                      <span className="font-mono text-[11px] text-sky-400">UDP {st.srt?.port}</span>
-                    </div>
-                    <p className="text-[11.5px] text-muted truncate">
-                      Source: {st.sourceTitle} ({st.sourceType})
-                    </p>
-                  </div>
-
-                  {st.srt?.obsSourceString && (
-                    <div className="rounded bg-sheet/80 p-2 font-mono text-[11px] text-accent flex items-center justify-between gap-2">
-                      <span className="truncate">{st.srt.obsSourceString}</span>
-                      <IconButton
-                        aria-label="Copy OBS SRT string"
-                        title="Copy OBS SRT string"
-                        onClick={() => st.srt?.obsSourceString && handleCopyUrl(st.srt.obsSourceString)}
-                      >
-                        {copiedUrl === st.srt.obsSourceString ? (
-                          <CheckIcon size={12} className="text-emerald-500" />
-                        ) : (
-                          <CopyIcon size={12} />
-                        )}
-                      </IconButton>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-end pt-1">
-                    <Button size="sm" variant="danger" onClick={() => handleStopStream(st.id)}>
-                      Stop Stream
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      {/* SRT Stream Outputs for OBS Studio & vMix */}
-      <Card
-        title="SRT Stream Outputs (OBS Studio & vMix)"
-        description="Low-latency broadcast streams formatted for OBS Studio, vMix, and SRT hardware decoders."
-        className="animate-enter [animation-delay:140ms]"
-      >
-        <Row
-          label="SRT Base Port"
-          hint="Ports start here and increment automatically for each active display or window."
-        >
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-xs text-accent px-2.5 py-1 rounded-md bg-raised border border-line select-all">
-              {settings?.srtBasePort ?? 6000}
-            </span>
-            <span className="text-xs text-muted">
-              (Default Latency: {settings?.srtDefaultLatencyMs ?? 120}ms)
-            </span>
-          </div>
-        </Row>
-      </Card>
-
-      {/* Remote Desktop Control Security */}
-      <Card
-        title="Remote Desktop Control & Host Security"
-        description="Only PCs with the full Smaran application installed can be remotely controlled. Participant PCs using the lightweight Sharing Agent are restricted to screen broadcasting."
-        className="animate-enter [animation-delay:160ms]"
-      >
-        <Row
-          label="Host PC Control Eligibility"
-          hint="Security invariant strictly enforced at the protocol engine level."
-        >
-          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium border border-emerald-500/25 bg-emerald-500/10 text-emerald-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            Host PC (This Computer) — Eligible for Remote Control
-          </span>
-        </Row>
-
-        <Row
-          label="Require Host Approval for Remote Control"
-          hint="Host must click Approve before any mouse or keyboard input from remote operators is accepted."
-          htmlFor="set-remote-approval"
-        >
-          <Switch
-            id="set-remote-approval"
-            label="Require Host Approval"
-            checked={settings?.requireControlApproval ?? true}
-            onChange={async (checked) => {
-              const updated = await window.smaran.remotehub.saveSettings({
-                requireControlApproval: checked,
-              });
-              setSettings(updated);
-            }}
-          />
-        </Row>
-
-        <Row
-          label="Emergency Host Revocation"
-          hint="Instantly terminates all active remote desktop sessions and returns full mouse/keyboard ownership to the host."
-        >
-          <Button size="sm" variant="danger" onClick={handleEmergencyRevokeControl}>
-            Emergency Revoke Control
-          </Button>
-        </Row>
-      </Card>
-
-      {/* Registered Devices & Sharing Agents */}
-      <Card
-        title="Registered Devices & Sharing Agents"
-        description="Computers paired with this Remote Hub. Remote PCs use the standalone Sharing Agent to broadcast feeds."
-        className="animate-enter [animation-delay:180ms]"
-      >
-        <div className="flex items-center justify-between pb-3 border-b border-line">
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted">
-              Paired Devices ({devices.length})
-            </span>
-          </div>
-          <Button size="sm" variant="primary" onClick={handleGeneratePairCode}>
-            <PlusIcon size={13} /> Pair New Device (6-Digit Code)
-          </Button>
-        </div>
-
-        <div className="divide-y divide-line/60 rounded-xl border border-line bg-raised/40 overflow-hidden mt-3">
-          {devices.map((dev) => (
-            <div
-              key={dev.id}
-              className="flex flex-wrap items-center justify-between p-3 text-xs gap-2"
-            >
-              <div className="flex items-center gap-2.5">
+              <div className="my-2 flex items-baseline gap-2">
                 <span
                   className={cx(
-                    'h-2 w-2 rounded-full shrink-0',
-                    dev.status === 'online' ? 'bg-emerald-400' : 'bg-faint',
+                    'text-2xl font-bold',
+                    isRunning ? 'text-emerald-500' : 'text-muted',
                   )}
-                />
+                >
+                  {isRunning ? 'RUNNING' : 'STOPPED'}
+                </span>
+              </div>
+              <span className="text-[12px] text-muted">
+                Port {overview?.port || 5902} · {overview?.bindAddress || '0.0.0.0'}
+              </span>
+            </div>
+
+            <div className="rounded-xl border border-line bg-sheet/40 p-4 flex flex-col justify-between">
+              <span className="text-[12px] font-medium tracking-wider text-muted uppercase">
+                Active Streams
+              </span>
+              <div className="my-2 flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-ink">{overview?.activeStreams ?? 0}</span>
+                <span className="text-xs text-muted">outputs</span>
+              </div>
+              <span className="text-[12px] text-muted">Independent SRT ports starting at 6000</span>
+            </div>
+
+            <div className="rounded-xl border border-line bg-sheet/40 p-4 flex flex-col justify-between">
+              <span className="text-[12px] font-medium tracking-wider text-muted uppercase">
+                Registered Devices
+              </span>
+              <div className="my-2 flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-ink">
+                  {overview?.connectedDevices ?? 0}
+                </span>
+                <span className="text-xs text-muted">paired</span>
+              </div>
+              <span className="text-[12px] text-muted">Host PC + Sharing Agents</span>
+            </div>
+
+            <div className="rounded-xl border border-line bg-sheet/40 p-4 flex flex-col justify-between">
+              <span className="text-[12px] font-medium tracking-wider text-muted uppercase">
+                Remote Desktop
+              </span>
+              <div className="my-2 flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-sky-400">
+                  {overview?.activeSessions ? '1 Active' : 'Idle'}
+                </span>
+              </div>
+              <span className="text-[12px] text-muted">
+                Control limited strictly to Smaran Host
+              </span>
+            </div>
+          </div>
+
+          {/* Access URL Banner */}
+          {isRunning && (
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-sky-500/20 bg-sky-500/5 p-4">
+              <div className="flex items-center gap-3">
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sky-500/20 text-sky-400">
+                  <GlobeIcon size={18} />
+                </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-ink">{dev.name}</span>
-                    <span className="font-mono text-[11px] text-muted">{dev.ip}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[10.5px] px-1.5 py-0.2 rounded bg-surface border border-line text-muted">
-                      {dev.isSmaranInstalled ? 'Full Smaran PC' : 'Sharing Agent'}
-                    </span>
-                    <span
-                      className={cx(
-                        'text-[10.5px] px-1.5 py-0.2 rounded font-medium',
-                        dev.canRemoteControl
-                          ? 'bg-accent/10 text-accent border border-accent/20'
-                          : 'bg-surface text-muted border border-line',
-                      )}
-                    >
-                      {dev.canRemoteControl ? 'Eligible for Control' : 'No Remote Control'}
-                    </span>
+                  <div className="text-[13.5px] font-medium text-ink">Local Network Access URL</div>
+                  <div className="font-mono text-[13px] text-sky-400 font-semibold">
+                    {overview?.lanUrl}
                   </div>
                 </div>
               </div>
-
-              <div>
-                {dev.id !== 'host-local' && (
-                  <Button size="sm" variant="ghost" onClick={() => handleRevokeDevice(dev.id)}>
-                    <TrashIcon size={12} /> Revoke
-                  </Button>
-                )}
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="ghost" onClick={copyLanUrl}>
+                  <CopyIcon size={14} /> Copy URL
+                </Button>
+                <Button size="sm" variant="primary" onClick={openWebDashboard}>
+                  Open in Browser
+                </Button>
               </div>
             </div>
-          ))}
-        </div>
-      </Card>
+          )}
 
-      {/* User Accounts & Role Permissions */}
-      <Card
-        title="User Accounts & Access Control"
-        description="Manage password-protected platform accounts, role permissions, and session authorization."
-        className="animate-enter [animation-delay:200ms]"
-      >
-        <div className="flex items-center justify-between pb-3 border-b border-line">
+          {/* Streams Quick View */}
           <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted">
-              Registered Accounts ({users.length})
-            </span>
-          </div>
-          <Button size="sm" variant="primary" onClick={() => setShowNewUserModal(true)}>
-            <PlusIcon size={13} /> Add User
-          </Button>
-        </div>
-
-        <div className="divide-y divide-line/60 rounded-xl border border-line bg-raised/40 overflow-hidden mt-3">
-          {users.map((u) => (
-            <div key={u.id} className="flex items-center justify-between p-3 text-xs">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-ink">{u.username}</span>
-                  <span className="text-muted">({u.displayName})</span>
-                  <span
-                    className={cx(
-                      'text-[10.5px] px-1.5 py-0.2 rounded font-medium uppercase',
-                      u.role === 'owner'
-                        ? 'bg-accent/10 text-accent border border-accent/25'
-                        : u.role === 'operator'
-                          ? 'bg-sky-500/10 text-sky-400 border border-sky-500/25'
-                          : 'bg-surface text-muted border border-line',
-                    )}
-                  >
-                    {u.role}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                {u.role !== 'owner' && (
-                  <Button size="sm" variant="ghost" onClick={() => handleDeleteUser(u.id)}>
-                    <TrashIcon size={12} /> Delete
-                  </Button>
-                )}
-              </div>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-[15px] font-semibold text-ink">Current Broadcast Streams</h2>
+              <Button size="sm" variant="primary" onClick={openNewStreamModal}>
+                <PlusIcon size={14} /> Broadcast Screen / Window
+              </Button>
             </div>
-          ))}
-        </div>
-      </Card>
 
-      {/* Administrator Credentials Card (Exact FileServer structure) */}
-      <Card
-        title="Administrator Credentials"
-        description="Manage the primary Owner / Administrator login credentials used for full platform administration."
-        className="animate-enter [animation-delay:220ms]"
-      >
-        <Row
-          label="Admin Username"
-          hint="Primary administrator account name for server administration and WebRTC control."
-          htmlFor="set-remote-admin-username"
-        >
-          <Input
-            id="set-remote-admin-username"
-            value={adminUsername}
-            onChange={(e) => setAdminUsername(e.target.value)}
-            placeholder="admin"
-            className="w-48 font-mono text-[13px]"
-          />
-        </Row>
-
-        <Row
-          label="Admin Password"
-          hint="Must be at least 8 characters. Avoid common or default passwords."
-          htmlFor="set-remote-admin-password"
-        >
-          <div className="flex items-center gap-2">
-            <Input
-              id="set-remote-admin-password"
-              type={showPassword ? 'text' : 'password'}
-              value={adminPassword}
-              onChange={(e) => setAdminPassword(e.target.value)}
-              placeholder="•••••••• (enter new password)"
-              className="w-44 font-mono text-[13px]"
-            />
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setShowPassword(!showPassword)}
-              className="text-[12px] text-muted hover:text-ink"
-            >
-              {showPassword ? 'Hide' : 'Show'}
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={handleSaveCredentials}
-              disabled={credSaving || actionLoading !== null}
-            >
-              {credSaving ? 'Saving...' : 'Save & Sync'}
-            </Button>
-          </div>
-        </Row>
-        {credFeedback && (
-          <div
-            className={cx(
-              'my-1 rounded-lg border p-2 text-xs',
-              credFeedback.type === 'success'
-                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
-                : 'border-rose-500/20 bg-rose-500/10 text-rose-300',
-            )}
-          >
-            {credFeedback.message}
-          </div>
-        )}
-      </Card>
-
-      {/* Storage & Server Configuration Card (Exact FileServer structure) */}
-      <Card
-        title="Server & Network Configuration"
-        description="Configure TCP control port and startup options."
-        className="animate-enter [animation-delay:240ms]"
-      >
-        <Row
-          label="TCP Control Port"
-          hint="Default port 5902. Applying automatically restarts the running server."
-        >
-          <div className="flex items-center gap-2">
-            <Input
-              type="number"
-              value={portInput}
-              onChange={(e) => setPortInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void handleApplyPort();
-              }}
-              min={1024}
-              max={65535}
-              placeholder="5902"
-              className="w-24 font-mono text-center"
-            />
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={handleApplyPort}
-              disabled={portSaving || actionLoading !== null || portInput === String(currentPort)}
-            >
-              {portSaving ? 'Applying...' : 'Apply Port'}
-            </Button>
-          </div>
-        </Row>
-        {portFeedback && (
-          <div
-            className={cx(
-              'my-1 rounded-lg border p-2 text-xs',
-              portFeedback.type === 'success'
-                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
-                : 'border-rose-500/20 bg-rose-500/10 text-rose-300',
-            )}
-          >
-            {portFeedback.message}
-          </div>
-        )}
-
-        <Row
-          label="Allow Local Network (LAN) Access"
-          hint="Binds to 0.0.0.0 allowing access from other computers on your Wi-Fi/LAN."
-          htmlFor="set-remote-allow-lan"
-        >
-          <Switch
-            id="set-remote-allow-lan"
-            label="Allow LAN Access"
-            checked={settings?.allowLan ?? true}
-            onChange={async (checked) => {
-              const updated = await window.smaran.remotehub.saveSettings({ allowLan: checked });
-              setSettings(updated);
-            }}
-          />
-        </Row>
-
-        <Row
-          label="Start Remote Hub when Smaran opens"
-          hint="Silently launches the Remote Hub engine when the Smaran desktop application starts."
-          htmlFor="set-remote-autostart"
-        >
-          <Switch
-            id="set-remote-autostart"
-            label="Auto-start Remote Hub"
-            checked={settings?.autoStart ?? false}
-            onChange={async (checked) => {
-              const updated = await window.smaran.remotehub.saveSettings({ autoStart: checked });
-              setSettings(updated);
-            }}
-          />
-        </Row>
-      </Card>
-
-      {/* Security & Activity Audit Log */}
-      <Card
-        title="Security & Activity Audit Log"
-        description="Live audit events, login attempts, device pairings, and stream lifecycles."
-        className="animate-enter [animation-delay:260ms]"
-      >
-        <div className="flex items-center justify-between mb-2">
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted">
-            Recent Audit Events ({logs.length})
-          </h4>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={async () => {
-              await window.smaran.remotehub.logs.clear();
-              setLogs([]);
-            }}
-          >
-            Clear Log
-          </Button>
-        </div>
-
-        {logs.length === 0 ? (
-          <p className="text-xs text-faint font-serif italic py-2">No audit events recorded yet.</p>
-        ) : (
-          <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-            {logs.slice(0, 15).map((lg) => (
-              <div
-                key={lg.id}
-                className="flex items-center justify-between rounded-lg border border-line bg-raised/40 px-3 py-2 text-xs"
-              >
-                <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                  <span className="shrink-0">
-                    <ShieldIcon
-                      size={14}
-                      className={
-                        lg.level === 'error'
-                          ? 'text-danger'
-                          : lg.level === 'security'
-                            ? 'text-sky-400'
-                            : 'text-accent'
-                      }
-                    />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-ink truncate">
-                        [{lg.category.toUpperCase()}]
-                      </span>
-                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-surface text-muted">
-                        {lg.timestamp.slice(11, 19)}
-                      </span>
-                    </div>
-                    <p className="text-[11.5px] text-muted truncate">{lg.message}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      {/* QR Code Modal for Phone / Tablet Access (Exact FileServer structure) */}
-      {qrModalUrl && (
-        <Dialog
-          open={Boolean(qrModalUrl)}
-          title="Scan QR Code to Connect"
-          onClose={() => setQrModalUrl(null)}
-          actions={
-            <Button variant="secondary" onClick={() => setQrModalUrl(null)}>
-              Close
-            </Button>
-          }
-        >
-          <div className="flex flex-col items-center justify-center space-y-4 py-2">
-            <p className="text-center text-xs text-muted leading-relaxed">
-              Scan with your smartphone camera or QR reader to connect on your local Wi-Fi.
-            </p>
-            {qrCodeData ? (
-              <div className="rounded-xl border border-line bg-surface p-3 shadow-md">
-                <img
-                  src={qrCodeData}
-                  alt="QR Code"
-                  className="h-56 w-56 object-contain rounded-lg"
-                />
+            {streams.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-xl border border-line bg-sheet/20 p-8 text-center text-muted">
+                <MonitorIcon size={32} className="mb-2 opacity-50" />
+                <p className="text-[14px] font-medium text-ink">No Active Streams</p>
+                <p className="mt-1 max-w-sm text-[12.5px]">
+                  Share your full monitor or any open application window. Every source gets its own
+                  independent SRT endpoint for OBS Studio or vMix.
+                </p>
+                <Button size="sm" variant="primary" className="mt-4" onClick={openNewStreamModal}>
+                  <PlusIcon size={14} /> Broadcast Screen Now
+                </Button>
               </div>
             ) : (
-              <div className="flex h-56 w-56 items-center justify-center rounded-xl border border-line bg-surface">
-                <RefreshIcon size={24} className="animate-spin text-accent" />
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {streams.map((stream) => (
+                  <StreamCard
+                    key={stream.id}
+                    stream={stream}
+                    onStop={() => handleStopStream(stream.id)}
+                  />
+                ))}
               </div>
             )}
-            <span className="font-mono text-xs text-accent text-center break-all select-all px-2">
-              {qrModalUrl}
-            </span>
           </div>
-        </Dialog>
+        </div>
       )}
 
-      {/* MODAL: Broadcast Screen / Window */}
+      {/* TAB CONTENT: Streams & Screens */}
+      {activeTab === 'streams' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-[16px] font-semibold">Active Screen & Window Feeds</h2>
+              <p className="font-serif text-[13px] text-muted italic">
+                Independent SRT stream output is generated for each display and application window.
+              </p>
+            </div>
+            <Button size="sm" variant="primary" onClick={openNewStreamModal}>
+              <PlusIcon size={14} /> Add Screen / Window Stream
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {streams.map((stream) => (
+              <StreamCard
+                key={stream.id}
+                stream={stream}
+                onStop={() => handleStopStream(stream.id)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB CONTENT: Devices */}
+      {activeTab === 'devices' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-[16px] font-semibold">Registered Devices</h2>
+              <p className="font-serif text-[13px] text-muted italic">
+                Only the host PC with full Smaran installation is eligible for Remote Desktop
+                Control. Participant PCs use the lightweight Sharing Agent.
+              </p>
+            </div>
+            <Button size="sm" variant="primary" onClick={handleGeneratePairCode}>
+              <PlusIcon size={14} /> Pair New Device (6-Digit Code)
+            </Button>
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-line bg-sheet/40 p-0">
+            <table className="w-full text-left text-[13px]">
+              <thead className="border-b border-line bg-sheet/50 text-[11px] font-semibold uppercase tracking-wider text-muted">
+                <tr>
+                  <th className="px-4 py-3">Device Name</th>
+                  <th className="px-4 py-3">IP / Hostname</th>
+                  <th className="px-4 py-3">OS</th>
+                  <th className="px-4 py-3">Smaran Host</th>
+                  <th className="px-4 py-3">Remote Control</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {devices.map((dev) => (
+                  <tr key={dev.id} className="hover:bg-sheet/20">
+                    <td className="px-4 py-3 font-medium text-ink">{dev.name}</td>
+                    <td className="px-4 py-3 font-mono text-[12px] text-muted">
+                      {dev.ip} ({dev.hostname})
+                    </td>
+                    <td className="px-4 py-3 text-muted">{dev.os}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant={dev.isSmaranInstalled ? 'success' : 'neutral'}>
+                        {dev.isSmaranInstalled ? 'Full Smaran PC' : 'Sharing Agent'}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant={dev.canRemoteControl ? 'accent' : 'neutral'}>
+                        {dev.canRemoteControl ? 'Eligible' : 'Not Permitted'}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="flex items-center gap-1.5 font-medium">
+                        <span
+                          className={cx(
+                            'h-2 w-2 rounded-full',
+                            dev.status === 'online' ? 'bg-emerald-500' : 'bg-muted',
+                          )}
+                        />
+                        {dev.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {dev.id !== 'host-local' && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleRevokeDevice(dev.id)}
+                        >
+                          <TrashIcon size={13} /> Revoke
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB CONTENT: Users & Auth */}
+      {activeTab === 'users' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-[16px] font-semibold">User Accounts & Access Control</h2>
+              <p className="font-serif text-[13px] text-muted italic">
+                Role-based platform protection: Owners (Full Control), Operators (Stream & Control
+                Smaran Host), Viewers (Watch Feeds).
+              </p>
+            </div>
+            <Button size="sm" variant="primary" onClick={() => setShowNewUserModal(true)}>
+              <PlusIcon size={14} /> Add User Account
+            </Button>
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-line bg-sheet/40 p-0">
+            <table className="w-full text-left text-[13px]">
+              <thead className="border-b border-line bg-sheet/50 text-[11px] font-semibold uppercase tracking-wider text-muted">
+                <tr>
+                  <th className="px-4 py-3">Username</th>
+                  <th className="px-4 py-3">Display Name</th>
+                  <th className="px-4 py-3">Role</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Logins</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {users.map((u) => (
+                  <tr key={u.id} className="hover:bg-sheet/20">
+                    <td className="px-4 py-3 font-mono font-medium text-ink">{u.username}</td>
+                    <td className="px-4 py-3 text-muted">{u.displayName}</td>
+                    <td className="px-4 py-3">
+                      <Badge
+                        variant={
+                          u.role === 'owner'
+                            ? 'accent'
+                            : u.role === 'operator'
+                              ? 'success'
+                              : 'neutral'
+                        }
+                      >
+                        {u.role.toUpperCase()}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant={u.enabled ? 'success' : 'danger'}>
+                        {u.enabled ? 'Active' : 'Disabled'}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-muted">{u.loginCount}</td>
+                    <td className="px-4 py-3 text-right">
+                      {u.role !== 'owner' && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={async () => {
+                            await window.smaran.remotehub.deleteUser(u.id);
+                            toastMsg(`User "${u.username}" deleted.`);
+                            void loadAllData();
+                          }}
+                        >
+                          <TrashIcon size={13} /> Delete
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Broadcast New Screen / Window */}
       <Dialog
         open={showNewStreamModal}
-        title="Broadcast Screen / Window"
+        title="Broadcast Screen or Application Window"
         onClose={() => setShowNewStreamModal(false)}
         size="wide"
         actions={
@@ -1207,45 +783,49 @@ export function RemoteHub() {
             </Button>
             <Button
               variant="primary"
-              onClick={handleStartStream}
-              disabled={!selectedSourceId || streamActionLoading}
+              onClick={handleCreateStream}
+              disabled={loading || !selectedSourceId}
             >
-              {streamActionLoading ? 'Starting Stream...' : 'Start Broadcast'}
+              Start Broadcast & SRT Output
             </Button>
           </>
         }
       >
         <div className="space-y-4">
+          <p className="text-[13px] text-muted">
+            Select a physical display or application window to stream. Each broadcast creates an
+            independent SRT stream with configurable latency and port for OBS/vMix.
+          </p>
+
           <div>
-            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-muted">
-              Select Display or Window
+            <label className="mb-2 block text-[12px] font-semibold uppercase tracking-wider text-muted">
+              Select Capture Source ({sources.length} available)
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto pr-1">
+            <div className="grid max-h-56 grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
               {sources.map((src) => (
-                <button
+                <div
                   key={src.id}
-                  type="button"
                   onClick={() => {
                     setSelectedSourceId(src.id);
                     setStreamName(src.name);
                   }}
                   className={cx(
-                    'flex flex-col items-center rounded-xl border p-2 text-left transition-all cursor-pointer',
+                    'cursor-pointer rounded-lg border p-2 transition',
                     selectedSourceId === src.id
-                      ? 'border-accent bg-accent/10 shadow-sm'
-                      : 'border-line bg-raised/40 hover:bg-raised',
+                      ? 'border-accent bg-accent-soft'
+                      : 'border-line bg-sheet/40 hover:border-muted',
                   )}
                 >
-                  <img
-                    src={src.thumbnailUrl}
-                    alt={src.name}
-                    className="aspect-video w-full rounded object-contain bg-black/60 mb-1.5"
-                  />
-                  <div className="truncate text-xs font-medium text-ink w-full text-center">
-                    {src.name}
+                  <div className="aspect-video w-full overflow-hidden rounded bg-black">
+                    <img
+                      src={src.thumbnailUrl}
+                      alt={src.name}
+                      className="h-full w-full object-contain"
+                    />
                   </div>
+                  <div className="mt-1.5 truncate text-[12px] font-medium text-ink">{src.name}</div>
                   <div className="text-[10px] text-muted uppercase tracking-wider">{src.type}</div>
-                </button>
+                </div>
               ))}
             </div>
           </div>
@@ -1253,51 +833,62 @@ export function RemoteHub() {
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="mb-1 block text-[12px] font-medium text-ink">Stream Name</label>
-              <Input value={streamName} onChange={(e) => setStreamName(e.target.value)} />
+              <Input
+                value={streamName}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStreamName(e.target.value)}
+              />
             </div>
             <div>
               <label className="mb-1 block text-[12px] font-medium text-ink">Resolution</label>
-              <select
+              <Select
                 value={streamResolution}
-                onChange={(e) => setStreamResolution(e.target.value)}
-                className="w-full rounded-lg border border-line bg-surface px-3 py-1.5 text-xs text-ink focus:outline-accent"
-              >
-                <option value="720p">720p (HD)</option>
-                <option value="1080p">1080p (Full HD)</option>
-                <option value="1440p">1440p (2K)</option>
-              </select>
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  setStreamResolution(e.target.value)
+                }
+                options={[
+                  { value: '720p', label: '720p (HD)' },
+                  { value: '1080p', label: '1080p (Full HD)' },
+                  { value: '1440p', label: '1440p (2K)' },
+                ]}
+              />
             </div>
             <div>
               <label className="mb-1 block text-[12px] font-medium text-ink">Target FPS</label>
-              <select
+              <Select
                 value={String(streamFps)}
-                onChange={(e) => setStreamFps(parseInt(e.target.value, 10) || 30)}
-                className="w-full rounded-lg border border-line bg-surface px-3 py-1.5 text-xs text-ink focus:outline-accent"
-              >
-                <option value="30">30 FPS</option>
-                <option value="60">60 FPS</option>
-              </select>
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  setStreamFps(parseInt(e.target.value, 10) || 30)
+                }
+                options={[
+                  { value: '30', label: '30 FPS' },
+                  { value: '60', label: '60 FPS' },
+                ]}
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3 border-t border-line pt-3">
             <div>
               <label className="mb-1 block text-[12px] font-medium text-ink">SRT Mode</label>
-              <select
+              <Select
                 value={streamSrtMode}
-                onChange={(e) => setStreamSrtMode(e.target.value as 'caller' | 'listener')}
-                className="w-full rounded-lg border border-line bg-surface px-3 py-1.5 text-xs text-ink focus:outline-accent"
-              >
-                <option value="listener">Listener (Smaran listens)</option>
-                <option value="caller">Caller (Smaran connects)</option>
-              </select>
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  setStreamSrtMode(e.target.value as 'caller' | 'listener')
+                }
+                options={[
+                  { value: 'listener', label: 'Listener (Smaran listens)' },
+                  { value: 'caller', label: 'Caller (Smaran connects)' },
+                ]}
+              />
             </div>
             <div>
               <label className="mb-1 block text-[12px] font-medium text-ink">SRT Port</label>
               <Input
                 type="number"
                 value={streamSrtPort}
-                onChange={(e) => setStreamSrtPort(parseInt(e.target.value, 10) || 6000)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setStreamSrtPort(parseInt(e.target.value, 10) || 6000)
+                }
               />
             </div>
             <div>
@@ -1305,14 +896,16 @@ export function RemoteHub() {
               <Input
                 type="number"
                 value={streamSrtLatency}
-                onChange={(e) => setStreamSrtLatency(parseInt(e.target.value, 10) || 120)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setStreamSrtLatency(parseInt(e.target.value, 10) || 120)
+                }
               />
             </div>
           </div>
         </div>
       </Dialog>
 
-      {/* MODAL: Pair Device with 6-Digit Code */}
+      {/* MODAL: Pair New Device */}
       <Dialog
         open={showPairModal}
         title="Pair Remote Device / Sharing Agent"
@@ -1324,24 +917,24 @@ export function RemoteHub() {
         }
       >
         <div className="space-y-4 text-center">
-          <p className="text-xs text-muted leading-relaxed">
-            Enter this 6-digit one-time code on the remote PC&apos;s Smaran Connect Sharing Agent to
-            pair securely with this Remote Hub:
+          <p className="text-[13px] text-muted">
+            Enter this 6-digit one-time code on the remote PC's Smaran Connect Sharing Agent to pair
+            securely with this Remote Hub:
           </p>
 
-          <div className="my-4 rounded-2xl border border-sky-500/30 bg-sky-500/10 py-5">
+          <div className="my-6 rounded-2xl border border-sky-500/30 bg-sky-500/10 py-6">
             <span className="font-mono text-4xl font-extrabold tracking-widest text-sky-400">
               {pairCodeInfo?.code}
             </span>
           </div>
 
-          <p className="text-[11.5px] text-muted italic">
-            Code expires in 5 minutes. Participant PC will be registered for screen sharing only.
+          <p className="text-[12px] text-muted">
+            Code expires in 5 minutes. Only one device can be paired per code.
           </p>
         </div>
       </Dialog>
 
-      {/* MODAL: Add User */}
+      {/* MODAL: Create User */}
       <Dialog
         open={showNewUserModal}
         title="Create New User Account"
@@ -1366,7 +959,7 @@ export function RemoteHub() {
             <label className="mb-1 block text-[12px] font-medium text-ink">Username</label>
             <Input
               value={newUsername}
-              onChange={(e) => setNewUsername(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewUsername(e.target.value)}
               placeholder="e.g. operator1"
             />
           </div>
@@ -1374,30 +967,35 @@ export function RemoteHub() {
             <label className="mb-1 block text-[12px] font-medium text-ink">Display Name</label>
             <Input
               value={newDisplayName}
-              onChange={(e) => setNewDisplayName(e.target.value)}
-              placeholder="Operator One"
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setNewDisplayName(e.target.value)
+              }
+              placeholder="e.g. Video Switcher"
             />
           </div>
           <div>
-            <label className="mb-1 block text-[12px] font-medium text-ink">Password</label>
+            <label className="mb-1 block text-[12px] font-medium text-ink">
+              Password (min 8 chars)
+            </label>
             <Input
               type="password"
               value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="••••••••"
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value)}
             />
           </div>
           <div>
             <label className="mb-1 block text-[12px] font-medium text-ink">Role</label>
-            <select
+            <Select
               value={newUserRole}
-              onChange={(e) => setNewUserRole(e.target.value as UserRole)}
-              className="w-full rounded-lg border border-line bg-surface px-3 py-1.5 text-xs text-ink focus:outline-accent"
-            >
-              <option value="operator">Operator (Stream &amp; Remote Control)</option>
-              <option value="viewer">Viewer (Watch Only)</option>
-              <option value="owner">Owner (Full Platform Access)</option>
-            </select>
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                setNewUserRole(e.target.value as UserRole)
+              }
+              options={[
+                { value: 'operator', label: 'Operator (Stream & Remote Control)' },
+                { value: 'viewer', label: 'Viewer (Watch Only)' },
+                { value: 'owner', label: 'Owner (Full Platform Access)' },
+              ]}
+            />
           </div>
         </div>
       </Dialog>
@@ -1410,22 +1008,7 @@ export function RemoteHub() {
         actions={
           <Button
             variant="primary"
-            onClick={async () => {
-              if (!newUsername || !newPassword) return;
-              try {
-                await window.smaran.remotehub.createAdmin({
-                  username: newUsername,
-                  password: newPassword,
-                  displayName: newDisplayName || 'Administrator',
-                });
-                setShowAdminInitModal(false);
-                setNewUsername('');
-                setNewPassword('');
-                await loadAllData();
-              } catch (err) {
-                setServerError(String(err));
-              }
-            }}
+            onClick={handleCreateAdmin}
             disabled={!newUsername || !newPassword}
           >
             Initialize Administrator
@@ -1433,7 +1016,7 @@ export function RemoteHub() {
         }
       >
         <div className="space-y-3">
-          <p className="text-xs text-muted leading-relaxed">
+          <p className="text-[13px] text-muted">
             The Remote Hub platform is fully password-protected. Please set up the primary Owner /
             Administrator account:
           </p>
@@ -1443,7 +1026,7 @@ export function RemoteHub() {
             </label>
             <Input
               value={newUsername}
-              onChange={(e) => setNewUsername(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewUsername(e.target.value)}
               placeholder="admin"
             />
           </div>
@@ -1454,12 +1037,220 @@ export function RemoteHub() {
             <Input
               type="password"
               value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value)}
               placeholder="••••••••"
             />
           </div>
         </div>
       </Dialog>
+
+      {/* MODAL: Logs */}
+      <Dialog
+        open={showLogsModal}
+        title="Remote Hub Diagnostic & Security Audit Log"
+        onClose={() => setShowLogsModal(false)}
+        size="wide"
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              onClick={async () => {
+                await window.smaran.remotehub.logs.clear();
+                setLogs([]);
+              }}
+            >
+              Clear Logs
+            </Button>
+            <Button variant="primary" onClick={() => setShowLogsModal(false)}>
+              Close
+            </Button>
+          </>
+        }
+      >
+        <div className="max-h-96 space-y-2 overflow-y-auto font-mono text-[11.5px]">
+          {logs.length === 0 ? (
+            <div className="text-muted">No log entries recorded.</div>
+          ) : (
+            logs.map((lg) => (
+              <div
+                key={lg.id}
+                className={cx(
+                  'rounded p-1.5',
+                  lg.level === 'error'
+                    ? 'bg-rose-500/10 text-rose-500'
+                    : lg.level === 'security'
+                      ? 'bg-sky-500/10 text-sky-400'
+                      : lg.level === 'warn'
+                        ? 'bg-amber-500/10 text-amber-400'
+                        : 'text-muted',
+                )}
+              >
+                <span className="text-ink/60">[{lg.timestamp.slice(11, 19)}]</span>{' '}
+                <span className="font-semibold uppercase">[{lg.category}]</span> {lg.message}
+              </div>
+            ))
+          )}
+        </div>
+      </Dialog>
+
+      {/* MODAL: Settings */}
+      {settings && (
+        <Dialog
+          open={showSettingsModal}
+          title="Remote Hub Platform Settings"
+          onClose={() => setShowSettingsModal(false)}
+          actions={
+            <>
+              <Button variant="ghost" onClick={() => setShowSettingsModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={async () => {
+                  await window.smaran.remotehub.saveSettings(settings);
+                  setShowSettingsModal(false);
+                  toastMsg('Remote Hub settings saved.');
+                  void loadAllData();
+                }}
+              >
+                Save Settings
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-[12px] font-medium text-ink">
+                  TCP Control Port
+                </label>
+                <Input
+                  type="number"
+                  value={settings.port}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setSettings({ ...settings, port: parseInt(e.target.value, 10) || 5902 })
+                  }
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[12px] font-medium text-ink">SRT Base Port</label>
+                <Input
+                  type="number"
+                  value={settings.srtBasePort}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setSettings({ ...settings, srtBasePort: parseInt(e.target.value, 10) || 6000 })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-line pt-3">
+              <div>
+                <div className="text-[13px] font-medium text-ink">Allow Local Network Access</div>
+                <div className="text-[12px] text-muted">
+                  Bind to 0.0.0.0 allowing access from other PCs/LAN
+                </div>
+              </div>
+              <Switch
+                label="Allow Local Network Access"
+                checked={settings.allowLan}
+                onChange={(checked) => setSettings({ ...settings, allowLan: checked })}
+              />
+            </div>
+
+            <div className="flex items-center justify-between border-t border-line pt-3">
+              <div>
+                <div className="text-[13px] font-medium text-ink">
+                  Require Host Approval for Remote Control
+                </div>
+                <div className="text-[12px] text-muted">
+                  Host must click Approve before control activates
+                </div>
+              </div>
+              <Switch
+                label="Require Host Approval for Remote Control"
+                checked={settings.requireControlApproval}
+                onChange={(checked) =>
+                  setSettings({ ...settings, requireControlApproval: checked })
+                }
+              />
+            </div>
+
+            <div className="flex items-center justify-between border-t border-line pt-3">
+              <div>
+                <div className="text-[13px] font-medium text-ink">Auto-Start on Smaran Launch</div>
+                <div className="text-[12px] text-muted">Starts the hub whenever Smaran opens</div>
+              </div>
+              <Switch
+                label="Auto-Start on Smaran Launch"
+                checked={settings.autoStart}
+                onChange={(checked) => setSettings({ ...settings, autoStart: checked })}
+              />
+            </div>
+          </div>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
+function StreamCard({ stream, onStop }: { stream: RemoteHubStream; onStop: () => void }) {
+  const { toastMsg } = useApp.getState();
+
+  const copySrt = () => {
+    if (stream.srt?.obsSourceString) {
+      navigator.clipboard.writeText(stream.srt.obsSourceString);
+      toastMsg('OBS/vMix connection string copied!');
+    }
+  };
+
+  return (
+    <div className="flex flex-col overflow-hidden rounded-xl border border-line bg-sheet/40 p-0">
+      <div className="relative aspect-video w-full bg-black">
+        {stream.thumbnailUrl ? (
+          <img
+            src={stream.thumbnailUrl}
+            alt={stream.name}
+            className="h-full w-full object-contain"
+          />
+        ) : (
+          <div className="grid h-full w-full place-items-center text-muted">
+            <MonitorIcon size={24} />
+          </div>
+        )}
+        <div className="absolute top-2 left-2 flex gap-1.5">
+          <Badge variant="success">● LIVE</Badge>
+          <Badge variant="neutral">{stream.resolution}</Badge>
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col p-3.5">
+        <div className="flex items-baseline justify-between gap-2">
+          <h3 className="truncate text-[14px] font-semibold text-ink">{stream.name}</h3>
+          <span className="text-[11px] text-muted">{stream.fps} FPS</span>
+        </div>
+        <div className="text-[11.5px] text-muted">
+          Source: {stream.sourceTitle} ({stream.sourceType})
+        </div>
+
+        {stream.srt?.enabled && (
+          <div className="mt-2.5 rounded bg-sheet/60 p-2 font-mono text-[11px] text-sky-400">
+            <div className="text-[10px] text-muted uppercase font-sans font-semibold">
+              SRT {stream.srt.mode.toUpperCase()} · Port {stream.srt.port}
+            </div>
+            <div className="truncate">{stream.srt.obsSourceString}</div>
+          </div>
+        )}
+
+        <div className="mt-3 flex items-center justify-between border-t border-line pt-2.5">
+          <Button size="sm" variant="ghost" onClick={copySrt}>
+            <CopyIcon size={13} /> Copy SRT
+          </Button>
+          <Button size="sm" variant="danger" onClick={onStop}>
+            <PowerIcon size={13} /> Stop Feed
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
