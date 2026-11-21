@@ -1,3 +1,17 @@
+# Smaran 3.5.0
+
+- **Integrated Smaran Remote Hub Module (`remotehub/`, `RemoteHub.tsx`, `remotehub.ts`, `channels.ts`):**
+  - **Native Multi-Screen & Window Broadcasting:** Stream full displays or individual desktop applications with live preview thumbnails via Electron `desktopCapturer`.
+  - **Independent SRT Stream Outputs:** Dedicated non-conflicting UDP port allocation (starting at port 6000), support for Caller and Listener modes, configurable latency and passphrase encryption, and one-click connection strings for OBS Studio and vMix.
+  - **Built-in Web & WebSocket Engine (TCP 5902):** Zero-external-dependency RFC 6455 WebSocket engine for real-time WebRTC signaling, heartbeats, and client control, accompanied by a responsive web dashboard served at `http://<lan-ip>:5902/`.
+  - **Password Protection & Authentication:** Salted `scrypt` key derivation with timing-safe comparisons, 24-hour session tokens, and automated rate limiting (5 consecutive failures lockout).
+  - **Role-Based Access Control (RBAC):** Granular permission model separating `Owner` (full administration), `Operator` (stream broadcasting & remote control), and `Viewer` (watch-only access).
+  - **Strict Remote Desktop Control Security:** Remote control permissions are strictly restricted to the primary Smaran host PC (`canRemoteControl: true`). Remote participant PCs utilizing the lightweight Sharing Agent are restricted from remote control (`canRemoteControl: false`).
+  - **Interactive Host Protection:** Configurable host confirmation prompts before remote control activates, coordinate bounds clamping, and host emergency instant revocation.
+  - **Lightweight Sharing Agent:** Standalone participant script (`scripts/sharing-agent/smaran-sharing-agent.mjs`) allowing other computers on the LAN to pair securely via 6-digit one-time codes and broadcast screens.
+  - **Seamless System Integration:** Remote Hub alerts integrated into Smaran desktop notifications and audit logging recorded directly to `HistoryStore`.
+  - **Comprehensive Test Verification:** 20 new unit tests covering configuration resilience, scrypt authentication, SRT port allocation, and device pairing (expanding unit test coverage to 621 passing tests), plus automated Playwright E2E lifecycle and health checks.
+
 # Smaran 3.4.11
 
 - **Unified Modular Settings Architecture (`Settings.tsx`, `schema.ts`, `defaults.ts`):**
