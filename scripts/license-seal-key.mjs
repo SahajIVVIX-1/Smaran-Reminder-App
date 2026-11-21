@@ -19,9 +19,13 @@ import * as readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
 const ITERATIONS = 600_000;
-const MIN_LENGTH = 12;
+const MIN_LENGTH = 8;
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const keyDir = process.env.SMARAN_LICENSE_KEY_DIR || join(homedir(), '.smaran-license');
+const keyDir =
+  process.env.SMARAN_LICENSE_KEY_DIR ||
+  (fs.existsSync(join(root, '.smaran-license', 'private-key.json'))
+    ? join(root, '.smaran-license')
+    : join(homedir(), '.smaran-license'));
 const keyFile = join(keyDir, 'private-key.json');
 const outFile = join(root, 'site', 'Register', 'key.enc.json');
 
