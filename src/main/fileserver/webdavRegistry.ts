@@ -83,6 +83,7 @@ export async function backupWebClientRegistry(dataDir: string): Promise<WebDavRe
  */
 export async function restoreWebClientRegistry(
   dataDir: string,
+  options: { fallbackToDefaultIfNoBackup?: boolean } = {},
 ): Promise<{ ok: boolean; restored: Partial<WebDavRegistryBackup>; error?: string }> {
   const backupPath = path.join(dataDir, WEBDAV_REGISTRY_BACKUP_FILE);
   const res = readValidatedJson<WebDavRegistryBackup | null>(
@@ -93,6 +94,27 @@ export async function restoreWebClientRegistry(
   const backup = res.data;
 
   if (!backup) {
+    if (options.fallbackToDefaultIfNoBackup) {
+      try {
+        // Safe fallback: Restore Windows default secure setting (1 = SSL-only Basic Auth)
+        await runElevatedReg([
+          'add',
+          REG_KEY,
+          '/v',
+          'BasicAuthLevel',
+          '/t',
+          'REG_DWORD',
+          '/d',
+          '1',
+          '/f',
+        ]);
+        await restartWebClientService();
+        return { ok: true, restored: { previousBasicAuthLevel: 1 } };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { ok: false, restored: {}, error: msg };
+      }
+    }
     return { ok: false, restored: {}, error: 'No previous WebDAV registry backup found.' };
   }
 

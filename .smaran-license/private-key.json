@@ -1,8 +1,0 @@
-{
-  "crv": "Ed25519",
-  "d": "WbZ7IEE9QZQMSgfkLc3DvZr_iFg4WwObDaZwHkvDZPI",
-  "x": "ETy6dgHw3Qhi1XK2ihXl6buklNrdfnzWLbjtjzyrNjg",
-  "kty": "OKP",
-  "use": "sig",
-  "product": "com.sahaj.smaran"
-}

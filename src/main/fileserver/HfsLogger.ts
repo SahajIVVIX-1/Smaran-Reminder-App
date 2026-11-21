@@ -16,11 +16,35 @@ const DEFAULT_MAX_FILES = 3;
 export function redactSensitiveLog(text: string): string {
   if (!text || typeof text !== 'string') return '';
   return text
+    // PEM private key blocks
+    .replace(
+      /-----BEGIN[A-Z\s_-]+PRIVATE KEY-----[\s\S]*?-----END[A-Z\s_-]+PRIVATE KEY-----/gi,
+      '[REDACTED PRIVATE KEY]',
+    )
+    // JWK private key components (e.g. "d": "...")
+    .replace(/"d"\s*:\s*"[^"]+"/gi, '"d":"[REDACTED]"')
+    // Basic and Bearer Authorization headers
     .replace(/(Authorization:\s*Basic\s+)[A-Za-z0-9+/=]+/gi, '$1[REDACTED]')
     .replace(/(Authorization:\s*Bearer\s+)[A-Za-z0-9._~+/-]+/gi, '$1[REDACTED]')
-    .replace(/((?:password|pwd|pass)\s*[:=]\s*["']?)([^"'&,\s]+)(["']?)/gi, '$1[REDACTED]$3')
-    .replace(/((?:token|secret|api_key|apikey)\s*[:=]\s*["']?)([^"'&,\s]+)(["']?)/gi, '$1[REDACTED]$3')
-    .replace(/(cookie:\s*)[^\r\n]+/gi, '$1[REDACTED]');
+    // Cookies
+    .replace(/(cookie:\s*)[^\r\n]+/gi, '$1[REDACTED]')
+    .replace(/(Set-Cookie:\s*)[^\r\n]+/gi, '$1[REDACTED]')
+    // URL embedded user:password credentials
+    .replace(/(https?:\/\/)([^:\s]+):([^@\s]+)@/gi, '$1$2:[REDACTED]@')
+    // Key/value passwords, tokens, secrets, api keys
+    .replace(
+      /((?:password|adminPassword|encryptedAdminPassword|pwd|pass)\s*[:=]\s*["']?)([^"'&,\s]+)(["']?)/gi,
+      '$1[REDACTED]$3',
+    )
+    .replace(
+      /((?:token|secret|api_key|apikey|internalToken)\s*[:=]\s*["']?)([^"'&,\s]+)(["']?)/gi,
+      '$1[REDACTED]$3',
+    )
+    // License keys
+    .replace(
+      /((?:license_key|licensekey|licenseKey)\s*[:=]\s*["']?)([^"'&,\s]+)(["']?)/gi,
+      '$1[REDACTED]$3',
+    );
 }
 
 export class HfsOperationalLogger {

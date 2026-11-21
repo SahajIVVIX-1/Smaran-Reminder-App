@@ -52,7 +52,7 @@ function run(file: string, args: string[]): Promise<void> {
 function launch(
   file: string,
   args: string[],
-  options: { cwd?: string; hidden?: boolean; shell?: boolean } = {},
+  options: { cwd?: string; hidden?: boolean } = {},
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     let child;
@@ -62,7 +62,7 @@ function launch(
         detached: true,
         stdio: 'ignore',
         windowsHide: options.hidden ?? false,
-        shell: options.shell ?? false,
+        shell: false, // Strictly false: never execute commands through a shell to prevent command injection
         env: appEnv(),
       });
     } catch (error) {
@@ -76,6 +76,33 @@ function launch(
       resolve();
     });
   });
+}
+
+/** Disallowed characters in executable file paths. */
+export function validateExecutionPath(filePath: string): void {
+  if (!filePath || typeof filePath !== 'string') {
+    throw new Error('Executable path is required.');
+  }
+  if (/[\0\r\n]/.test(filePath)) {
+    throw new Error('Executable path contains invalid control characters.');
+  }
+}
+
+/** Validates and splits arguments safely, preventing command injection attacks. */
+export function validateExecutionArgs(argsLine: string, ext: string): string[] {
+  if (!argsLine || !argsLine.trim()) return [];
+  if (/[\0\r\n]/.test(argsLine)) {
+    throw new Error('Command arguments contain invalid newline or null characters.');
+  }
+
+  // Batch files (.bat, .cmd) are especially susceptible to shell metacharacter chaining (&, |, <, >, ^)
+  if (ext === '.bat' || ext === '.cmd') {
+    if (/[&|<>^]/.test(argsLine)) {
+      throw new Error('Batch file arguments contain unsafe shell metacharacters (&, |, <, >, ^).');
+    }
+  }
+
+  return splitArgs(argsLine);
 }
 
 /**
@@ -105,28 +132,30 @@ export function splitArgs(line: string): string[] {
 }
 
 async function openPath(path: string, args: string, hidden: boolean): Promise<void> {
+  validateExecutionPath(path);
   if (!fs.existsSync(path)) throw new Error(`${baseName(path)} was not found at ${path}`);
   const ext = extname(path).toLowerCase();
   const cwd = dirname(path);
+  const validatedArgs = validateExecutionArgs(args, ext);
+
   if (ext === '.bat' || ext === '.cmd') {
-    // cmd.exe reads the whole line itself, so quote the path and pass the arguments as typed.
-    await launch(`"${path}"${args.trim() ? ` ${args.trim()}` : ''}`, [], {
+    const cmdExe = process.env.ComSpec || 'cmd.exe';
+    await launch(cmdExe, ['/d', '/c', path, ...validatedArgs], {
       cwd,
       hidden,
-      shell: true,
     });
     return;
   }
   if (ext === '.ps1') {
     await launch(
       'powershell.exe',
-      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path, ...splitArgs(args)],
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path, ...validatedArgs],
       { cwd, hidden },
     );
     return;
   }
-  if ((ext === '.exe' || ext === '.com') && args.trim()) {
-    await launch(path, splitArgs(args), { cwd });
+  if ((ext === '.exe' || ext === '.com') && validatedArgs.length > 0) {
+    await launch(path, validatedArgs, { cwd });
     return;
   }
   // Everything else (apps without arguments, shortcuts, PDFs, documents, folders) opens the way a

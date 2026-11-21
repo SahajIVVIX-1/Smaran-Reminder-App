@@ -344,24 +344,116 @@ export class FileServerManager {
   async setAdminCredentials(creds: {
     username: string;
     password: string;
+    currentPassword?: string;
   }): Promise<{ ok: boolean; error?: string }> {
-    const val = validateAdminPassword(creds.password);
-    if (!val.ok) {
-      return { ok: false, error: val.error };
-    }
-    if (!creds.username || !creds.username.trim()) {
-      return { ok: false, error: 'Admin username cannot be empty.' };
-    }
-    try {
-      await this.updateSettings({
-        adminUsername: creds.username.trim(),
-        adminPassword: creds.password,
-      });
+    return this.queueOperation(async () => {
+      const prevAdminUser = this.store.getSettings().adminUsername || 'smaran';
+      const prevAdminPass = this.store.getAdminPassword();
+
+      // Step 1: Verify current password if provided
+      if (creds.currentPassword !== undefined && creds.currentPassword !== '') {
+        if (creds.currentPassword !== prevAdminPass) {
+          return {
+            ok: false,
+            error: 'Current password verification failed. Please enter your correct current password.',
+          };
+        }
+      }
+
+      // Step 2: Validate new password against security requirements
+      const val = validateAdminPassword(creds.password);
+      if (!val.ok) {
+        return { ok: false, error: val.error };
+      }
+      const newUsername = creds.username.trim();
+      if (!newUsername) {
+        return { ok: false, error: 'Admin username cannot be empty.' };
+      }
+
+      // Step 3: Update application credential store
+      this.store.setAdminPassword(creds.password, false);
+      this.store.updateSettings({ adminUsername: newUsername });
+
+      // Step 4: Update HFS authentication configuration
+      const configYamlPath = this.supervisor.getConfigYamlPath();
+      try {
+        syncHfsConfigFile(configYamlPath, {
+          settings: this.store.getSettings(),
+          adminPassword: creds.password,
+          previousAdminUsername: prevAdminUser,
+          defaultStorageDir: this.supervisor.getDefaultStorageDir(),
+        });
+      } catch (syncErr) {
+        // Rollback store
+        this.store.setAdminPassword(prevAdminPass, false);
+        this.store.updateSettings({ adminUsername: prevAdminUser });
+        const msg = syncErr instanceof Error ? syncErr.message : String(syncErr);
+        return { ok: false, error: `Failed to update HFS configuration: ${msg}` };
+      }
+
+      // Step 5: Verify that the new credentials actually work against HFS if running
+      const isRunning = this.supervisor.getStatus().running;
+      if (isRunning) {
+        try {
+          const restartRes = await this.supervisor.restart();
+          if (!restartRes.ok) {
+            throw new Error(restartRes.error || 'Failed to restart HFS server with new credentials');
+          }
+
+          const apiClient = this.supervisor.getApiClient();
+          if (apiClient) {
+            const probe = await apiClient.verifyCredentials(newUsername, creds.password);
+            if (!probe.ok) {
+              throw new Error(
+                `HFS rejected updated credentials: ${probe.error || 'Authentication probe returned unauthorized'}`,
+              );
+            }
+          }
+        } catch (verifyErr) {
+          // Safe rollback to previous working credentials
+          console.error('[FileServerManager] Credential synchronization failed, rolling back:', verifyErr);
+          this.store.setAdminPassword(prevAdminPass, false);
+          this.store.updateSettings({ adminUsername: prevAdminUser });
+          syncHfsConfigFile(configYamlPath, {
+            settings: this.store.getSettings(),
+            adminPassword: prevAdminPass,
+            previousAdminUsername: newUsername,
+            defaultStorageDir: this.supervisor.getDefaultStorageDir(),
+          });
+          await this.supervisor.restart().catch(() => undefined);
+          const msg = verifyErr instanceof Error ? verifyErr.message : String(verifyErr);
+          return { ok: false, error: `HFS credential synchronization failed: ${msg}. Changes rolled back.` };
+        }
+      }
+
+      // Step 6: Ensure Smaran recognizes the new password
+      if (this.store.getAdminPassword() !== creds.password) {
+        return { ok: false, error: 'Smaran credential store state recognition mismatch.' };
+      }
+
+      // Step 7: Invalidate old authentication sessions where appropriate
+      if (isRunning) {
+        try {
+          const apiClient = this.supervisor.getApiClient();
+          if (apiClient) {
+            const conns = await apiClient.getConnections().catch(() => ({ connections: [] }));
+            for (const c of conns.connections) {
+              await apiClient.disconnect(c.id).catch(() => undefined);
+            }
+          }
+        } catch {
+          // Non-fatal session invalidation attempt
+        }
+      }
+
+      // Step 8 & 9: Record security audit event without recording the password
+      this.supervisor.emitAdminActivity(
+        `Administrator credentials updated for user "${newUsername}". Previous sessions invalidated.`,
+      );
+
+      this.broadcast(IPC.fileserverStatusChanged, this.getStatus());
       return { ok: true };
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { ok: false, error: msg };
-    }
+    });
   }
 
   async resetDefaults(): Promise<{ ok: boolean; error?: string }> {
@@ -379,6 +471,7 @@ export class FileServerManager {
           autoOpenAdminOnStart: false,
           adminUsername: 'smaran',
           adminPassword: freshPassword,
+          mustChangePassword: true,
           notifyOnLogin: true,
           notifyOnFailedLogin: true,
           notifyOnAdminActivity: true,
@@ -392,7 +485,7 @@ export class FileServerManager {
           adminPassword: freshPassword,
         });
 
-        fs.writeFileSync(this.supervisor.getConfigYamlPath(), yaml, 'utf8');
+        fs.writeFileSync(this.supervisor.getConfigYamlPath(), yaml, { mode: 0o600, encoding: 'utf8' });
 
         // Reset custom.html to default theme error pages and web client WebDAV helper
         const customHtmlPath = path.join(this.supervisor.runtimeDir, 'custom.html');

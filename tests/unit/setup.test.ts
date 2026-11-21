@@ -91,15 +91,16 @@ describe('Setup Architecture & WinSystem Tests', () => {
     }
   });
 
-  it('generateDefaultAdminPassword adheres strictly to smaran@DDMMYYYY-Exacttime-Day(in short) with sec pattern', () => {
-    const fixedDate = new Date(2026, 10, 20, 2, 51, 30); // November 20, 2026 (Friday) 02:51:30
-    const pass = generateDefaultAdminPassword(fixedDate);
-    expect(pass).toBe('smaran@20112026-025130-Fri');
-    expect(validateAdminPassword(pass).ok).toBe(true);
+  it('generateDefaultAdminPassword generates cryptographically secure, unguessable initial passwords without predictable timestamps', () => {
+    const p1 = generateDefaultAdminPassword();
+    const p2 = generateDefaultAdminPassword();
 
-    const nowPass = generateDefaultAdminPassword();
-    expect(nowPass).toMatch(/^smaran@\d{8}-\d{6}-(Sun|Mon|Tue|Wed|Thu|Fri|Sat)$/);
-    expect(validateAdminPassword(nowPass).ok).toBe(true);
+    expect(p1.length).toBeGreaterThanOrEqual(20);
+    expect(p2.length).toBeGreaterThanOrEqual(20);
+    expect(p1).not.toBe(p2);
+    expect(p1).not.toMatch(/smaran@\d{8}/);
+    expect(validateAdminPassword(p1).ok).toBe(true);
+    expect(validateAdminPassword(p2).ok).toBe(true);
   });
 
   it('generateSecurePassword generates high-entropy, unique 16-character alphanumeric passwords', () => {

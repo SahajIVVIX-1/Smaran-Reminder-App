@@ -1409,6 +1409,11 @@ echo ========================================================
 echo       Smaran HFS - Windows WebDAV Drive Setup
 echo ========================================================
 echo.
+echo SECURITY NOTICE:
+echo Enabling HTTP Basic Authentication (BasicAuthLevel=2) allows
+echo credentials to be transmitted unencrypted over local HTTP.
+echo For remote or untrusted networks, HTTPS with SSL is strongly recommended.
+echo.
 echo [1/3] Configuring Windows WebClient service...
 sc config WebClient start= auto >nul 2>&1
 net start WebClient >nul 2>&1
@@ -1431,6 +1436,9 @@ if exist Z:\\ (
     echo ========================================================
     echo SUCCESS: Smaran HFS mounted successfully as Drive Z:!
     echo ========================================================
+    echo Note: To restore Windows default security settings (BasicAuthLevel=1),
+    echo open Smaran File Server Settings and click "Restore Default Security".
+    echo.
     explorer Z:\\
 ) else (
     echo.
@@ -1539,7 +1547,7 @@ export function syncHfsConfigFile(
       },
       adminPassword: adminPwd,
     });
-    fs.writeFileSync(configYamlPath, yamlStr, 'utf8');
+    fs.writeFileSync(configYamlPath, yamlStr, { mode: 0o600, encoding: 'utf8' });
     return;
   }
 
@@ -1626,7 +1634,7 @@ export function syncHfsConfigFile(
     }
 
     const output = '# Updated by Smaran HFS Bridge\n' + yaml.stringify(doc, { lineWidth: 1000 });
-    fs.writeFileSync(configYamlPath, output, 'utf8');
+    fs.writeFileSync(configYamlPath, output, { mode: 0o600, encoding: 'utf8' });
   } catch (err) {
     console.error('Failed to sync config.yaml:', err);
   }

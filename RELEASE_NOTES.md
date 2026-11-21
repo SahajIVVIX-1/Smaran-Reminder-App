@@ -1,3 +1,47 @@
+# Smaran 3.4.9
+
+- **Synchronized Administrator Credential Management & Zero-Plaintext Storage (`FileServerManager.ts`, `FileServerStore.ts`, `secureStorage.ts`, `HfsApiClient.ts`):**
+  - Implemented an authoritative 9-step administrator password synchronization workflow between Smaran and HFS.
+  - Verifies current administrator password before permitting credential modifications.
+  - Enforces password security requirements (minimum length, complexity, blacklist of weak defaults).
+  - Secure credential storage using Windows DPAPI (`Electron safeStorage`) with authenticated AES-256-GCM fallback for headless test environments.
+  - Plaintext administrator passwords and user credentials are removed from persistent disk JSON (`fileserver.json`).
+  - Seamless, backward-compatible migration of existing installations upon startup.
+  - Restricts permissions on HFS runtime configuration files (`config.yaml` created with mode `0o600`).
+  - Verifies credentials against live HFS HTTP endpoint (`verifyCredentials`) before declaring success.
+  - Automatic transactional rollback of store and HFS configuration if synchronization or service restart fails.
+  - Invalidates active client connections upon administrator password updates.
+  - Emits security audit events without recording secrets or passwords in logs.
+- **Cryptographic Administrator Password Generation (`FileServerStore.ts`):**
+  - Replaced predictable date/time-based password generation with high-entropy, cryptographically secure random generation (`crypto.randomBytes()`).
+  - Enforces `mustChangePassword` flag on initial setup and reset defaults, requiring intentional administrator password configuration.
+  - Protects initial credentials from being leaked in operational logs.
+- **Private License Signing Key Remediation & Rotation System (`publicKey.ts`, `LicenseStore.ts`, `.gitignore`):**
+  - Removed private signing key material from Git tracking and preserved private keys in secure user profile outside the repository.
+  - Updated `.gitignore` to strictly exclude `.smaran-license/`, `private-key.json`, `*.key`, and `*.pem`.
+  - Verified packaged release builds (`electron-builder.yml`) exclude private keys from distributed artifacts.
+  - Implemented versioned public-key verification architecture (`TRUSTED_LICENSE_PUBLIC_KEYS`) supporting controlled key rotation while preserving existing valid customer licenses.
+- **Windows Defender Firewall Least-Privilege Scope (`windowsFirewall.ts`):**
+  - Inbound firewall rule restricted strictly to `TCP` protocol and the specific configured HFS port.
+  - Restricted to `Private` network profile by default; public network access requires explicit consent.
+  - Prevents accumulation of duplicate firewall rules by cleaning up previous matching rules before creation.
+  - Verified firewall rule removal when server is uninstalled or feature is disabled.
+- **Automation Command Injection Elimination (`automations/actions.ts`):**
+  - Removed unsafe string concatenation and eliminated `shell: true` from process spawning.
+  - Batch scripts (`.bat`, `.cmd`) execute via `cmd.exe /d /c` with validated argument arrays.
+  - Strict validation blocking shell metacharacters (`&`, `|`, `<`, `>`, `^`, `\r`, `\n`) and control characters in file paths and arguments.
+- **Diagnostic Secret & Private Key Redaction (`HfsLogger.ts`, `HfsProcessSupervisor.ts`):**
+  - Centralized log sanitization layer scrubbing passwords, tokens, auth headers (Basic, Bearer), cookies, license keys, and PEM/JWK private key materials.
+  - Redaction enforced before disk logging, in-memory buffer storage, and diagnostic report export.
+- **WebDAV Security & Safe Registry Handling (`webdavRegistry.ts`, `HfsConfigBridge.ts`, `enable-webdav.cmd`):**
+  - Added security advisory on HTTP Basic authentication implications.
+  - Safe restoration to Windows default secure settings (BasicAuthLevel=1) even if backup file is missing.
+  - Reversible, safe exported batch mount scripts.
+- **Dedicated Automated Security Regression Test Suite (`tests/unit/securityRemediation349.test.ts`):**
+  - 18 dedicated unit tests validating password changes, HFS authentication, Smaran authentication, old password rejection, restart persistence, recovery from partial failures, session invalidation, initial password entropy, private key exclusion, key rotation, firewall scope, firewall removal, automation injection blocking, log redaction, registry restoration, startup reliability, clean restarts, and port conflict handling.
+
+---
+
 # Smaran 3.4.8
 
 - **Permanent Automated End-to-End (E2E) Testing Infrastructure (`tests/`):**

@@ -13,7 +13,7 @@ import {
   type Container,
 } from '@shared/license/core';
 import type { LicenseDetails, LicenseInfo } from '@shared/license/info';
-import { LICENSE_PUBLIC_KEY } from '@shared/license/publicKey';
+import { LICENSE_PUBLIC_KEY, TRUSTED_LICENSE_PUBLIC_KEYS } from '@shared/license/publicKey';
 
 export const LICENSE_FILE = 'license.json';
 /** License images are small; refuse anything absurd before reading it. */
@@ -53,7 +53,7 @@ const fmt = (iso: string) =>
  */
 export class LicenseStore {
   private readonly now: () => Date;
-  private readonly key: KeyObject;
+  private readonly keys: KeyObject[];
   private readonly decodeOther?: (bytes: Uint8Array) => Bitmap | null;
 
   constructor(
@@ -62,10 +62,15 @@ export class LicenseStore {
   ) {
     this.now = options.now ?? (() => new Date());
     this.decodeOther = options.decodeOther;
-    this.key = createPublicKey({
-      key: { kty: 'OKP', crv: 'Ed25519', x: options.publicKey ?? LICENSE_PUBLIC_KEY },
-      format: 'jwk',
-    });
+    const pubKeys = options.publicKey
+      ? [options.publicKey]
+      : Object.values(TRUSTED_LICENSE_PUBLIC_KEYS);
+    this.keys = pubKeys.map((x) =>
+      createPublicKey({
+        key: { kty: 'OKP', crv: 'Ed25519', x },
+        format: 'jwk',
+      }),
+    );
   }
 
   get filePath(): string {
@@ -162,21 +167,21 @@ export class LicenseStore {
 
   // ---------- internals ----------
 
-  /** Decodes the container and checks its Ed25519 signature. */
+  /** Decodes the container and checks its Ed25519 signature against trusted keys. */
   private verify(raw: Uint8Array): Container {
     const container = decodeContainer(raw);
-    const ok = verify(
-      null,
-      Buffer.from(container.payloadBytes),
-      this.key,
-      Buffer.from(container.signature),
+    const pBytes = Buffer.from(container.payloadBytes);
+    const sig = Buffer.from(container.signature);
+
+    for (const key of this.keys) {
+      if (verify(null, pBytes, key, sig)) {
+        return container;
+      }
+    }
+    throw new LicenseError(
+      'bad-signature',
+      'This license isn’t valid.',
     );
-    if (!ok)
-      throw new LicenseError(
-        'bad-signature',
-        'This license isn’t valid.',
-      );
-    return container;
   }
 
   private describe(container: Container, importedAt: string | null): LicenseInfo {

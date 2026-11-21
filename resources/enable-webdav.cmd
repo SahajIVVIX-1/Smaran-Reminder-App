@@ -14,6 +14,11 @@ echo ========================================================
 echo       Smaran HFS - Windows WebDAV Service Setup
 echo ========================================================
 echo.
+echo SECURITY NOTICE:
+echo Enabling HTTP Basic Authentication (BasicAuthLevel=2) allows
+echo credentials to be transmitted unencrypted over local HTTP.
+echo For remote or untrusted networks, HTTPS with SSL is strongly recommended.
+echo.
 echo [1/3] Setting Windows WebClient service to start automatically...
 sc config WebClient start= auto >nul 2>&1
 net start WebClient >nul 2>&1

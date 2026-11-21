@@ -87,6 +87,8 @@ export const FileServerSettingsSchema = z.object({
   autoOpenAdminOnStart: z.boolean().default(false),
   adminUsername: z.string().default('admin'),
   adminPassword: z.string().default(''),
+  encryptedAdminPassword: z.string().optional(),
+  mustChangePassword: z.boolean().default(false).optional(),
   notifyOnLogin: z.boolean().default(true),
   notifyOnFailedLogin: z.boolean().default(true),
   notifyOnAdminActivity: z.boolean().default(true),
@@ -130,6 +132,7 @@ export const SafeAdminCredentialsSchema = z.object({
   username: z.string(),
   hasPassword: z.boolean(),
   isConfigured: z.boolean(),
+  mustChangePassword: z.boolean().optional(),
 });
 
 export type SafeAdminCredentials = z.infer<typeof SafeAdminCredentialsSchema>;
@@ -146,6 +149,7 @@ export const UserAccountSchema = z.object({
   id: z.string(),
   username: z.string(),
   password: z.string().optional(),
+  encryptedPassword: z.string().optional(),
   role: z.enum(['admin', 'user', 'guest']).default('user'),
   isSystem: z.boolean().optional(),
 });
@@ -170,6 +174,7 @@ export type MountDrivePayload = z.infer<typeof MountDrivePayloadSchema>;
 export const SetAdminCredentialsPayloadSchema = z.object({
   username: z.string().min(1, 'Username cannot be empty'),
   password: z.string().min(8, 'Password must be at least 8 characters long'),
+  currentPassword: z.string().optional(),
 });
 
 export type SetAdminCredentialsPayload = z.infer<typeof SetAdminCredentialsPayloadSchema>;

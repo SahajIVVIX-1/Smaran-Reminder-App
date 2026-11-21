@@ -8,29 +8,22 @@ import {
   type UserAccount,
 } from '@shared/fileserver';
 import { cleanupStaleTempFiles, readValidatedJson, writeAtomicFile } from '../store/atomicFile';
+import { decryptSecret, encryptSecret } from './secureStorage';
 
 const FILE_SERVER_STORE_NAME = 'fileserver.json';
 
 export function generateSecurePassword(): string {
-  // 16-character cryptographically secure URL-safe password
+  // 16-character cryptographically secure URL-safe password (96 bits entropy)
   return crypto.randomBytes(12).toString('base64url');
 }
 
 /**
- * Auto-generated password pattern for the default administrator user ("smaran"):
- * smaran@DDMMYYYY-Exacttime-Day(in short) with sec
- * E.g. smaran@20112026-025530-Fri
+ * Generates an unguessable, cryptographically strong initial administrator password
+ * using Node.js crypto.randomBytes().
+ * Never uses timestamps, usernames, machine names or predictable values.
  */
-export function generateDefaultAdminPassword(date: Date = new Date()): string {
-  const dd = String(date.getDate()).padStart(2, '0');
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const yyyy = String(date.getFullYear());
-  const hours = String(date.getHours()).padStart(2, '0');
-  const mins = String(date.getMinutes()).padStart(2, '0');
-  const secs = String(date.getSeconds()).padStart(2, '0');
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const dayShort = days[date.getDay()];
-  return `smaran@${dd}${mm}${yyyy}-${hours}${mins}${secs}-${dayShort}`;
+export function generateDefaultAdminPassword(): string {
+  return crypto.randomBytes(16).toString('base64url');
 }
 
 export function validateAdminPassword(password: string): { ok: boolean; error?: string } {
@@ -54,6 +47,7 @@ export function validateAdminPassword(password: string): { ok: boolean; error?: 
 export class FileServerStore {
   readonly filePath: string;
   private data: FileServerData;
+  private activeAdminPassword = '';
 
   constructor(dataDir: string) {
     this.filePath = path.join(dataDir, FILE_SERVER_STORE_NAME);
@@ -69,6 +63,7 @@ export class FileServerStore {
       autoOpenAdminOnStart: false,
       adminUsername: 'smaran',
       adminPassword: '',
+      mustChangePassword: false,
       notifyOnLogin: true,
       notifyOnFailedLogin: true,
       notifyOnAdminActivity: true,
@@ -91,59 +86,96 @@ export class FileServerStore {
       let users: UserAccount[] = loaded.users || [];
       let shouldSave = false;
 
+      // 1. Recover admin password from encrypted storage or legacy plaintext
+      if (settings.encryptedAdminPassword) {
+        this.activeAdminPassword = decryptSecret(settings.encryptedAdminPassword);
+      } else if (settings.adminPassword) {
+        this.activeAdminPassword = settings.adminPassword;
+        shouldSave = true; // Migrate to encryptedAdminPassword
+      }
+
       // Ensure file server does not auto-start unless explicitly configured by the user
       if (settings.autoStart && !loaded.settings?.autoStartConfigured) {
         settings.autoStart = false;
         shouldSave = true;
       }
 
-      // Upgrade insecure or empty legacy default passwords to the pattern password
+      // Upgrade insecure or empty legacy default passwords to cryptographically random password
       if (
-        !settings.adminPassword ||
-        settings.adminPassword === 'smaran' ||
-        settings.adminPassword === 'admin'
+        !this.activeAdminPassword ||
+        this.activeAdminPassword === 'smaran' ||
+        this.activeAdminPassword === 'admin'
       ) {
-        const defaultAdminPass = generateDefaultAdminPassword();
-        settings = {
-          ...settings,
-          adminUsername: settings.adminUsername || 'smaran',
-          adminPassword: defaultAdminPass,
-        };
-        users = [
-          {
-            id: 'admin',
-            username: settings.adminUsername || 'smaran',
-            password: defaultAdminPass,
-            role: 'admin',
-            isSystem: true,
-          },
-          ...users.filter((u) => u.username !== 'smaran' && u.username !== 'admin'),
-        ];
+        this.activeAdminPassword = generateDefaultAdminPassword();
+        settings.adminUsername = settings.adminUsername || 'smaran';
+        settings.mustChangePassword = true;
         shouldSave = true;
       }
 
-      if (shouldSave) {
-        this.data = { settings, users };
-        this.save();
+      // Migrate existing user accounts to secure encrypted passwords
+      users = users.map((u) => {
+        if (u.password && !u.encryptedPassword) {
+          shouldSave = true;
+          return {
+            ...u,
+            encryptedPassword: encryptSecret(u.password),
+            password: '',
+          };
+        }
+        return u;
+      });
+
+      // Keep admin account in users synchronized
+      const adminIdx = users.findIndex((u) => u.username === settings.adminUsername || u.id === 'admin');
+      const existingAdmin = adminIdx >= 0 ? users[adminIdx] : undefined;
+      if (adminIdx >= 0 && existingAdmin) {
+        users[adminIdx] = {
+          ...existingAdmin,
+          id: existingAdmin.id || 'admin',
+          username: settings.adminUsername,
+          encryptedPassword: encryptSecret(this.activeAdminPassword),
+          password: '',
+          role: 'admin',
+          isSystem: true,
+        };
       } else {
-        this.data = { settings, users };
+        users.unshift({
+          id: 'admin',
+          username: settings.adminUsername,
+          encryptedPassword: encryptSecret(this.activeAdminPassword),
+          password: '',
+          role: 'admin',
+          isSystem: true,
+        });
+        shouldSave = true;
+      }
+
+      this.data = { settings, users };
+      if (shouldSave) {
+        this.save();
       }
 
       return this.data;
     }
 
-    // First initialization: generate credentials matching default pattern
+    // First initialization: generate unguessable random password with mandatory change flag
     const initialPassword = generateDefaultAdminPassword();
+    this.activeAdminPassword = initialPassword;
+
     const initialSettings: FileServerSettings = {
       ...defaultSettings,
       adminUsername: 'smaran',
-      adminPassword: initialPassword,
+      adminPassword: '',
+      encryptedAdminPassword: encryptSecret(initialPassword),
+      mustChangePassword: true,
     };
+
     const initialUsers: UserAccount[] = [
       {
         id: 'admin',
         username: 'smaran',
-        password: initialPassword,
+        encryptedPassword: encryptSecret(initialPassword),
+        password: '',
         role: 'admin',
         isSystem: true,
       },
@@ -161,6 +193,20 @@ export class FileServerStore {
 
   save(): { ok: boolean; error?: string } {
     try {
+      // Ensure plaintext passwords are never saved to disk in fileserver.json
+      if (this.activeAdminPassword) {
+        this.data.settings.encryptedAdminPassword = encryptSecret(this.activeAdminPassword);
+      }
+      this.data.settings.adminPassword = '';
+
+      if (this.data.users) {
+        this.data.users = this.data.users.map((u) => ({
+          ...u,
+          encryptedPassword: u.encryptedPassword || (u.password ? encryptSecret(u.password) : undefined),
+          password: '',
+        }));
+      }
+
       writeAtomicFile(this.filePath, JSON.stringify(this.data, null, 2), { backup: true });
       return { ok: true };
     } catch (err) {
@@ -171,44 +217,91 @@ export class FileServerStore {
   }
 
   getSettings(): FileServerSettings {
-    return { ...this.data.settings };
+    return {
+      ...this.data.settings,
+      adminPassword: this.activeAdminPassword,
+    };
   }
 
   getSafeSettings(): FileServerSettings {
     return {
       ...this.data.settings,
       adminPassword: '', // Secrets are never exposed to renderer
+      encryptedAdminPassword: '',
     };
   }
 
   getSafeAdminCredentials(): SafeAdminCredentials {
     return {
       username: this.data.settings.adminUsername || 'smaran',
-      hasPassword: Boolean(this.data.settings.adminPassword),
-      isConfigured: Boolean(this.data.settings.adminPassword),
+      hasPassword: Boolean(this.activeAdminPassword),
+      isConfigured: Boolean(this.activeAdminPassword),
+      mustChangePassword: Boolean(this.data.settings.mustChangePassword),
     };
   }
 
+  getAdminPassword(): string {
+    return this.activeAdminPassword;
+  }
+
+  setAdminPassword(newPassword: string, mustChangePassword = false): void {
+    const val = validateAdminPassword(newPassword);
+    if (!val.ok) {
+      throw new Error(val.error);
+    }
+    this.activeAdminPassword = newPassword;
+    this.data.settings.mustChangePassword = mustChangePassword;
+    this.save();
+  }
+
   updateSettings(patch: Partial<FileServerSettings>): FileServerSettings {
+    if (patch.adminPassword !== undefined) {
+      this.activeAdminPassword = patch.adminPassword;
+      // Do not store plaintext in settings object
+      patch.adminPassword = '';
+    }
     this.data.settings = { ...this.data.settings, ...patch };
     this.save();
     return this.getSettings();
   }
 
   getUsers(): UserAccount[] {
-    return this.data.users ? [...this.data.users] : [];
+    return this.data.users
+      ? this.data.users.map((u) => ({
+          ...u,
+          password: u.encryptedPassword ? decryptSecret(u.encryptedPassword) : u.password,
+        }))
+      : [];
+  }
+
+  getSafeUsers(): UserAccount[] {
+    return this.data.users
+      ? this.data.users.map((u) => ({
+          ...u,
+          password: '',
+          encryptedPassword: '',
+        }))
+      : [];
   }
 
   saveUser(user: UserAccount): UserAccount {
     if (!this.data.users) this.data.users = [];
+    const plainPwd = user.password;
+    const userToSave: UserAccount = {
+      ...user,
+      encryptedPassword: plainPwd ? encryptSecret(plainPwd) : user.encryptedPassword,
+      password: '',
+    };
+
     const idx = this.data.users.findIndex((u) => u.id === user.id || u.username === user.username);
-    if (idx >= 0) {
-      this.data.users[idx] = { ...this.data.users[idx], ...user };
+    const existing = idx >= 0 ? this.data.users[idx] : undefined;
+    if (idx >= 0 && existing) {
+      this.data.users[idx] = { ...existing, ...userToSave };
     } else {
-      this.data.users.push(user);
+      this.data.users.push(userToSave);
     }
     this.save();
-    return user;
+    return { ...userToSave, password: plainPwd };
   }
 
   deleteUser(id: string): void {

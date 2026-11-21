@@ -21,7 +21,7 @@ import { HfsApiClient } from './HfsApiClient';
 import { DEFAULT_CUSTOM_HTML, syncHfsConfigFile } from './HfsConfigBridge';
 import type { FileServerStore } from './FileServerStore';
 import { isLanIp, normalizeClientIp } from './ipUtils';
-import { HfsOperationalLogger } from './HfsLogger';
+import { HfsOperationalLogger, redactSensitiveLog } from './HfsLogger';
 import {
   authorizeFirewallRule,
   type FirewallStatus,
@@ -792,8 +792,9 @@ export class HfsProcessSupervisor {
       this.child.stderr?.on('data', (data: Buffer) => {
         const lines = data.toString('utf8').split(/\r?\n/).filter(Boolean);
         for (const line of lines) {
-          this.startupErrorLogs.push(line);
-          this.addLog('error', line);
+          const redacted = redactSensitiveLog(line);
+          this.startupErrorLogs.push(redacted);
+          this.addLog('error', redacted);
         }
       });
 
@@ -1115,7 +1116,7 @@ export class HfsProcessSupervisor {
       '              SMARAN FILE SERVER STARTUP DIAGNOSTICS                 ',
       '======================================================================',
       `Export Timestamp     : ${new Date().toISOString()}`,
-      `Application Version  : 3.4.8`,
+      `Application Version  : 3.4.9`,
       `Node Version         : ${process.version}`,
       `Platform / Arch      : ${process.platform} (${process.arch})`,
       `Packaged Mode        : ${app?.isPackaged ?? false}`,
@@ -1170,7 +1171,7 @@ export class HfsProcessSupervisor {
     }
 
     lines.push('======================================================================');
-    return lines.join('\n');
+    return lines.map((l) => redactSensitiveLog(l)).join('\n');
   }
 
   public async getFirewallStatus(): Promise<FirewallStatus> {
@@ -1187,8 +1188,8 @@ export class HfsProcessSupervisor {
     return status;
   }
 
-  public async authorizeFirewall(): Promise<{ ok: boolean; message: string; error?: string }> {
-    const res = await authorizeFirewallRule();
+  public async authorizeFirewall(allowPublic = false): Promise<{ ok: boolean; message: string; error?: string }> {
+    const res = await authorizeFirewallRule(undefined, { port: this.currentStatus.port, allowPublic });
     await this.getFirewallStatus();
     return res;
   }

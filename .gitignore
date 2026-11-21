@@ -10,3 +10,7 @@ playwright-report/
 coverage/
 SmaranData/
 *.kv
+.smaran-license/
+*.pem
+*.key
+private-key.json

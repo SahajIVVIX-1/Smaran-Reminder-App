@@ -35,6 +35,12 @@ export function isPortableExecutable(execPath: string = process.execPath): boole
   return lower.includes('\\temp\\') || lower.includes('/temp/') || lower.includes('appdata\\local\\temp');
 }
 
+export interface AuthorizeFirewallOptions {
+  port?: number;
+  allowPublic?: boolean;
+  restrictLocalSubnet?: boolean;
+}
+
 /**
  * Parses netsh advfirewall firewall show rule stdout into structured fields.
  */
@@ -44,6 +50,9 @@ export function parseNetshRuleOutput(stdout: string): {
   action?: 'allow' | 'block';
   enabled?: boolean;
   profiles?: string[];
+  protocol?: string;
+  localPort?: string;
+  remoteIP?: string;
 } {
   if (!stdout || stdout.includes('No rules match')) {
     return { hasRule: false };
@@ -53,6 +62,9 @@ export function parseNetshRuleOutput(stdout: string): {
   const actionMatch = /Action:\s+(Allow|Block)/i.exec(stdout);
   const enabledMatch = /Enabled:\s+(Yes|No)/i.exec(stdout);
   const profileMatch = /Profiles:\s+(.+)/i.exec(stdout);
+  const protocolMatch = /Protocol:\s+(.+)/i.exec(stdout);
+  const localPortMatch = /LocalPort:\s+(.+)/i.exec(stdout);
+  const remoteIPMatch = /RemoteIP:\s+(.+)/i.exec(stdout);
 
   if (!nameMatch || !nameMatch[1]) {
     return { hasRule: false };
@@ -73,6 +85,9 @@ export function parseNetshRuleOutput(stdout: string): {
     action,
     enabled,
     profiles,
+    protocol: protocolMatch?.[1]?.trim(),
+    localPort: localPortMatch?.[1]?.trim(),
+    remoteIP: remoteIPMatch?.[1]?.trim(),
   };
 }
 
@@ -195,10 +210,13 @@ export async function queryFirewallStatus(
 
 /**
  * Creates an inbound Windows Firewall rule allowing LAN access for Smaran.
+ * Enforces least-privilege: TCP-only, restricted to configured port,
+ * and restricted to the Private network profile by default (public access requires explicit consent).
  * Requires administrator consent; triggers Windows UAC prompt via PowerShell RunAs.
  */
 export async function authorizeFirewallRule(
   execPath: string = getFirewallExecutablePath(),
+  options: AuthorizeFirewallOptions = {},
 ): Promise<{ ok: boolean; message: string; error?: string }> {
   if (process.platform !== 'win32') {
     return { ok: false, message: 'Firewall authorization is only available on Windows.' };
@@ -211,6 +229,13 @@ export async function authorizeFirewallRule(
       throw new Error(`Invalid executable path: ${execPath}`);
     }
 
+    const port = options.port && Number.isInteger(options.port) && options.port >= 1024 && options.port <= 65535
+      ? options.port
+      : 5901;
+
+    // Restriction to Private profile by default; public requires explicit consent
+    const profile = options.allowPublic ? 'private,public' : 'private';
+
     const ruleArgs = [
       'advfirewall',
       'firewall',
@@ -221,12 +246,25 @@ export async function authorizeFirewallRule(
       'action=allow',
       `program=${cleanPath}`,
       'enable=yes',
-      'profile=private,public',
-      'description=Allows Smaran File Server access over local area network (LAN)',
+      'protocol=TCP',
+      `localport=${port}`,
+      `profile=${profile}`,
+      `description=Allows Smaran File Server TCP port ${port} access over local area network`,
     ];
 
-    const quotedArgs = ruleArgs.map((a) => `'${a.replace(/'/g, "''")}'`).join(', ');
-    const psCommand = `Start-Process -FilePath 'netsh.exe' -ArgumentList @(${quotedArgs}) -Verb RunAs -Wait -WindowStyle Hidden`;
+    if (options.restrictLocalSubnet) {
+      ruleArgs.push('remoteip=localsubnet');
+    }
+
+    // Clean up any existing duplicate rule first to avoid orphaned/multiple duplicate rules
+    const deleteArgs = ['advfirewall', 'firewall', 'delete', 'rule', 'name=Smaran File Server'];
+    const quotedDeleteArgs = deleteArgs.map((a) => `'${a.replace(/'/g, "''")}'`).join(', ');
+    const quotedAddArgs = ruleArgs.map((a) => `'${a.replace(/'/g, "''")}'`).join(', ');
+
+    const psCommand = `
+      Start-Process -FilePath 'netsh.exe' -ArgumentList @(${quotedDeleteArgs}) -Verb RunAs -Wait -WindowStyle Hidden;
+      Start-Process -FilePath 'netsh.exe' -ArgumentList @(${quotedAddArgs}) -Verb RunAs -Wait -WindowStyle Hidden;
+    `;
 
     await execFilePromise('powershell.exe', [
       '-NoProfile',
@@ -240,7 +278,7 @@ export async function authorizeFirewallRule(
     if (status.hasRule && status.action === 'allow') {
       return {
         ok: true,
-        message: 'Windows Defender Firewall rule "Smaran File Server" successfully authorized for LAN access.',
+        message: `Windows Defender Firewall rule "Smaran File Server" successfully authorized for TCP port ${port} (${profile}).`,
       };
     }
 

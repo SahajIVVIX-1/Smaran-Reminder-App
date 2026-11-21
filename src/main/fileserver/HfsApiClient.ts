@@ -38,7 +38,7 @@ export class HfsApiClient {
             'Content-Length': Buffer.byteLength(payload),
             'x-smaran-internal-token': this.token,
             'x-hfs-anti-csrf': '1',
-            'User-Agent': 'Smaran-HFS-Bridge/3.4.8',
+            'User-Agent': 'Smaran-HFS-Bridge/3.4.9',
           },
           timeout: 4000,
         },
@@ -90,7 +90,7 @@ export class HfsApiClient {
           path: '/',
           method: 'GET',
           headers: {
-            'User-Agent': 'Smaran-HFS-Bridge/3.4.8',
+            'User-Agent': 'Smaran-HFS-Bridge/3.4.9',
           },
           timeout: timeoutMs,
         },
@@ -116,6 +116,47 @@ export class HfsApiClient {
   public async checkHttpHealth(): Promise<boolean> {
     const detail = await this.checkDetailedHealth(2000);
     return detail.ok;
+  }
+
+  public async verifyCredentials(
+    username: string,
+    password: string,
+    timeoutMs = 3000,
+  ): Promise<{ ok: boolean; status?: number; error?: string }> {
+    return new Promise((resolve) => {
+      const auth = Buffer.from(`${username}:${password}`, 'utf8').toString('base64');
+      const req = http.request(
+        {
+          hostname: '127.0.0.1',
+          port: this.port,
+          path: '/',
+          method: 'GET',
+          headers: {
+            Authorization: `Basic ${auth}`,
+            'User-Agent': 'Smaran-HFS-Bridge/3.4.9',
+          },
+          timeout: timeoutMs,
+        },
+        (res) => {
+          const status = res.statusCode || 0;
+          if (status === 401 || status === 403) {
+            resolve({ ok: false, status, error: 'Authentication failed: invalid credentials' });
+          } else if (status >= 200 && status < 400) {
+            resolve({ ok: true, status });
+          } else {
+            resolve({ ok: true, status });
+          }
+        },
+      );
+      req.on('error', (err) => {
+        resolve({ ok: false, error: err.message });
+      });
+      req.on('timeout', () => {
+        req.destroy();
+        resolve({ ok: false, error: `Verification request timed out after ${timeoutMs}ms` });
+      });
+      req.end();
+    });
   }
 
   async getStatus(): Promise<HfsApiStatusResponse> {

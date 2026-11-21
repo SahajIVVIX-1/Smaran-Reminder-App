@@ -310,8 +310,8 @@ export function Settings() {
               </Card>
 
               <Card title="Diagnostics & System Information" description="Runtime environment and versions.">
-                <Row label="Smaran Version" hint={`Version ${info?.version ?? '3.4.8'} · ${info?.portable ? 'Portable Edition' : 'Installed Application'}`}>
-                  <span className="font-mono text-xs text-muted">v{info?.version ?? '3.4.8'}</span>
+                <Row label="Smaran Version" hint={`Version ${info?.version ?? '3.4.9'} · ${info?.portable ? 'Portable Edition' : 'Installed Application'}`}>
+                  <span className="font-mono text-xs text-muted">v{info?.version ?? '3.4.9'}</span>
                 </Row>
                 <Row label="Electron Framework" hint={`Chromium & Node.js runtime (v${info?.electron ?? 'process'})`}>
                   <span className="font-mono text-xs text-muted">Electron {info?.electron ?? ''}</span>
